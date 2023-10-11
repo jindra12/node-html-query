@@ -1,0 +1,15 @@
+{
+  "name": "node-html-query",
+  "version": "0.0.1",
+  "description": "jQuery Node.JS alternative, compatible with TypeScript",
+  "main": "index.js",
+  "repository": "https://github.com/jindra12/node-html-query.git",
+  "author": "Jan Jindráček",
+  "license": "MIT",
+  "man": ["./README.md"],
+  "keywords": ["node.js", "node", "jQuery", "HTML", "typescript", "no dependency", "utility", "node", "query"],
+  "dependencies": {
+  },
+  "devDependencies": {
+  }
+}

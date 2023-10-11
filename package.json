@@ -1,0 +1,22 @@
+{
+  "name": "node-html-query-dev",
+  "version": "1.0.0",
+  "description": "Node-html-query dev package",
+  "main": "./dist/index.js",
+  "repository": "https://github.com/jindra12/node-html-query.git",
+  "author": "Jan Jindráček",
+  "license": "MIT",
+  "scripts": {
+    "build": "rm ./dist/index.js ./dist/index.d.ts; yarn tsc",
+    "test": "yarn jest --watch"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.0",
+    "jest": "^26.0.1",
+    "tslint": "^6.1.2",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "ts-jest": "^26.1.0"
+  }
+}
