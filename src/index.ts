@@ -120,79 +120,76 @@ interface Queue {
     next: () => Queue;
 }
 
-/*
-htmlDocument
-    : scriptletOrSeaWs* XML? scriptletOrSeaWs* DTD? scriptletOrSeaWs* htmlElements*
-    ;
+interface Searcher {
+    feedParserItem: (item: Parser.ParserItem) => void;
+    feedParserItems: (item: Parser.ParserItem[]) => void;
+    feedLexerItem: <T extends LexerType>(item: Parser.LexerItem<T>) => void;
+}
 
-scriptletOrSeaWs
-    : SCRIPTLET
-    | SEA_WS
-    ;
+const searchProducer = (
+    reducer: <T extends LexerType>(
+        item: Parser.ParserItem | Parser.LexerItem<T>
+    ) => void,
+    filter?: (item: Parser.ParserItem) => boolean
+): Searcher => {
+    const searcher: Searcher = {
+        feedLexerItem: (lexer) => {
+            reducer(lexer);
+        },
+        feedParserItem: (parser) => {
+            if (!parser.consumed() || filter?.(parser) === false) {
+                return;
+            }
+            reducer(parser);
+            parser.search(searcher);
+        },
+        feedParserItems: (parsers) => {
+            parsers.forEach((parser) => searcher.feedParserItem(parser));
+        }
+    };
+    return searcher;
+};
 
-htmlElements
-    : htmlMisc* htmlElement htmlMisc*
-    ;
-
-htmlElement
-    : TAG_OPEN TAG_NAME htmlAttribute*
-    (TAG_CLOSE (htmlContent TAG_OPEN TAG_SLASH TAG_NAME TAG_CLOSE)? | TAG_SLASH_CLOSE)
-    | SCRIPTLET
-    | script
-    | style
-    ;
-
-htmlContent
-    : htmlChardata? ((htmlElement | CDATA | htmlComment) htmlChardata?)*
-    ;
-
-htmlAttribute
-    : TAG_NAME (TAG_EQUALS ATTVALUE_VALUE)?
-    ;
-
-htmlChardata
-    : HTML_TEXT
-    | SEA_WS
-    ;
-
-htmlMisc
-    : htmlComment
-    | SEA_WS
-    ;
-
-htmlComment
-    : HTML_COMMENT
-    | HTML_CONDITIONAL_COMMENT
-    ;
-
-script
-    : SCRIPT_OPEN (SCRIPT_BODY | SCRIPT_SHORT_BODY)
-    ;
-
-style
-    : STYLE_OPEN (STYLE_BODY | STYLE_SHORT_BODY)
-    ;
-*/
+const printer = (document: Parser.HtmlDocument) => {
+    let aggregate = "";
+    const searcher = searchProducer((item) => {
+        if (item instanceof Parser.LexerItem) {
+            aggregate += item.value;
+        }
+    });
+    document.search(searcher);
+    return aggregate;
+};
 
 namespace Parser {
-    interface ParserItem {
+    export interface ParserItem {
         consumed: () => boolean;
         process: (queue: Queue) => Queue;
+        search: (searcher: Searcher) => void;
     }
-    class LexerItem<T extends LexerType> {
+    export class LexerItem<T extends LexerType> {
         item: T;
         value = "";
         constructor(item: T) {
             this.item = item;
         }
     }
-    class HTMLDocument implements ParserItem {
+    export class HtmlDocument implements ParserItem {
         scriptletOrSeaWs1: ScriptletOrSeaWs[] = [];
         XML: LexerItem<"XML"> = new LexerItem("XML");
         scriptletOrSeaWs2: ScriptletOrSeaWs[] = [];
         DTD: LexerItem<"DTD"> = new LexerItem("DTD");
         scriptletOrSeaWs3: ScriptletOrSeaWs[] = [];
         htmlElements: HtmlElements[] = [];
+
+        search = (searcher: Searcher) => {
+            searcher.feedParserItems(this.scriptletOrSeaWs1);
+            searcher.feedLexerItem(this.XML);
+            searcher.feedParserItems(this.scriptletOrSeaWs2);
+            searcher.feedLexerItem(this.DTD);
+            searcher.feedParserItems(this.scriptletOrSeaWs3);
+            searcher.feedParserItems(this.htmlElements);
+        };
 
         consumed = () => true;
         process = (queue: Queue): Queue => {
@@ -238,10 +235,14 @@ namespace Parser {
             return queue;
         };
     }
-    class ScriptletOrSeaWs implements ParserItem {
+    export class ScriptletOrSeaWs implements ParserItem {
         scriptlet: LexerItem<"SCRIPTLET"> = new LexerItem("SCRIPTLET");
         seaWs: LexerItem<"SEA_WS"> = new LexerItem("SEA_WS");
 
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.scriptlet);
+            searcher.feedLexerItem(this.seaWs);
+        };
         consumed = () => {
             return Boolean(this.scriptlet.value || this.seaWs.value);
         };
@@ -258,10 +259,16 @@ namespace Parser {
             return queue;
         };
     }
-    class HtmlElements implements ParserItem {
+    export class HtmlElements implements ParserItem {
         htmlMisc1: HtmlMisc[] = [];
         htmlElement: HtmlElement = new HtmlElement();
         htmlMisc2: HtmlMisc[] = [];
+
+        search = (searcher: Searcher) => {
+            searcher.feedParserItems(this.htmlMisc1);
+            searcher.feedParserItem(this.htmlElement);
+            searcher.feedParserItems(this.htmlMisc2);
+        };
 
         consumed = () => {
             return this.htmlElement.consumed();
@@ -289,7 +296,7 @@ namespace Parser {
             return queue;
         };
     }
-    class HtmlElement implements ParserItem {
+    export class HtmlElement implements ParserItem {
         tagOpen: LexerItem<"TAG_OPEN"> = new LexerItem("TAG_OPEN");
         tagName: LexerItem<"TAG_NAME"> = new LexerItem("TAG_NAME");
         htmlAttributes: HtmlAttribute[] = [];
@@ -317,6 +324,18 @@ namespace Parser {
                 this.tagClose.close1.tag.value ||
                 this.tagClose.close2.tagSlashClose.value
             );
+        };
+
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.tagOpen);
+            searcher.feedLexerItem(this.tagName);
+            searcher.feedParserItems(this.htmlAttributes);
+            searcher.feedLexerItem(this.tagClose.close1.tag);
+            searcher.feedParserItem(this.tagClose.close1.closingGroup.htmlContent);
+            searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagClose);
+            searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagName);
+            searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagOpen);
+            searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagSlash);
         };
 
         consumed = () => {
@@ -411,7 +430,7 @@ namespace Parser {
             return queue;
         };
     }
-    class HtmlContent implements ParserItem {
+    export class HtmlContent implements ParserItem {
         htmlCharData = new HtmlChardata();
         content: Array<{
             inner: {
@@ -421,6 +440,17 @@ namespace Parser {
             };
             charData: HtmlChardata;
         }> = [];
+
+        search = (searcher: Searcher) => {
+            searcher.feedParserItem(this.htmlCharData);
+            this.content.forEach((item) => {
+                searcher.feedParserItem(item.inner.htmlElement);
+                searcher.feedLexerItem(item.inner.cData);
+                searcher.feedParserItem(item.inner.htmlComment);
+                searcher.feedParserItem(item.charData);
+            });
+        };
+
         process = (queue: Queue): Queue => {
             const current = queue.items[queue.at];
             if (this.content.length === 0) {
@@ -515,11 +545,17 @@ namespace Parser {
         };
         consumed = () => true;
     }
-    class HtmlAttribute implements ParserItem {
+    export class HtmlAttribute implements ParserItem {
         tagName = new LexerItem("TAG_NAME");
         attribute = {
             tagEquals: new LexerItem("TAG_EQUALS"),
             value: new LexerItem("ATTVALUE_VALUE"),
+        };
+
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.tagName);
+            searcher.feedLexerItem(this.attribute.tagEquals);
+            searcher.feedLexerItem(this.attribute.value);
         };
         consumed = () => {
             const attributeConsumed =
@@ -543,9 +579,15 @@ namespace Parser {
             return queue;
         };
     }
-    class HtmlChardata implements ParserItem {
+    export class HtmlChardata implements ParserItem {
         htmlText = new LexerItem("HTML_TEXT");
         seaWs = new LexerItem("SEA_WS");
+
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.htmlText);
+            searcher.feedLexerItem(this.seaWs);
+        };
+
         consumed = () => {
             return Boolean(this.htmlText.value || this.seaWs.value);
         };
@@ -562,9 +604,13 @@ namespace Parser {
             return queue;
         };
     }
-    class HtmlMisc implements ParserItem {
+    export class HtmlMisc implements ParserItem {
         htmlComment = new HtmlComment();
         seaWs = new LexerItem("SEA_WS");
+        search = (searcher: Searcher) => {
+            searcher.feedParserItem(this.htmlComment);
+            searcher.feedLexerItem(this.seaWs);
+        };
         consumed = () => {
             return Boolean(this.seaWs.value || this.htmlComment.consumed());
         };
@@ -584,6 +630,10 @@ namespace Parser {
     class HtmlComment implements ParserItem {
         htmlComment = new LexerItem("HTML_COMMENT");
         htmlConditionalComment = new LexerItem("HTML_CONDITIONAL_COMMENT");
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.htmlComment);
+            searcher.feedLexerItem(this.htmlConditionalComment);
+        };
         consumed = () => {
             return Boolean(
                 this.htmlComment.value || this.htmlConditionalComment.value
@@ -602,11 +652,15 @@ namespace Parser {
             return queue;
         };
     }
-    class Script implements ParserItem {
+    export class Script implements ParserItem {
         scriptOpen = new LexerItem("SCRIPT_OPEN");
         scriptBody = new LexerItem("SCRIPT_BODY");
         scriptShortBody = new LexerItem("SCRIPT_SHORT_BODY");
-
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.scriptOpen);
+            searcher.feedLexerItem(this.scriptBody);
+            searcher.feedLexerItem(this.scriptShortBody);
+        };
         consumed = () => {
             return Boolean(
                 this.scriptOpen.value &&
@@ -629,11 +683,15 @@ namespace Parser {
             return queue;
         };
     }
-    class Style implements ParserItem {
+    export class Style implements ParserItem {
         styleOpen = new LexerItem("STYLE_OPEN");
         styleBody = new LexerItem("STYLE_BODY");
         styleShortBody = new LexerItem("STYLE_SHORT_BODY");
-
+        search = (searcher: Searcher) => {
+            searcher.feedLexerItem(this.styleOpen);
+            searcher.feedLexerItem(this.styleBody);
+            searcher.feedLexerItem(this.styleShortBody);
+        };
         consumed = () => {
             return Boolean(
                 this.styleOpen.value &&
