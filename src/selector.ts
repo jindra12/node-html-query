@@ -1,190 +1,169 @@
-/*
+import { ParserItem, Queue, Searcher } from "./types";
 
-fragment Newline
-    : '\n'
-    | '\r\n'
-    | '\r'
-    | '\f'
-    ;
+export class SelectorGroup implements ParserItem {
+    consumed = () => {
 
-fragment Hex
-    : [0-9a-fA-F]
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-fragment Unicode
-    : '\\' Hex Hex? Hex? Hex? Hex? Hex? NewlineOrSpace
-    ;
+    };
+}
 
-fragment Escape
-    : Unicode
-    | '\\' ~[\r\n\f0-9a-fA-F]
-    ;
+export class Selector implements ParserItem {
+    consumed = () => {
 
-fragment Nonascii
-    : ~[\u0000-\u007f]
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-Plus
-    : '+'
-    ;
+    };
+}
 
-Minus
-    : '-'
-    ;
+export class Combinator implements ParserItem {
+    consumed = () => {
 
-Greater
-    : '>'
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-Comma
-    : ','
-    ;
+    };
+}
 
-Tilde
-    : '~'
-    ;
+export class SimpleSelectorSequence implements ParserItem {
+    consumed = () => {
 
-PseudoNot
-    : ':' N O T '('
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-Number
-    : [0-9]+
-    | [0-9]* '.' [0-9]+
-    ;
+    };
+}
 
-Includes
-    : '~='
-    ;
+export class TypeSelector implements ParserItem {
+    consumed = () => {
 
-Space
-    : [ \t\r\n\f]+
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-String_
-    : '"' ( ~[\n\r\f\\"] | '\\' Newline | Nonascii | Escape )* '"'
-    | '\'' ( ~[\n\r\f\\'] | '\\' Newline | Nonascii | Escape )* '\''
-    ;
+    };
+}
 
-PrefixMatch
-    : '^='
-    ;
+export class TypeNamespacePrefix implements ParserItem {
+    consumed = () => {
 
-SuffixMatch
-    : '$='
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-SubstringMatch
-    : '*='
-    ;
+    };
+}
 
-fragment Nmchar
-    : [_a-zA-Z0-9\-]
-    | Nonascii
-    | Escape
-    ;
+export class ElementName implements ParserItem {
+    consumed = () => {
 
-fragment Nmstart
-    : [_a-zA-Z]
-    | Nonascii
-    | Escape
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-Function_
-    : Ident '('
-    ;
+    };
+}
 
-Hash
-    : '#' Name
-    ;
+export class Universal implements ParserItem {
+    consumed = () => {
 
-// Give Ident least priority so that more specific rules matches first
-Ident
-    : '-'? Nmstart Nmchar*
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
- */
+    };
+}
 
-/*
-selectorGroup
-    : selector ( Comma ws selector )*
-    ;
+export class ClassName implements ParserItem {
+    consumed = () => {
 
-selector
-    : simpleSelectorSequence ws ( combinator simpleSelectorSequence ws )*
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-combinator
-    : Plus ws
-    | Greater ws
-    | Tilde ws
-    | Space ws
-    ;
+    };
+}
 
-simpleSelectorSequence
-    : ( typeSelector | universal ) ( Hash | className | attrib | pseudo | negation )*
-    | ( Hash | className | attrib | pseudo | negation )+
-    ;
+export class Attrib implements ParserItem {
+    consumed = () => {
 
-typeSelector
-    : typeNamespacePrefix? elementName
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-typeNamespacePrefix
-    : ( ident | '*' )? '|'
-    ;
+    };
+}
 
-elementName
-    : ident
-    ;
+export class Pseudo implements ParserItem {
+    consumed = () => {
 
-universal
-    : typeNamespacePrefix? '*'
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-className
-    : '.' ident
-    ;
+    };
+}
 
-attrib
-    : '[' ws typeNamespacePrefix? ident ws ( ( PrefixMatch | SuffixMatch | SubstringMatch | '=' | Includes | DashMatch ) ws ( ident | String_ ) ws )? ']'
-    ;
+export class FunctionalPseudo implements ParserItem {
+    consumed = () => {
 
-pseudo
-    // '::' starts a pseudo-element, ':' a pseudo-class
-    // Exceptions: :first-line, :first-letter, :before And :after.
-    // Note that pseudo-elements are restricted to one per selector And
-    // occur MediaOnly in the last simple_selector_sequence.
-    : ':' ':'? ( ident | functionalPseudo )
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-functionalPseudo
-    : Function_ ws expression ')'
-    ;
+    };
+}
 
-expression
-    // In CSS3, the expressions are identifiers, strings,
-    // or of the form "an+b"
-    : ( ( Plus | Minus | Dimension | UnknownDimension | Number | String_ | ident ) ws )+
-    ;
+export class Negation implements ParserItem {
+    consumed = () => {
 
-negation
-    : PseudoNot ws negationArg ws ')'
-    ;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
 
-negationArg
-    : typeSelector
-    | universal
-    | Hash
-    | className
-    | attrib
-    | pseudo
-    ;
+    };
+}
 
-// Comments might be part of CSS hacks, thus pass them to visitor to decide whether to skip
-// Spaces are significant around '+' '-' '(', thus they should not be skipped
-ws
-    : Space*
-    ;
+export class NegationArg implements ParserItem {
+    consumed = () => {
 
- */
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => {
+
+    };
+}
