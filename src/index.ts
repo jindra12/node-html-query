@@ -37,6 +37,22 @@ export class HtmlDocument implements ParserItem {
     scriptletOrSeaWs3: ScriptletOrSeaWs[] = [];
     htmlElements: HtmlElements[] = [];
 
+    prevSibling = (element: HtmlElement) => {
+        const index = this.htmlElements.findIndex((htmlElement) => htmlElement.consumed() && htmlElement.htmlElement === element);
+        if (index === -1) {
+            return undefined;
+        }
+        return this.htmlElements[index - 1]?.htmlElement;
+    };
+
+    nextSibling = (element: HtmlElement) => {
+        const index = this.htmlElements.findIndex((htmlElement) => htmlElement.consumed() && htmlElement.htmlElement === element);
+        if (index === -1) {
+            return undefined;
+        }
+        return this.htmlElements[index + 1]?.htmlElement;
+    };
+
     search = (searcher: Searcher) => {
         searcher.feedParserItems(this.scriptletOrSeaWs1);
         searcher.feedLexerItem(this.XML);
@@ -81,7 +97,7 @@ export class HtmlDocument implements ParserItem {
                 return this.process(tryScriptlet);
             }
         }
-        const htmlElements = new HtmlElements();
+        const htmlElements = new HtmlElements(this);
         const tryHtmlElements = htmlElements.process(queue);
         if (htmlElements.consumed()) {
             this.htmlElements.push(htmlElements);
@@ -116,8 +132,12 @@ export class ScriptletOrSeaWs implements ParserItem {
 }
 export class HtmlElements implements ParserItem {
     htmlMisc1: HtmlMisc[] = [];
-    htmlElement: HtmlElement = new HtmlElement();
+    htmlElement: HtmlElement;
     htmlMisc2: HtmlMisc[] = [];
+
+    constructor(parent: HtmlDocument) {
+        this.htmlElement = new HtmlElement(parent);
+    }
 
     search = (searcher: Searcher) => {
         searcher.feedParserItems(this.htmlMisc1);
@@ -173,6 +193,12 @@ export class HtmlElement implements ParserItem {
     scriptlet: LexerItem<"SCRIPTLET"> = new LexerItem("SCRIPTLET");
     script: Script = new Script();
     style: Style = new Style();
+
+    parent: HtmlContent | HtmlDocument;
+
+    constructor(parent: HtmlContent | HtmlDocument) {
+        this.parent = parent;
+    }
 
     endTagConsumed = () => {
         return (
@@ -232,7 +258,8 @@ export class HtmlElement implements ParserItem {
             }
             if (
                 this.tagClose.close1.closingGroup.tagSlash.value &&
-                current.type === "TAG_NAME"
+                current.type === "TAG_NAME" &&
+                current.value === this.tagName.value
             ) {
                 this.tagClose.close1.closingGroup.tagName.value = current.value;
                 return this.process(queue.next());
@@ -295,6 +322,22 @@ export class HtmlContent implements ParserItem {
         charData: HtmlChardata;
     }> = [];
 
+    prevSibling = (element: HtmlElement) => {
+        const index = this.content.findIndex(({ inner: { htmlElement } }) => htmlElement.consumed() && htmlElement === element);
+        if (index === -1) {
+            return undefined;
+        }
+        return this.content[index - 1]?.inner.htmlElement;
+    };
+
+    nextSibling = (element: HtmlElement) => {
+        const index = this.content.findIndex(({ inner: { htmlElement } }) => htmlElement.consumed() && htmlElement === element);
+        if (index === -1) {
+            return undefined;
+        }
+        return this.content[index + 1]?.inner.htmlElement;
+    };
+
     search = (searcher: Searcher) => {
         searcher.feedParserItem(this.htmlCharData);
         this.content.forEach((item) => {
@@ -313,7 +356,7 @@ export class HtmlContent implements ParserItem {
                 return this.process(tryCharData);
             }
         } else {
-            const htmlElement = new HtmlElement();
+            const htmlElement = new HtmlElement(this);
             const tryHtmlElement = htmlElement.process(queue);
             const cData = new LexerItem("CDATA");
             const htmlComment = new HtmlComment();
@@ -378,7 +421,7 @@ export class HtmlContent implements ParserItem {
                         inner: {
                             cData: new LexerItem("CDATA"),
                             htmlComment: htmlComment,
-                            htmlElement: new HtmlElement(),
+                            htmlElement: new HtmlElement(this),
                         },
                     });
                     return this.process(tryProcessCharData);
@@ -388,7 +431,7 @@ export class HtmlContent implements ParserItem {
                         inner: {
                             cData: new LexerItem("CDATA"),
                             htmlComment: htmlComment,
-                            htmlElement: new HtmlElement(),
+                            htmlElement: new HtmlElement(this),
                         },
                     });
                     return this.process(tryHtmlComment);

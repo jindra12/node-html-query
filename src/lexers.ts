@@ -79,6 +79,7 @@ export const cssLexerAtoms = {
     Greater: />/gmu,
     Comma: /,/gmu,
     Tilde: /~/gmu,
+    PseudoGeneral: /::?/gmu,
     PseudoNot: /:not\(/gmu,
     Number: /[0-9]+|([0-9]*\.[0-9]+)/gmu,
     Includes: /~=/gmu,
@@ -90,6 +91,7 @@ export const cssLexerAtoms = {
     Function_: new RegExp(`-?${cssFragments.Nmstart()}${cssFragments.Nmchar()}*\\(`, "gmu"),
     Hash: new RegExp(`#${cssFragments.Name()}`, "gmu"),
     Ident: new RegExp(`-?${cssFragments.Nmstart()}${cssFragments.Nmchar()}*`, "gmu"),
+    BackBrace: /\)/gmu,
 } as const;
 
 export type LexerType = keyof typeof htmlLexerAtoms | keyof typeof cssLexerAtoms;

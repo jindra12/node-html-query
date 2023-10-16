@@ -121,19 +121,200 @@ export class Selector implements ParserItem {
     };
 }
 
+/**
+    combinator
+        : Plus ws
+        | Greater ws
+        | Tilde ws
+        | Space ws
+        ;
+ */
 export class Combinator implements ParserItem {
+    plus = new LexerItem("Plus");
+    greater = new LexerItem("Greater");
+    tilde = new LexerItem("Tilde");
+    space = new LexerItem("Space");
+    ws = new Ws();
     consumed = () => {
-        return true;
+        return Boolean(
+            this.plus.value || this.greater.value || this.tilde.value || this.space.value
+        );
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        switch (current.type) {
+            case "Plus":
+                this.plus.value = current.value;
+                const tryWsPlus = this.ws.process(queue.next());
+                return tryWsPlus;
+            case "Greater":
+                this.greater.value = current.value;
+                const tryWsGreater = this.ws.process(queue.next());
+                return tryWsGreater;
+            case "Tilde":
+                this.tilde.value = current.value;
+                const tryWsTilde = this.ws.process(queue.next());
+                return tryWsTilde;
+            case "Space":
+                this.space.value = current.value;
+                const tryWsSpace = this.ws.process(queue.next());
+                return tryWsSpace;
+        }
+        return queue;
+    };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.plus);
+        searcher.feedLexerItem(this.greater);
+        searcher.feedLexerItem(this.tilde);
+        searcher.feedLexerItem(this.space);
+        searcher.feedParserItem(this.ws);
+    };
+}
+
+/**
+    simpleSelectorSequence
+        : ( typeSelector | universal ) ( Hash | className | attrib | pseudo | negation )*
+        | ( Hash | className | attrib | pseudo | negation )+
+        ;
+ */
+export class SimpleSelectorSequence implements ParserItem {
+    typeSelector = new TypeSelector();
+    universal = new Universal();
+    modifiers: {
+        hash: LexerItem<"Hash">,
+        className: ClassName,
+        attrib: Attrib,
+        pseudo: Pseudo
+        negation: Negation,
+    }[] = [];
+
+    consumed = () => {
+        const hasPreface = this.typeSelector.consumed() || this.universal.consumed();
+        if (hasPreface) {
+            return true;
+        }
+        return this.modifiers.length > 0;
+    };
+    process = (queue: Queue): Queue => {
+        if (!this.typeSelector.consumed() && !this.universal.consumed()) {
+            const tryTypeSelector = this.typeSelector.process(queue);
+            if (this.typeSelector.consumed()) {
+                return this.process(tryTypeSelector);
+            }
+            const tryUniversal = this.universal.process(queue);
+            if (this.universal.consumed()) {
+                return this.process(tryUniversal);
+            }
+        }
+        const current = queue.items[queue.at];
+        const hash = new LexerItem("Hash");
+        hash.value = current.value;
+        if (current.type === "Hash") {
+            this.modifiers.push({
+                attrib: new Attrib(),
+                className: new ClassName(),
+                hash: hash,
+                negation: new Negation(),
+                pseudo: new Pseudo(),
+            });
+            return this.process(queue.next());
+        }
+        const className = new ClassName();
+        const tryProcessClassName = className.process(queue);
+        if (className.consumed()) {
+            this.modifiers.push({
+                attrib: new Attrib(),
+                className: className,
+                hash: new LexerItem("Hash"),
+                negation: new Negation(),
+                pseudo: new Pseudo(),
+            });
+            return this.process(tryProcessClassName);
+        }
+        const attrib = new Attrib();
+        const tryProcessAttrib = attrib.process(queue);
+        if (attrib.consumed()) {
+            this.modifiers.push({
+                attrib: attrib,
+                className: new ClassName(),
+                hash: new LexerItem("Hash"),
+                negation: new Negation(),
+                pseudo: new Pseudo(),
+            });
+            return this.process(tryProcessAttrib);
+        }
+        const pseudo = new Pseudo();
+        const tryProcessPseudo = pseudo.process(queue);
+        if (pseudo.consumed()) {
+            this.modifiers.push({
+                attrib: new Attrib(),
+                className: new ClassName(),
+                hash: new LexerItem("Hash"),
+                negation: new Negation(),
+                pseudo: pseudo,
+            });
+            return this.process(tryProcessPseudo);
+        }
+        const negation = new Negation();
+        const tryProcessNegation = pseudo.process(queue);
+        if (negation.consumed()) {
+            this.modifiers.push({
+                attrib: new Attrib(),
+                className: new ClassName(),
+                hash: new LexerItem("Hash"),
+                negation: negation,
+                pseudo: new Pseudo(),
+            });
+            return this.process(tryProcessNegation);
+        }
+        return queue;
+    };
+    search = (searcher: Searcher) => {
+        searcher.feedParserItem(this.typeSelector);
+        searcher.feedParserItem(this.universal);
+        this.modifiers.forEach(({
+            hash,
+            className,
+            attrib,
+            pseudo,
+            negation,
+        }) => {
+            searcher.feedLexerItem(hash);
+            searcher.feedParserItem(className);
+            searcher.feedParserItem(attrib);
+            searcher.feedParserItem(pseudo);
+            searcher.feedParserItem(negation);
+        })
+    };
+}
+
+/**
+ * pseudo
+    : PseudoGeneral ( ident | functionalPseudo )
+    ;
+ */
+export class Pseudo implements ParserItem {
+    pseudoGeneral = new LexerItem("PseudoGeneral");
+    ident = new LexerItem("Ident");
+    functionalPseudo = new FunctionalPseudo();
+    consumed = () => {
+        return Boolean(this.pseudoGeneral.value && (this.ident.value || this.functionalPseudo.consumed()))
+    };
+    process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
         return queue;
     };
     search = (searcher: Searcher) => { };
 }
 
-export class SimpleSelectorSequence implements ParserItem {
+/**
+   functionalPseudo
+    : Function_ ws expression ')'
+    ;
+ */
+export class FunctionalPseudo implements ParserItem {
     consumed = () => {
-        return true;
+        return Boolean();
     };
     process = (queue: Queue): Queue => {
         return queue;
