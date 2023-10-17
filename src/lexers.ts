@@ -3,7 +3,7 @@ export const htmlFragments = {
     DIGIT: () => /[0-9]/gmu,
     TAG_NameChar: () =>
         new RegExp(
-            `(${htmlFragments.TAG_NameStartChar()}|-| |.|${htmlFragments.DIGIT()}|\\u00B7|[\\u0300-\\u036F]|[\\u203F-\\u2040])`,
+            `(${htmlFragments.TAG_NameStartChar()}|-|:| |.|${htmlFragments.DIGIT()}|\\u00B7|[\\u0300-\\u036F]|[\\u203F-\\u2040])`,
             "gmu"
         ),
     TAG_NameStartChar: () =>
@@ -79,9 +79,16 @@ export const cssLexerAtoms = {
     Greater: />/gmu,
     Comma: /,/gmu,
     Tilde: /~/gmu,
+    Dot: /\./gmu,
     PseudoGeneral: /::?/gmu,
     PseudoNot: /:not\(/gmu,
+    Namespace: /\|/gmu,
+    Universal: /\*/gmu,
     Number: /[0-9]+|([0-9]*\.[0-9]+)/gmu,
+    Equals: /=/gmu,
+    SquareBracket: /\[/gmu,
+    SquareBracketEnd: /\]/gmu,
+    DashMatch: /\|=/gmu,
     Includes: /~=/gmu,
     Space: /[ \t\r\n\f]+/gmu,
     String_: new RegExp(`"([^\\n\\r\\f\\"]|\\${cssFragments.Newline()}|${cssFragments.Nonascii()}|${cssFragments.Escape()})*"|'([^\\n\\r\\f\\"]|\\${cssFragments.Newline()}|${cssFragments.Nonascii()}|${cssFragments.Escape()})*'`, "gmu"),

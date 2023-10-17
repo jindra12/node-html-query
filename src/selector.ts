@@ -302,9 +302,25 @@ export class Pseudo implements ParserItem {
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
+        if (current.type === "PseudoGeneral") {
+            this.pseudoGeneral.value = current.value;
+            return this.process(queue.next());
+        }
+        if (current.type === "Ident") {
+            this.ident.value = current.value;
+            return this.process(queue.next());
+        }
+        const tryFunctionalPseudo = this.functionalPseudo.process(queue);
+        if (this.functionalPseudo.consumed()) {
+            return tryFunctionalPseudo;
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.pseudoGeneral);
+        searcher.feedLexerItem(this.ident);
+        searcher.feedParserItem(this.functionalPseudo);
+    };
 }
 
 /**
@@ -313,60 +329,220 @@ export class Pseudo implements ParserItem {
     ;
  */
 export class FunctionalPseudo implements ParserItem {
+    funct = new LexerItem("Function_");
+    ws = new Ws();
+    expression = new Expression();
+    backBrace = new LexerItem("BackBrace");
     consumed = () => {
-        return Boolean();
+        return Boolean(this.funct.value && this.expression.consumed() && this.backBrace.value);
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "Function_") {
+            this.funct.value = current.value;
+            const tryWs = this.ws.process(queue.next());
+            return this.process(tryWs);
+        }
+        if (this.funct.value) {
+            const tryExpression = this.expression.process(queue);
+            if (this.expression.consumed()) {
+                return this.process(tryExpression);
+            }
+        }
+        if (this.expression.consumed() && current.type === "BackBrace") {
+            this.backBrace.value = current.value;
+            return queue.next();
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.funct);
+        searcher.feedParserItem(this.ws);
+        searcher.feedParserItem(this.expression);
+        searcher.feedLexerItem(this.backBrace);
+    };
 }
 
+/**
+   typeNamespacePrefix
+    : ( ident | '*' )? '|'
+    ;
+ */
+export class TypeNamespacePrefix implements ParserItem {
+    ident = new LexerItem("Ident");
+    namespace = new LexerItem("Namespace");
+    universal = new LexerItem("Universal");
+    consumed = () => {
+        return Boolean(this.universal.value);
+    };
+    process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "Ident") {
+            this.ident.value = current.value;
+            return this.process(queue.next());
+        }
+        if (current.type === "Namespace") {
+            this.namespace.value = current.value;
+            return this.process(queue.next());
+        }
+        if (current.type === "Universal") {
+            this.universal.value = current.value;
+            return queue.next();
+        }
+        return queue;
+    };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.ident);
+        searcher.feedLexerItem(this.universal);
+        searcher.feedLexerItem(this.namespace);
+    };    
+}
+
+/*
+    typeSelector
+        : typeNamespacePrefix? elementName
+        ;
+*/
 export class TypeSelector implements ParserItem {
+    typeNamespacePrefix = new TypeNamespacePrefix();
+    elementName = new ElementName();
+
     consumed = () => {
-        return true;
+        return Boolean(this.elementName.consumed());
     };
     process = (queue: Queue): Queue => {
+        const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
+        if (this.typeNamespacePrefix.consumed()) {
+            return this.process(tryProcessNamespace);
+        }
+        const tryProcessElementName = this.elementName.process(queue);
+        if (this.elementName.consumed()) {
+            return tryProcessElementName;
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedParserItem(this.typeNamespacePrefix);
+        searcher.feedParserItem(this.elementName);
+    };
 }
 
+/*
+    elementName
+        : ident
+        ;
+*/
 export class ElementName implements ParserItem {
+    ident = new LexerItem("Ident");
     consumed = () => {
-        return true;
+        return Boolean(this.ident.value);
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "Ident") {
+            this.ident.value = current.value;
+            return queue.next();
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.ident);
+    };
 }
 
+/**
+   universal
+    : typeNamespacePrefix? '*'
+    ;
+ */
 export class Universal implements ParserItem {
+    typeNamespacePrefix = new TypeNamespacePrefix()
+    universal = new LexerItem("Universal");
+
     consumed = () => {
-        return true;
+        return Boolean(this.universal.value);
     };
     process = (queue: Queue): Queue => {
+        const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
+        if (this.typeNamespacePrefix.consumed()) {
+            return this.process(tryProcessNamespace);
+        }
+        const current = queue.items[queue.at];
+        if (current.type === "Universal") {
+            this.universal.value = current.value;
+            return queue.next();
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedParserItem(this.typeNamespacePrefix);
+        searcher.feedLexerItem(this.universal);
+    };
 }
 
+/**
+   className
+    : '.' ident
+    ;
+ */
 export class ClassName implements ParserItem {
+    dot = new LexerItem("Dot");
+    ident = new LexerItem("Ident");
     consumed = () => {
-        return true;
+        return Boolean(this.dot.value && this.ident.value);
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "Dot") {
+            this.dot.value = current.value;
+            return this.process(queue.next());
+        }
+        if (current.type === "Ident") {
+            this.ident.value = current.value;
+            return queue.next();
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.dot);
+        searcher.feedLexerItem(this.ident);
+    };
 }
 
+/**
+    attrib
+    : '[' ws typeNamespacePrefix? ident ws ( ( PrefixMatch | SuffixMatch | SubstringMatch | '=' | Includes | DashMatch ) ws ( ident | String_ ) ws )? ']'
+    ;
+ */
 export class Attrib implements ParserItem {
+    squareBracket = new LexerItem("SquareBracket");
+    ws1 = new Ws();
+    typeNamespacePrefix = new TypeNamespacePrefix();
+    ident1 = new LexerItem("Ident");
+    ws2 = new Ws();
+    prefixMatch = new LexerItem("PrefixMatch");
+    suffixMatch = new LexerItem("SuffixMatch");
+    substringMatch = new LexerItem("SubstringMatch");
+    equals = new LexerItem("Equals");
+    includes = new LexerItem("Includes");
+    dashMatch = new LexerItem("DashMatch");
+    ws3 = new Ws();
+    ident2 = new LexerItem("Ident");
+    stringIdent = new LexerItem("String_");
+    ws4 = new Ws();
+    squareBracketEnd = new LexerItem("SquareBracketEnd");
     consumed = () => {
-        return true;
+        return Boolean(
+            this.squareBracket.value && this.ident1.value && this.squareBracketEnd.value
+        );
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "SquareBracket") {
+            this.squareBracket.value = current.value;
+            const tryWs = this.ws1.process(queue.next());
+            return this.process(tryWs);
+        }
         return queue;
     };
     search = (searcher: Searcher) => { };
@@ -393,6 +569,21 @@ export class NegationArg implements ParserItem {
 }
 
 export class Ws implements ParserItem {
+    consumed = () => {
+        return true;
+    };
+    process = (queue: Queue): Queue => {
+        return queue;
+    };
+    search = (searcher: Searcher) => { };
+}
+
+/**
+   expression
+    : ( ( Plus | Minus | Number | String_ | ident ) ws )+
+    ;
+ */
+export class Expression implements ParserItem {
     consumed = () => {
         return true;
     };

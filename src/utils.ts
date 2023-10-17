@@ -6,7 +6,9 @@ const searchProducer = (
 ): Searcher => {
     const searcher: Searcher = {
         feedLexerItem: (lexer) => {
-            reducer(lexer);
+            if (lexer.value) {
+                reducer(lexer);
+            }
         },
         feedParserItem: (parser) => {
             if (!parser.consumed()) {
