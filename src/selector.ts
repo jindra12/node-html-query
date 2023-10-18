@@ -1,3 +1,4 @@
+import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Queue, Searcher } from "./types";
 
 /**
@@ -532,6 +533,10 @@ export class Attrib implements ParserItem {
     ws4 = new Ws();
     squareBracketEnd = new LexerItem("SquareBracketEnd");
     consumed = () => {
+        const hasComparator = this.prefixMatch.value || this.suffixMatch.value || this.substringMatch.value || this.equals.value || this.includes.value || this.dashMatch.value;
+        if (hasComparator && !this.ident2.value && !this.stringIdent.value) {
+            return false;
+        }
         return Boolean(
             this.squareBracket.value && this.ident1.value && this.squareBracketEnd.value
         );
@@ -543,39 +548,183 @@ export class Attrib implements ParserItem {
             const tryWs = this.ws1.process(queue.next());
             return this.process(tryWs);
         }
+        const tryTypeNameSpace = this.typeNamespacePrefix.process(queue);
+        if (this.typeNamespacePrefix.consumed()) {
+            return this.process(tryTypeNameSpace);
+        }
+        if (current.type === "Ident" && !this.ident1.value) {
+            this.ident1.value = current.value;
+            const tryWs = this.ws2.process(queue.next());
+            return this.process(tryWs);
+        }
+        const comparators: [LexerType, LexerItem<LexerType>][] = [
+            ["PrefixMatch", this.prefixMatch],
+            ["SuffixMatch", this.suffixMatch],
+            ["SubstringMatch", this.substringMatch],
+            ["Equals", this.equals],
+            ["Includes", this.includes],
+            ["DashMatch", this.dashMatch],
+        ];
+        const foundComp = comparators.find(([type]) => type === current.type)?.[1];
+        if (foundComp) {
+            foundComp.value = current.value;
+            const tryWs = this.ws3.process(queue.next());
+            return this.process(tryWs);
+        }
+        if (current.type === "Ident" && this.ident1.value) {
+            this.ident2.value = current.value;
+            const tryWs = this.ws4.process(queue.next());
+            return this.process(tryWs);
+        }
+        if (current.type === "SquareBracketEnd") {
+            this.squareBracketEnd.value = current.value;
+            return queue.next();
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.squareBracket);
+        searcher.feedParserItem(this.ws1);
+        searcher.feedParserItem(this.typeNamespacePrefix);
+        searcher.feedLexerItem(this.ident1);
+        searcher.feedParserItem(this.ws2);
+        searcher.feedLexerItem(this.prefixMatch);
+        searcher.feedLexerItem(this.suffixMatch);
+        searcher.feedLexerItem(this.substringMatch);
+        searcher.feedLexerItem(this.equals);
+        searcher.feedLexerItem(this.includes);
+        searcher.feedLexerItem(this.dashMatch);
+        searcher.feedParserItem(this.ws3);
+        searcher.feedLexerItem(this.ident2);
+        searcher.feedLexerItem(this.stringIdent);
+        searcher.feedParserItem(this.ws4);
+        searcher.feedLexerItem(this.squareBracketEnd);
+    };
 }
 
+/**
+    negation
+        : PseudoNot ws negationArg ws ')'
+        ;
+ */
 export class Negation implements ParserItem {
+    pseudoNot = new LexerItem("PseudoNot");
+    ws1 = new Ws();
+    negationArg = new NegationArg();
+    ws2 = new Ws();
+    backBrace = new LexerItem("BackBrace");
     consumed = () => {
-        return true;
+        return Boolean(this.pseudoNot.value && this.negationArg.consumed() && this.backBrace.value);
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "PseudoNot") {
+            this.pseudoNot.value = current.value;
+            const tryWs = this.ws1.process(queue.next());
+            return this.process(tryWs);
+        }
+        const tryNegation = this.negationArg.process(queue);
+        if (this.negationArg.consumed()) {
+            const tryWs = this.ws2.process(tryNegation);
+            return this.process(tryWs);
+        }
+        if (current.type === "BackBrace") {
+            this.backBrace.value = current.value;
+            return queue.next();
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.pseudoNot);
+        searcher.feedParserItem(this.ws1);
+        searcher.feedParserItem(this.negationArg);
+        searcher.feedParserItem(this.ws2);
+        searcher.feedLexerItem(this.backBrace);
+    };
 }
 
+/**
+    negationArg
+        : typeSelector
+        | universal
+        | Hash
+        | className
+        | attrib
+        | pseudo
+        ;
+ */
 export class NegationArg implements ParserItem {
+    typeSelector = new TypeSelector();
+    universal = new Universal();
+    hash = new LexerItem("Hash");
+    className = new ClassName();
+    attrib = new Attrib();
+    pseudo = new Pseudo();
     consumed = () => {
-        return true;
+        return Boolean(
+            this.typeSelector.consumed() || this.universal.consumed() || this.hash.value || this.className.consumed() || this.attrib.consumed() || this.pseudo.consumed()
+        );
     };
     process = (queue: Queue): Queue => {
+        const tryProcessSelector = this.typeSelector.process(queue);
+        if (this.typeSelector.consumed()) {
+            return tryProcessSelector;
+        }
+        const tryUniversal = this.universal.process(queue);
+        if (this.universal.consumed()) {
+            return tryUniversal;
+        }
+        if (queue.items[queue.at].type === "Hash") {
+            this.hash.value = queue.items[queue.at].value;
+            return queue.next();
+        }
+        const tryClassName = this.className.process(queue);
+        if (this.className.consumed()) {
+            return tryClassName;
+        }
+        const tryAttrib = this.attrib.process(queue);
+        if (this.attrib.consumed()) {
+            return tryAttrib;
+        }
+        const tryPseudo = this.pseudo.process(queue);
+        if (this.pseudo.consumed()) {
+            return tryPseudo;
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        searcher.feedParserItem(this.typeSelector);
+        searcher.feedParserItem(this.universal);
+        searcher.feedLexerItem(this.hash);
+        searcher.feedParserItem(this.className);
+        searcher.feedParserItem(this.attrib);
+        searcher.feedParserItem(this.pseudo);
+    };
 }
 
+/**
+    ws
+        : Space*
+        ;
+*/
 export class Ws implements ParserItem {
+    spaces: LexerItem<"Space">[] = [];
     consumed = () => {
         return true;
     };
     process = (queue: Queue): Queue => {
+        const current = queue.items[queue.at];
+        if (current.type === "Space") {
+            const space = new LexerItem("Space");
+            space.value = current.value;
+            this.spaces.push(space);
+            return this.process(queue.next());
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        this.spaces.forEach((space) => searcher.feedLexerItem(space));
+    };
 }
 
 /**
@@ -584,11 +733,80 @@ export class Ws implements ParserItem {
     ;
  */
 export class Expression implements ParserItem {
+    expressions: {
+        plus: LexerItem<"Plus">,
+        minus: LexerItem<"Minus">,
+        number: LexerItem<"Number">,
+        string: LexerItem<"String_">,
+        ident: LexerItem<"Ident">,
+        ws: Ws,
+    }[] = []
     consumed = () => {
-        return true;
+        return this.expressions.length > 0 && this.expressions.every(({
+            plus,
+            minus,
+            number,
+            string,
+            ident,
+        }) => plus.value || minus.value || number.value || string.value || ident.value);
     };
     process = (queue: Queue): Queue => {
+        const lexers: [LexerType, LexerItem<LexerType>][] = [
+            ["Plus", new LexerItem("Plus")],
+            ["Minus", new LexerItem("Minus")],
+            ["Number", new LexerItem("Number")],
+            ["String_", new LexerItem("String_")],
+            ["Ident", new LexerItem("Ident")],
+        ];
+        const current = queue.items[queue.at]
+        const found = lexers.find(([type]) => type === current.type)?.[1];
+        if (found) {
+            found.value = current.value;
+            const baseExpression: typeof this.expressions["0"] = {
+                ident: new LexerItem("Ident"),
+                minus: new LexerItem("Minus"),
+                number: new LexerItem("Number"),
+                plus: new LexerItem("Plus"),
+                string: new LexerItem("String_"),
+                ws: new Ws(),
+            };
+            switch (current.type) {
+                case "Plus":
+                    this.expressions.push({ ...baseExpression, plus: found as LexerItem<"Plus"> });
+                    break;
+                case "Minus":
+                    this.expressions.push({ ...baseExpression, minus: found as LexerItem<"Minus"> });
+                    break;
+                case "Number":
+                    this.expressions.push({ ...baseExpression, number: found as LexerItem<"Number"> });
+                    break;
+                case "String_":
+                    this.expressions.push({ ...baseExpression, string: found as LexerItem<"String_"> });
+                    break;
+                case "Ident":
+                    this.expressions.push({ ...baseExpression, ident: found as LexerItem<"Ident"> });
+                    break;
+            }
+            const tryWs = baseExpression.ws.process(queue.next());
+            return this.process(tryWs);
+        }
         return queue;
     };
-    search = (searcher: Searcher) => { };
+    search = (searcher: Searcher) => {
+        this.expressions.forEach(({
+            plus,
+            minus,
+            number,
+            string,
+            ident,
+            ws,
+        }) => {
+            searcher.feedLexerItem(plus);
+            searcher.feedLexerItem(minus);
+            searcher.feedLexerItem(number);
+            searcher.feedLexerItem(string);
+            searcher.feedLexerItem(ident);
+            searcher.feedParserItem(ws);
+        });
+    };
 }

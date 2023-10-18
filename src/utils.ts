@@ -34,3 +34,8 @@ export const printer = (document: ParserItem) => {
     document.search(searcher);
     return aggregate;
 };
+
+let id = 0;
+export const uniqueId = (prefix: string) => {
+    return `${prefix}${id++}`
+};
