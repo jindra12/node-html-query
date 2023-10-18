@@ -30,6 +30,12 @@ import { uniqueId } from "./utils";
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
+/**
+   htmlDocument
+    : scriptletOrSeaWs* XML? scriptletOrSeaWs* DTD? scriptletOrSeaWs* htmlElements*
+    ;
+ */
 export class HtmlDocument implements ParserItem {
     scriptletOrSeaWs1: ScriptletOrSeaWs[] = [];
     XML: LexerItem<"XML"> = new LexerItem("XML");
@@ -113,6 +119,13 @@ export class HtmlDocument implements ParserItem {
         return queue;
     };
 }
+
+/**
+  scriptletOrSeaWs
+    : SCRIPTLET
+    | SEA_WS
+    ; 
+ */
 export class ScriptletOrSeaWs implements ParserItem {
     scriptlet: LexerItem<"SCRIPTLET"> = new LexerItem("SCRIPTLET");
     seaWs: LexerItem<"SEA_WS"> = new LexerItem("SEA_WS");
@@ -137,6 +150,12 @@ export class ScriptletOrSeaWs implements ParserItem {
         return queue;
     };
 }
+
+/**
+   htmlElements
+    : htmlMisc* htmlElement htmlMisc*
+    ;
+ */
 export class HtmlElements implements ParserItem {
     htmlMisc1: HtmlMisc[] = [];
     htmlElement: HtmlElement;
@@ -178,6 +197,16 @@ export class HtmlElements implements ParserItem {
         return queue;
     };
 }
+
+/**
+    htmlElement
+        : TAG_OPEN TAG_NAME htmlAttribute*
+        (TAG_CLOSE (htmlContent TAG_OPEN TAG_SLASH TAG_NAME TAG_CLOSE)? | TAG_SLASH_CLOSE)
+        | SCRIPTLET
+        | script
+        | style
+        ;
+ */
 export class HtmlElement implements ParserItem {
     tagOpen: LexerItem<"TAG_OPEN"> = new LexerItem("TAG_OPEN");
     tagName: LexerItem<"TAG_NAME"> = new LexerItem("TAG_NAME");
@@ -320,6 +349,12 @@ export class HtmlElement implements ParserItem {
         return queue;
     };
 }
+
+/**
+   htmlContent
+    : htmlChardata? ((htmlElement | CDATA | htmlComment) htmlChardata?)*
+    ;
+ */
 export class HtmlContent implements ParserItem {
     htmlCharData = new HtmlChardata();
     content: Array<{
@@ -457,6 +492,12 @@ export class HtmlContent implements ParserItem {
     };
     consumed = () => true;
 }
+
+/**
+   htmlAttribute
+    : TAG_NAME (TAG_EQUALS ATTVALUE_VALUE)?
+    ;
+ */
 export class HtmlAttribute implements ParserItem {
     tagName = new LexerItem("TAG_NAME");
     attribute = {
@@ -491,6 +532,13 @@ export class HtmlAttribute implements ParserItem {
         return queue;
     };
 }
+
+/**
+   htmlChardata
+    : HTML_TEXT
+    | SEA_WS
+    ;
+ */
 export class HtmlChardata implements ParserItem {
     htmlText = new LexerItem("HTML_TEXT");
     seaWs = new LexerItem("SEA_WS");
@@ -516,6 +564,13 @@ export class HtmlChardata implements ParserItem {
         return queue;
     };
 }
+
+/**   
+    htmlMisc
+        : htmlComment
+        | SEA_WS
+        ;
+ */
 export class HtmlMisc implements ParserItem {
     htmlComment = new HtmlComment();
     seaWs = new LexerItem("SEA_WS");
@@ -539,6 +594,13 @@ export class HtmlMisc implements ParserItem {
         return queue;
     };
 }
+
+/**
+   htmlComment
+    : HTML_COMMENT
+    | HTML_CONDITIONAL_COMMENT
+    ;
+ */
 class HtmlComment implements ParserItem {
     htmlComment = new LexerItem("HTML_COMMENT");
     htmlConditionalComment = new LexerItem("HTML_CONDITIONAL_COMMENT");
@@ -562,6 +624,12 @@ class HtmlComment implements ParserItem {
         return queue;
     };
 }
+
+/**
+  script
+    : SCRIPT_OPEN (SCRIPT_BODY | SCRIPT_SHORT_BODY)
+    ;
+ */
 export class Script implements ParserItem {
     scriptOpen = new LexerItem("SCRIPT_OPEN");
     scriptBody = new LexerItem("SCRIPT_BODY");
@@ -593,6 +661,12 @@ export class Script implements ParserItem {
         return queue;
     };
 }
+
+/**
+   style
+    : STYLE_OPEN (STYLE_BODY | STYLE_SHORT_BODY)
+    ;
+ */
 export class Style implements ParserItem {
     styleOpen = new LexerItem("STYLE_OPEN");
     styleBody = new LexerItem("STYLE_BODY");
