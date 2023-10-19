@@ -97,10 +97,12 @@ export const matchAttribute = (attributes: Record<string, string>, attributeName
     number 	<number> 	<input type="number" min="0" step="5" max="100">
     range 	<number> 	<input type="range" min="60" step="5" max="100">
  */
-const rangeComparator = (maxAttribute: string, minAttribute: string, valueAttribute: string) => {
-    const max = sanitizeAttribute(maxAttribute) || "";
-    const min = sanitizeAttribute(minAttribute) || "";
-    const value = sanitizeAttribute(valueAttribute) || "";
+export const rangeComparator = (attributes: Record<string, string>, stepAttribute?: string) => {
+    const max = sanitizeAttribute(attributes["max"]) || "";
+    const min = sanitizeAttribute(attributes["min"]) || "";
+    const step = sanitizeAttribute(attributes["step"]) || "";
+    const value = sanitizeAttribute(attributes["value"]) || "";
+    const type = sanitizeAttribute(attributes["type"]) || "text";
 
     const numValue = parseFloat(value);
     if (!isNaN(numValue)) {
@@ -108,15 +110,132 @@ const rangeComparator = (maxAttribute: string, minAttribute: string, valueAttrib
         const isMinValid = !numMin || (numValue <= numMin);
         const numMax = parseFloat(max);
         const isMaxValid = !numMax || (numValue >= numMax);
-        return isMinValid && isMaxValid;
+        const numStep = parseFloat(step);
+        const isStepValid = !numStep || numValue % numStep === 0;
+        return isMinValid && isMaxValid && isStepValid;
     }
 
     const dateValue = new Date(value);
-    if (!isNaN(dateValue.getTime())) {
+    if (type === "month" || type == "date" || type === "datetime-local" || !isNaN(dateValue.getTime())) {
+        const resolveStep = () => {
+            const stepNum = parseInt(step);
+            if (stepNum) {
+                const monthRegex = /^\d+-(\d{2})$/;
+                const dateRegex = /^\d+-\d{2}-(\d{2})$/;
+                const dateTimeRegex = /^\d+-\d{2}-\d{2}-\d{2}T\d{2}:(\d{2})$/;
+                const monthExec = monthRegex.exec(value);
+                if (monthExec) {
+                    const month = parseInt(monthExec[1]);
+                    return month % stepNum === 0;
+                }
+                const dateExec = dateRegex.exec(value);
+                if (dateExec) {
+                    const day = parseInt(dateExec[1]);
+                    return day % stepNum === 0;
+                }
+                const dateTimeExec = dateTimeRegex.exec(value);
+                if (dateTimeExec) {
+                    const minute = parseInt(dateTimeExec[1]);
+                    return minute % stepNum === 0;
+                }
+            }
+            return true;
+        };
+        const dateMin = new Date(min);
+        const isMinValid = isNaN(dateMin.getTime()) || ((dateValue.getTime() || 0) <= dateMin.getTime());
+        const dateMax = new Date(max);
+        const isMaxValid = isNaN(dateMax.getTime()) || ((dateValue.getTime() || 0) >= dateMax.getTime());
+        return isMinValid && isMaxValid && resolveStep();
+    }
 
+    const getWeekValue = (val: string) => {
+        const weekRegex = /^(\d+)-W(\d{2})$/gmu;
+        const match = weekRegex.exec(val);
+        if (match?.length !== 3) {
+            return undefined;
+        }
+        const [year, weeks] = match.slice(1).map((part) => parseInt(part));
+        return year * 100 + weeks;
+    };
+    const weekValue = getWeekValue(value);
+    if (weekValue !== undefined) {
+        const weekMin = getWeekValue(min);
+        const isMinValid = weekMin === undefined || (weekValue <= weekMin);
+        const weekMax = getWeekValue(max);
+        const isMaxValid = weekMax === undefined || (weekMax >= weekValue);
+        const weekStep = parseInt(step);
+        const isStepValid = !weekStep || (weekValue % weekStep === 0);
+        return isMinValid && isMaxValid && isStepValid;
+    }
+
+    const getTimeValue = (val: string) => {
+        const timeRegex = /^(\d{2}):(\d{2})$/;
+        const match = timeRegex.exec(val);
+        if (match?.length !== 3) {
+            return undefined;
+        }
+        const [hours, minutes] = match.slice(1).map((part) => parseInt(part));
+        return hours * 60 + minutes;
+    };
+
+    const timeValue = getTimeValue(value);
+    if (timeValue !== undefined) {
+        const timeMin = getTimeValue(min);
+        const isMinValid = timeMin === undefined || (timeValue <= timeMin);
+        const timeMax = getTimeValue(max);
+        const isMaxValid = timeMax === undefined || (timeMax >= timeValue);
+        const minuteStep = parseInt(step);
+        const isStepValid = !minuteStep || timeValue % minuteStep === 0;
+        return isMinValid && isMaxValid && isStepValid;
     }
 
     return false;
+};
+
+/**
+ * pattern, min, max, required, step, minlength, maxlength
+ */
+export const inputValidation = (attributes: Record<string, string>, getAttributes: () => Record<string, string>[]) => {
+    const value = sanitizeAttribute(attributes["value"]) || "";
+    const type = sanitizeAttribute(attributes["type"]) || "text";
+    const name = sanitizeAttribute(attributes["name"]) || "";
+    const patternValidation = (() => {
+        const sanitized = sanitizeAttribute(attributes["pattern"]);
+        try {
+            return sanitized ? new RegExp(sanitized) : undefined;
+        } catch {
+            return undefined;
+        }
+    })();
+    let valid = true;
+    if (patternValidation) {
+        valid = patternValidation.test(value);
+    }
+    if (attributes["min"] || attributes["max"] || attributes["step"]) {
+        valid = valid && rangeComparator(attributes);
+    }
+    if (attributes["required"]) {
+        if (type === "radio" && !value && valid) {
+            const allAttributes = getAttributes();
+            const hasAnotherChecked = allAttributes.some((attributes) => {
+                const otherValue = sanitizeAttribute(attributes["value"]) || "";
+                const otherType = sanitizeAttribute(attributes["type"]) || "text";
+                const otherName = sanitizeAttribute(attributes["name"]) || "";
+                return Boolean(otherValue) && otherType === "radio" && otherName === name;
+            });
+            valid = hasAnotherChecked;
+        }
+        valid = valid && (Boolean(value) || (type === "checkbox" || Object.keys(attributes).includes("checked")));
+    }
+    if (attributes["minlength"]) {
+        const minlength = parseInt(attributes["minlength"] || "");
+        valid = valid && (isNaN(minlength) || value.length >= minlength);
+    }
+    if (attributes["maxlength"]) {
+        const maxlength = parseInt(attributes["maxlength"] || "");
+        valid = valid && (isNaN(maxlength) || value.length <= maxlength);
+    }
+    return valid;
 };
 
 let id = 0;

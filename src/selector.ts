@@ -1,10 +1,10 @@
-import { HtmlElement } from "./html";
+import { HtmlDocument, HtmlElement } from "./html";
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Queue, Searcher } from "./types";
-import { matchAttribute } from "./utils";
+import { inputValidation, matchAttribute, rangeComparator } from "./utils";
 
 export interface Matcher extends ParserItem {
-    match: (htmlElements: HtmlElement[]) => HtmlElement[];
+    match: (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]) => HtmlElement[];
 }
 
 /**
@@ -72,14 +72,14 @@ export class SelectorGroup implements Matcher {
             searcher.feedParserItem(selector.selector);
         });
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
         return Object.values(
             [this.selector, ...this.selectors.map((s) => s.selector)].reduce(
                 (result: Record<string, HtmlElement>, selector) => {
-                    selector.match(htmlElements).forEach((htmlElement) => {
+                    selector.match(htmlElements, allHtmlElements).forEach((htmlElement) => {
                         result[htmlElement.identifier] = htmlElement;
                     });
                     return result;
@@ -157,15 +157,15 @@ export class Selector implements Matcher {
             searcher.feedParserItem(sequence.ws);
         });
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
-        const filtered = this.simpleSelectorSequence.match(htmlElements);
+        const filtered = this.simpleSelectorSequence.match(htmlElements, allHtmlElements);
         return this.sequences.reduce(
             (filtered, { combinator, simpleSelectorSequence }) => {
-                const applyCombinator = combinator.match(filtered);
-                const applySequence = simpleSelectorSequence.match(applyCombinator);
+                const applyCombinator = combinator.match(filtered, allHtmlElements);
+                const applySequence = simpleSelectorSequence.match(applyCombinator, allHtmlElements);
                 return applySequence;
             },
             filtered
@@ -224,7 +224,7 @@ export class Combinator implements Matcher {
         searcher.feedLexerItem(this.space);
         searcher.feedParserItem(this.ws);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], _: HtmlElement[]): HtmlElement[] => {
         if (this.plus.value) {
             return htmlElements
                 .map((element) => element.parent.nextSibling(element))
@@ -363,19 +363,19 @@ export class SimpleSelectorSequence implements Matcher {
             searcher.feedParserItem(negation);
         });
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
-        const typeMatched = this.typeSelector.match(htmlElements);
-        const universalMatched = this.universal.match(typeMatched);
+        const typeMatched = this.typeSelector.match(htmlElements, allHtmlElements);
+        const universalMatched = this.universal.match(typeMatched, allHtmlElements);
 
         return this.modifiers.reduce((htmlElements, modifier) => {
             if (modifier.attrib.consumed()) {
-                return modifier.attrib.match(htmlElements);
+                return modifier.attrib.match(htmlElements, allHtmlElements);
             }
             if (modifier.className.consumed()) {
-                return modifier.className.match(htmlElements);
+                return modifier.className.match(htmlElements, allHtmlElements);
             }
             if (modifier.hash.value) {
                 const hashValue = modifier.hash.value.replace(/^#/, "");
@@ -384,10 +384,10 @@ export class SimpleSelectorSequence implements Matcher {
                 );
             }
             if (modifier.negation.consumed()) {
-                return modifier.negation.match(htmlElements);
+                return modifier.negation.match(htmlElements, allHtmlElements);
             }
             if (modifier.pseudo.consumed()) {
-                return modifier.pseudo.match(htmlElements);
+                return modifier.pseudo.match(htmlElements, allHtmlElements);
             }
             return htmlElements;
         }, universalMatched);
@@ -451,30 +451,35 @@ export class Pseudo implements Matcher {
         :root 	root 	Selects the document's root element
         :valid 	input:valid 	Selects all <input> elements with a valid value
      */
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
         if (this.functionalPseudo.consumed()) {
-            return this.functionalPseudo.match(htmlElements);
+            return this.functionalPseudo.match(htmlElements, allHtmlElements);
         }
 
 
-        let indexesByParent: Record<string, Record<string, number>> | undefined;
+        let indexesByParent: Record<string, Record<string, { tagName: string, order: number }>> | undefined;
         const fillIndexes = () => {
             if (indexesByParent) {
                 return indexesByParent;
             }
-            indexesByParent = htmlElements.reduce((indexes: Record<string, Record<string, number>>, element) => {
+            indexesByParent = htmlElements.reduce((indexes: Record<string, Record<string, { tagName: string, order: number }>>, element) => {
                 const parentIndex = element.parent.identifier;
                 if (!indexes[parentIndex]) {
                     indexes[parentIndex] = {};
                 }
-                indexes[parentIndex][element.identifier] = element.parent.getIndex(element);
+                indexes[parentIndex][element.identifier] = {
+                    tagName: element.tagName.value,
+                    order: element.parent.getIndex(element),
+                };
                 return indexes;
             }, {});
             return indexesByParent;
-        }
+        };
+
+        const sameType = (element: HtmlElement) => (values: { tagName: string, order: number }[]) => values.filter(({ tagName }) => element.tagName.value === tagName).map(({ order }) => order);
 
         return htmlElements.filter((element) => {
             const children = element.children();
@@ -489,16 +494,38 @@ export class Pseudo implements Matcher {
                     return matchAttribute(element.attributes(), "disabled", "", "not");
                 case "first-child":
                     const indexByQuery = fillIndexes()[element.parent.identifier][element.identifier];
-                    return indexByQuery === 0 || indexByQuery === -1;
+                    return indexByQuery.order === 0 || indexByQuery.order === -1;
                 case "first-of-type":
-                    const lowestIndexOfQuery = Math.min(...Object.values(fillIndexes()[element.parent.identifier]));
-                    return lowestIndexOfQuery === fillIndexes()[element.parent.identifier][element.identifier];
+                    const lowestIndexOfQuery = Math.min(...sameType(element)(Object.values(fillIndexes()[element.parent.identifier])));
+                    return lowestIndexOfQuery === fillIndexes()[element.parent.identifier][element.identifier].order;
                 case "in-range":
-                    const attributes = element.attributes();
-                    const max = attributes["max"];
-                    const min = attributes["min"];
-                    const value = attributes["value"];
-                    return;
+                    return rangeComparator(element.attributes());
+                case "invalid":
+                    return !inputValidation(element.attributes(), () => allHtmlElements.map((element) => element.attributes()));
+                case "last-child":
+                    const numberOfChildren = element.parent.children().length;
+                    return fillIndexes()[element.parent.identifier][element.identifier].order === numberOfChildren - 1;
+                case "last-of-type":
+                    const numberOfType = sameType(element)(Object.values(fillIndexes()[element.parent.identifier])).length;
+                    return fillIndexes()[element.parent.identifier][element.identifier].order === numberOfType - 1;
+                case "only-of-type":
+                    return sameType(element)(Object.values(fillIndexes()[element.parent.identifier])).length === 1;
+                case "only-child":
+                    return element.parent.children().length === 1;
+                case "optional":
+                    return !Object.keys(element.attributes()).includes("required");
+                case "out-of-range":
+                    return !rangeComparator(element.attributes());
+                case "read-only":
+                    return Object.keys(element.attributes()).includes("readonly");
+                case "read-write":
+                    return !Object.keys(element.attributes()).includes("readonly");
+                case "required":
+                    return Object.keys(element.attributes()).includes("required");
+                case "root":
+                    return element.parent instanceof HtmlDocument;
+                case "valid":
+                    return inputValidation(element.attributes(), () => allHtmlElements.map((element) => element.attributes()));
                 default:
                     return false;
             }
@@ -546,8 +573,33 @@ export class FunctionalPseudo implements Matcher {
         searcher.feedParserItem(this.expression);
         searcher.feedLexerItem(this.backBrace);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
-        return [];
+    /**
+        :nth-child(n) 	p:nth-child(2) 	Selects every <p> element that is the second child of its parent
+        :nth-last-child(n) 	p:nth-last-child(2) 	Selects every <p> element that is the second child of its parent, counting from the last child
+        :nth-last-of-type(n) 	p:nth-last-of-type(2) 	Selects every <p> element that is the second <p> element of its parent, counting from the last child
+        :nth-of-type(n) 	p:nth-of-type(2) 	Selects every <p> element that is the second <p> element of its parent
+        :is(n)  p:is()
+     */
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
+        if (!this.consumed()) {
+            return htmlElements;
+        }
+        return htmlElements.filter((htmlElement) => {
+            switch (this.funct.value) {
+                case "nth-child(":
+                    return false;
+                case ":nth-last-child(":
+                    return false;
+                case ":nth-last-of-type(":
+                    return false;
+                case ":nth-of-type(":
+                    return false;
+                case ":has(":
+                    return false;
+                default:
+                    return false;
+            }
+        });
     };
 }
 
@@ -584,7 +636,7 @@ export class TypeNamespacePrefix implements Matcher {
         searcher.feedLexerItem(this.universal);
         searcher.feedLexerItem(this.namespace);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -616,7 +668,7 @@ export class TypeSelector implements Matcher {
         searcher.feedParserItem(this.typeNamespacePrefix);
         searcher.feedParserItem(this.elementName);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -642,7 +694,7 @@ export class ElementName implements Matcher {
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.ident);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -675,7 +727,7 @@ export class Universal implements Matcher {
         searcher.feedParserItem(this.typeNamespacePrefix);
         searcher.feedLexerItem(this.universal);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -707,7 +759,7 @@ export class ClassName implements Matcher {
         searcher.feedLexerItem(this.dot);
         searcher.feedLexerItem(this.ident);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -810,7 +862,7 @@ export class Attrib implements Matcher {
         searcher.feedParserItem(this.ws4);
         searcher.feedLexerItem(this.squareBracketEnd);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -858,7 +910,7 @@ export class Negation implements Matcher {
         searcher.feedParserItem(this.ws2);
         searcher.feedLexerItem(this.backBrace);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -925,7 +977,7 @@ export class NegationArg implements Matcher {
         searcher.feedParserItem(this.attrib);
         searcher.feedParserItem(this.pseudo);
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }
@@ -935,7 +987,7 @@ export class NegationArg implements Matcher {
         : Space*
         ;
 */
-export class Ws implements Matcher {
+export class Ws implements ParserItem {
     spaces: LexerItem<"Space">[] = [];
     consumed = () => {
         return true;
@@ -953,9 +1005,6 @@ export class Ws implements Matcher {
     search = (searcher: Searcher) => {
         this.spaces.forEach((space) => searcher.feedLexerItem(space));
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
-        return [];
-    };
 }
 
 /**
@@ -970,22 +1019,39 @@ export class Expression implements Matcher {
         number: LexerItem<"Number">;
         string: LexerItem<"String_">;
         ident: LexerItem<"Ident">;
+        selectorGroup: SelectorGroup,
         ws: Ws;
     }[] = [];
     consumed = () => {
         return (
             this.expressions.length > 0 &&
             this.expressions.every(
-                ({ plus, minus, number, string, ident }) =>
+                ({ plus, minus, number, string, ident, selectorGroup: simpleSelectorSequence }) =>
                     plus.value ||
                     minus.value ||
                     number.value ||
                     string.value ||
+                    simpleSelectorSequence.consumed() ||
                     ident.value
             )
         );
     };
     process = (queue: Queue): Queue => {
+        const baseExpression: (typeof this.expressions)["0"] = {
+            ident: new LexerItem("Ident"),
+            minus: new LexerItem("Minus"),
+            number: new LexerItem("Number"),
+            plus: new LexerItem("Plus"),
+            string: new LexerItem("String_"),
+            selectorGroup: new SelectorGroup(),
+            ws: new Ws(),
+        };
+        const trySimpleSelector = baseExpression.selectorGroup.process(queue);
+        if (baseExpression.selectorGroup.consumed()) {
+            this.expressions.push(baseExpression);
+            const tryWs = baseExpression.ws.process(trySimpleSelector);
+            return this.process(tryWs);
+        }
         const lexers: [LexerType, LexerItem<LexerType>][] = [
             ["Plus", new LexerItem("Plus")],
             ["Minus", new LexerItem("Minus")],
@@ -997,14 +1063,6 @@ export class Expression implements Matcher {
         const found = lexers.find(([type]) => type === current.type)?.[1];
         if (found) {
             found.value = current.value;
-            const baseExpression: (typeof this.expressions)["0"] = {
-                ident: new LexerItem("Ident"),
-                minus: new LexerItem("Minus"),
-                number: new LexerItem("Number"),
-                plus: new LexerItem("Plus"),
-                string: new LexerItem("String_"),
-                ws: new Ws(),
-            };
             switch (current.type) {
                 case "Plus":
                     this.expressions.push({
@@ -1052,7 +1110,7 @@ export class Expression implements Matcher {
             searcher.feedParserItem(ws);
         });
     };
-    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+    match = (htmlElements: HtmlElement[], allHtmlElements: HtmlElement[]): HtmlElement[] => {
         return [];
     };
 }

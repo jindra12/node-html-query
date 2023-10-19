@@ -49,6 +49,13 @@ export class HtmlDocument implements ParserItem {
         this.identifier = uniqueId("html_document");
     }
 
+    children = () => {
+        if (!this.consumed()) {
+            return [];
+        }
+        return this.htmlElements.map(({ htmlElement }) => htmlElement);
+    };
+
     getIndex = (element: HtmlElement) => {
         return this.htmlElements.findIndex(
             (htmlElement) =>
@@ -395,6 +402,13 @@ export class HtmlContent implements ParserItem {
     constructor() {
         this.identifier = uniqueId("html_content");
     }
+
+    children = () => {
+        if (!this.consumed()) {
+            return [];
+        }
+        return this.content.map(({ inner: { htmlElement } }) => htmlElement);
+    };
 
     getIndex = (element: HtmlElement) => {
         return this.content.findIndex(
