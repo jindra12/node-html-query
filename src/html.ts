@@ -44,11 +44,20 @@ export class HtmlDocument implements ParserItem {
     scriptletOrSeaWs3: ScriptletOrSeaWs[] = [];
     htmlElements: HtmlElements[] = [];
 
-    prevSibling = (element: HtmlElement) => {
-        const index = this.htmlElements.findIndex(
+    identifier: string;
+    constructor() {
+        this.identifier = uniqueId("html_document");
+    }
+
+    getIndex = (element: HtmlElement) => {
+        return this.htmlElements.findIndex(
             (htmlElement) =>
                 htmlElement.consumed() && htmlElement.htmlElement === element
         );
+    };
+
+    prevSibling = (element: HtmlElement) => {
+        const index = this.getIndex(element);
         if (index === -1) {
             return undefined;
         }
@@ -56,10 +65,7 @@ export class HtmlDocument implements ParserItem {
     };
 
     nextSibling = (element: HtmlElement) => {
-        const index = this.htmlElements.findIndex(
-            (htmlElement) =>
-                htmlElement.consumed() && htmlElement.htmlElement === element
-        );
+        const index = this.getIndex(element);
         if (index === -1) {
             return undefined;
         }
@@ -238,6 +244,25 @@ export class HtmlElement implements ParserItem {
         this.identifier = uniqueId("htmlelement");
     }
 
+    children = () => {
+        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+            return [];
+        }
+        return this.tagClose.close1.closingGroup.htmlContent.content.map(({ inner }) => inner.htmlElement);
+    };
+
+    attributes = () => {
+        if (!this.consumed()) {
+            return {};
+        }
+        return this.htmlAttributes.reduce((attributes: Record<string, string>, attribute) => {
+            if (attribute.consumed()) {
+                attributes[attribute.tagName.value] = attribute.attribute.value.value;
+            }
+            return attributes;
+        }, {});
+    };
+
     endTagConsumed = () => {
         return (
             this.tagClose.close1.tag.value || this.tagClose.close2.tagSlashClose.value
@@ -366,11 +391,20 @@ export class HtmlContent implements ParserItem {
         charData: HtmlChardata;
     }> = [];
 
-    prevSibling = (element: HtmlElement) => {
-        const index = this.content.findIndex(
+    identifier: string;
+    constructor() {
+        this.identifier = uniqueId("html_content");
+    }
+
+    getIndex = (element: HtmlElement) => {
+        return this.content.findIndex(
             ({ inner: { htmlElement } }) =>
                 htmlElement.consumed() && htmlElement.identifier === element.identifier
         );
+    }
+
+    prevSibling = (element: HtmlElement) => {
+        const index = this.getIndex(element);
         if (index === -1) {
             return undefined;
         }
@@ -378,10 +412,7 @@ export class HtmlContent implements ParserItem {
     };
 
     nextSibling = (element: HtmlElement) => {
-        const index = this.content.findIndex(
-            ({ inner: { htmlElement } }) =>
-                htmlElement.consumed() && htmlElement.identifier === element.identifier
-        );
+        const index = this.getIndex(element);
         if (index === -1) {
             return undefined;
         }

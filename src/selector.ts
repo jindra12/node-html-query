@@ -1,24 +1,33 @@
+import { HtmlElement } from "./html";
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Queue, Searcher } from "./types";
+import { matchAttribute } from "./utils";
+
+export interface Matcher extends ParserItem {
+    match: (htmlElements: HtmlElement[]) => HtmlElement[];
+}
 
 /**
  * selectorGroup
     : selector ( Comma ws selector )*
     ;
  */
-export class SelectorGroup implements ParserItem {
+export class SelectorGroup implements Matcher {
     selector = new Selector();
     selectors: {
-        comma: LexerItem<"Comma">,
-        ws: Ws,
-        selector: Selector,
+        comma: LexerItem<"Comma">;
+        ws: Ws;
+        selector: Selector;
     }[] = [];
     consumed = () => {
-        return this.selector.consumed() && (this.selectors.length === 0 || this.selectors.every(({
-            comma,
-            selector: selector,
-            ws,
-        }) => comma.value && selector.consumed() && ws.consumed()));
+        return (
+            this.selector.consumed() &&
+            (this.selectors.length === 0 ||
+                this.selectors.every(
+                    ({ comma, selector: selector, ws }) =>
+                        comma.value && selector.consumed() && ws.consumed()
+                ))
+        );
     };
     process = (queue: Queue): Queue => {
         if (!this.selector.consumed()) {
@@ -29,7 +38,10 @@ export class SelectorGroup implements ParserItem {
         } else {
             const current = queue.items[queue.at];
             const lastArrayItem = this.selectors[this.selectors.length - 1];
-            if (current.type === "Comma" && (!lastArrayItem || lastArrayItem.selector.consumed())) {
+            if (
+                current.type === "Comma" &&
+                (!lastArrayItem || lastArrayItem.selector.consumed())
+            ) {
                 const item = new LexerItem("Comma");
                 item.value = current.value;
                 const ws = new Ws();
@@ -60,6 +72,22 @@ export class SelectorGroup implements ParserItem {
             searcher.feedParserItem(selector.selector);
         });
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        if (!this.consumed()) {
+            return htmlElements;
+        }
+        return Object.values(
+            [this.selector, ...this.selectors.map((s) => s.selector)].reduce(
+                (result: Record<string, HtmlElement>, selector) => {
+                    selector.match(htmlElements).forEach((htmlElement) => {
+                        result[htmlElement.identifier] = htmlElement;
+                    });
+                    return result;
+                },
+                {}
+            )
+        );
+    };
 }
 
 /**
@@ -67,20 +95,26 @@ export class SelectorGroup implements ParserItem {
     : simpleSelectorSequence ws ( combinator simpleSelectorSequence ws )*
     ;
  */
-export class Selector implements ParserItem {
+export class Selector implements Matcher {
     simpleSelectorSequence = new SimpleSelectorSequence();
     ws = new Ws();
     sequences: {
-        combinator: Combinator,
-        simpleSelectorSequence: SimpleSelectorSequence,
-        ws: Ws,
+        combinator: Combinator;
+        simpleSelectorSequence: SimpleSelectorSequence;
+        ws: Ws;
     }[] = [];
     consumed = () => {
-        return this.simpleSelectorSequence.consumed() && this.ws.consumed() && (this.sequences.length === 0 || this.sequences.every(({
-            combinator,
-            simpleSelectorSequence,
-            ws,
-        }) => combinator.consumed() && simpleSelectorSequence.consumed() && ws.consumed()));
+        return (
+            this.simpleSelectorSequence.consumed() &&
+            this.ws.consumed() &&
+            (this.sequences.length === 0 ||
+                this.sequences.every(
+                    ({ combinator, simpleSelectorSequence, ws }) =>
+                        combinator.consumed() &&
+                        simpleSelectorSequence.consumed() &&
+                        ws.consumed()
+                ))
+        );
     };
     process = (queue: Queue): Queue => {
         if (!this.simpleSelectorSequence.consumed()) {
@@ -102,7 +136,10 @@ export class Selector implements ParserItem {
                 });
                 return this.process(tryParse);
             }
-        } else if (lastArrayItem && !lastArrayItem.simpleSelectorSequence.consumed()) {
+        } else if (
+            lastArrayItem &&
+            !lastArrayItem.simpleSelectorSequence.consumed()
+        ) {
             const tryProcess = lastArrayItem.simpleSelectorSequence.process(queue);
             if (lastArrayItem.simpleSelectorSequence.consumed()) {
                 const tryProcessWs = lastArrayItem.ws.process(tryProcess);
@@ -120,6 +157,20 @@ export class Selector implements ParserItem {
             searcher.feedParserItem(sequence.ws);
         });
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        if (!this.consumed()) {
+            return htmlElements;
+        }
+        const filtered = this.simpleSelectorSequence.match(htmlElements);
+        return this.sequences.reduce(
+            (filtered, { combinator, simpleSelectorSequence }) => {
+                const applyCombinator = combinator.match(filtered);
+                const applySequence = simpleSelectorSequence.match(applyCombinator);
+                return applySequence;
+            },
+            filtered
+        );
+    };
 }
 
 /**
@@ -130,7 +181,7 @@ export class Selector implements ParserItem {
         | Space ws
         ;
  */
-export class Combinator implements ParserItem {
+export class Combinator implements Matcher {
     plus = new LexerItem("Plus");
     greater = new LexerItem("Greater");
     tilde = new LexerItem("Tilde");
@@ -138,7 +189,10 @@ export class Combinator implements ParserItem {
     ws = new Ws();
     consumed = () => {
         return Boolean(
-            this.plus.value || this.greater.value || this.tilde.value || this.space.value
+            this.plus.value ||
+            this.greater.value ||
+            this.tilde.value ||
+            this.space.value
         );
     };
     process = (queue: Queue): Queue => {
@@ -170,6 +224,33 @@ export class Combinator implements ParserItem {
         searcher.feedLexerItem(this.space);
         searcher.feedParserItem(this.ws);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        if (this.plus.value) {
+            return htmlElements
+                .map((element) => element.parent.nextSibling(element))
+                .filter((element: HtmlElement | undefined): element is HtmlElement =>
+                    Boolean(element)
+                );
+        }
+        if (this.greater.value) {
+            return htmlElements
+                .map((element) => element.children())
+                .reduce((elements: HtmlElement[], children) => {
+                    children.forEach((child) => {
+                        elements.push(child);
+                    });
+                    return elements;
+                }, []);
+        }
+        if (this.tilde.value) {
+            return htmlElements
+                .map((element) => element.parent.prevSibling(element))
+                .filter((element: HtmlElement | undefined): element is HtmlElement =>
+                    Boolean(element)
+                );
+        }
+        return htmlElements;
+    };
 }
 
 /**
@@ -178,19 +259,20 @@ export class Combinator implements ParserItem {
         | ( Hash | className | attrib | pseudo | negation )+
         ;
  */
-export class SimpleSelectorSequence implements ParserItem {
+export class SimpleSelectorSequence implements Matcher {
     typeSelector = new TypeSelector();
     universal = new Universal();
     modifiers: {
-        hash: LexerItem<"Hash">,
-        className: ClassName,
-        attrib: Attrib,
-        pseudo: Pseudo
-        negation: Negation,
+        hash: LexerItem<"Hash">;
+        className: ClassName;
+        attrib: Attrib;
+        pseudo: Pseudo;
+        negation: Negation;
     }[] = [];
 
     consumed = () => {
-        const hasPreface = this.typeSelector.consumed() || this.universal.consumed();
+        const hasPreface =
+            this.typeSelector.consumed() || this.universal.consumed();
         if (hasPreface) {
             return true;
         }
@@ -273,19 +355,42 @@ export class SimpleSelectorSequence implements ParserItem {
     search = (searcher: Searcher) => {
         searcher.feedParserItem(this.typeSelector);
         searcher.feedParserItem(this.universal);
-        this.modifiers.forEach(({
-            hash,
-            className,
-            attrib,
-            pseudo,
-            negation,
-        }) => {
+        this.modifiers.forEach(({ hash, className, attrib, pseudo, negation }) => {
             searcher.feedLexerItem(hash);
             searcher.feedParserItem(className);
             searcher.feedParserItem(attrib);
             searcher.feedParserItem(pseudo);
             searcher.feedParserItem(negation);
-        })
+        });
+    };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        if (!this.consumed()) {
+            return htmlElements;
+        }
+        const typeMatched = this.typeSelector.match(htmlElements);
+        const universalMatched = this.universal.match(typeMatched);
+
+        return this.modifiers.reduce((htmlElements, modifier) => {
+            if (modifier.attrib.consumed()) {
+                return modifier.attrib.match(htmlElements);
+            }
+            if (modifier.className.consumed()) {
+                return modifier.className.match(htmlElements);
+            }
+            if (modifier.hash.value) {
+                const hashValue = modifier.hash.value.replace(/^#/, "");
+                return htmlElements.filter((element) =>
+                    matchAttribute(element.attributes(), "id", hashValue, "[attr=value]")
+                );
+            }
+            if (modifier.negation.consumed()) {
+                return modifier.negation.match(htmlElements);
+            }
+            if (modifier.pseudo.consumed()) {
+                return modifier.pseudo.match(htmlElements);
+            }
+            return htmlElements;
+        }, universalMatched);
     };
 }
 
@@ -294,12 +399,15 @@ export class SimpleSelectorSequence implements ParserItem {
     : PseudoGeneral ( ident | functionalPseudo )
     ;
  */
-export class Pseudo implements ParserItem {
+export class Pseudo implements Matcher {
     pseudoGeneral = new LexerItem("PseudoGeneral");
     ident = new LexerItem("Ident");
     functionalPseudo = new FunctionalPseudo();
     consumed = () => {
-        return Boolean(this.pseudoGeneral.value && (this.ident.value || this.functionalPseudo.consumed()))
+        return Boolean(
+            this.pseudoGeneral.value &&
+            (this.ident.value || this.functionalPseudo.consumed())
+        );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
@@ -322,6 +430,80 @@ export class Pseudo implements ParserItem {
         searcher.feedLexerItem(this.ident);
         searcher.feedParserItem(this.functionalPseudo);
     };
+    /**
+        :checked 	input:checked 	Selects every checked <input> element
+        :disabled 	input:disabled 	Selects every disabled <input> element
+        :empty 	p:empty 	Selects every <p> element that has no children
+        :enabled 	input:enabled 	Selects every enabled <input> element
+        :first-child 	p:first-child 	Selects every <p> elements that is the first child of its parent
+        :first-of-type 	p:first-of-type 	Selects every <p> element that is the first <p> element of its parent
+        :in-range 	input:in-range 	Selects <input> elements with a value within a specified range
+        :invalid 	input:invalid 	Selects all <input> elements with an invalid value
+        :last-child 	p:last-child 	Selects every <p> elements that is the last child of its parent
+        :last-of-type 	p:last-of-type 	Selects every <p> element that is the last <p> element of its parent
+        :only-of-type 	p:only-of-type 	Selects every <p> element that is the only <p> element of its parent
+        :only-child 	p:only-child 	Selects every <p> element that is the only child of its parent
+        :optional 	input:optional 	Selects <input> elements with no "required" attribute
+        :out-of-range 	input:out-of-range 	Selects <input> elements with a value outside a specified range
+        :read-only 	input:read-only 	Selects <input> elements with a "readonly" attribute specified
+        :read-write 	input:read-write 	Selects <input> elements with no "readonly" attribute
+        :required 	input:required 	Selects <input> elements with a "required" attribute specified
+        :root 	root 	Selects the document's root element
+        :valid 	input:valid 	Selects all <input> elements with a valid value
+     */
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        if (!this.consumed()) {
+            return htmlElements;
+        }
+        if (this.functionalPseudo.consumed()) {
+            return this.functionalPseudo.match(htmlElements);
+        }
+
+
+        let indexesByParent: Record<string, Record<string, number>> | undefined;
+        const fillIndexes = () => {
+            if (indexesByParent) {
+                return indexesByParent;
+            }
+            indexesByParent = htmlElements.reduce((indexes: Record<string, Record<string, number>>, element) => {
+                const parentIndex = element.parent.identifier;
+                if (!indexes[parentIndex]) {
+                    indexes[parentIndex] = {};
+                }
+                indexes[parentIndex][element.identifier] = element.parent.getIndex(element);
+                return indexes;
+            }, {});
+            return indexesByParent;
+        }
+
+        return htmlElements.filter((element) => {
+            const children = element.children();
+            switch (this.ident.value) {
+                case "checked":
+                    return matchAttribute(element.attributes(), "checked", "", "[attr]");
+                case "disabled":
+                    return matchAttribute(element.attributes(), "disabled", "", "[attr]");
+                case "empty":
+                    return children.length === 0;
+                case "enabled":
+                    return matchAttribute(element.attributes(), "disabled", "", "not");
+                case "first-child":
+                    const indexByQuery = fillIndexes()[element.parent.identifier][element.identifier];
+                    return indexByQuery === 0 || indexByQuery === -1;
+                case "first-of-type":
+                    const lowestIndexOfQuery = Math.min(...Object.values(fillIndexes()[element.parent.identifier]));
+                    return lowestIndexOfQuery === fillIndexes()[element.parent.identifier][element.identifier];
+                case "in-range":
+                    const attributes = element.attributes();
+                    const max = attributes["max"];
+                    const min = attributes["min"];
+                    const value = attributes["value"];
+                    return;
+                default:
+                    return false;
+            }
+        });
+    };
 }
 
 /**
@@ -329,13 +511,15 @@ export class Pseudo implements ParserItem {
     : Function_ ws expression ')'
     ;
  */
-export class FunctionalPseudo implements ParserItem {
+export class FunctionalPseudo implements Matcher {
     funct = new LexerItem("Function_");
     ws = new Ws();
     expression = new Expression();
     backBrace = new LexerItem("BackBrace");
     consumed = () => {
-        return Boolean(this.funct.value && this.expression.consumed() && this.backBrace.value);
+        return Boolean(
+            this.funct.value && this.expression.consumed() && this.backBrace.value
+        );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
@@ -362,6 +546,9 @@ export class FunctionalPseudo implements ParserItem {
         searcher.feedParserItem(this.expression);
         searcher.feedLexerItem(this.backBrace);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -369,7 +556,7 @@ export class FunctionalPseudo implements ParserItem {
     : ( ident | '*' )? '|'
     ;
  */
-export class TypeNamespacePrefix implements ParserItem {
+export class TypeNamespacePrefix implements Matcher {
     ident = new LexerItem("Ident");
     namespace = new LexerItem("Namespace");
     universal = new LexerItem("Universal");
@@ -396,7 +583,10 @@ export class TypeNamespacePrefix implements ParserItem {
         searcher.feedLexerItem(this.ident);
         searcher.feedLexerItem(this.universal);
         searcher.feedLexerItem(this.namespace);
-    };    
+    };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /*
@@ -404,7 +594,7 @@ export class TypeNamespacePrefix implements ParserItem {
         : typeNamespacePrefix? elementName
         ;
 */
-export class TypeSelector implements ParserItem {
+export class TypeSelector implements Matcher {
     typeNamespacePrefix = new TypeNamespacePrefix();
     elementName = new ElementName();
 
@@ -426,6 +616,9 @@ export class TypeSelector implements ParserItem {
         searcher.feedParserItem(this.typeNamespacePrefix);
         searcher.feedParserItem(this.elementName);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /*
@@ -433,7 +626,7 @@ export class TypeSelector implements ParserItem {
         : ident
         ;
 */
-export class ElementName implements ParserItem {
+export class ElementName implements Matcher {
     ident = new LexerItem("Ident");
     consumed = () => {
         return Boolean(this.ident.value);
@@ -449,6 +642,9 @@ export class ElementName implements ParserItem {
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.ident);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -456,8 +652,8 @@ export class ElementName implements ParserItem {
     : typeNamespacePrefix? '*'
     ;
  */
-export class Universal implements ParserItem {
-    typeNamespacePrefix = new TypeNamespacePrefix()
+export class Universal implements Matcher {
+    typeNamespacePrefix = new TypeNamespacePrefix();
     universal = new LexerItem("Universal");
 
     consumed = () => {
@@ -479,6 +675,9 @@ export class Universal implements ParserItem {
         searcher.feedParserItem(this.typeNamespacePrefix);
         searcher.feedLexerItem(this.universal);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -486,7 +685,7 @@ export class Universal implements ParserItem {
     : '.' ident
     ;
  */
-export class ClassName implements ParserItem {
+export class ClassName implements Matcher {
     dot = new LexerItem("Dot");
     ident = new LexerItem("Ident");
     consumed = () => {
@@ -508,6 +707,9 @@ export class ClassName implements ParserItem {
         searcher.feedLexerItem(this.dot);
         searcher.feedLexerItem(this.ident);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -515,7 +717,7 @@ export class ClassName implements ParserItem {
     : '[' ws typeNamespacePrefix? ident ws ( ( PrefixMatch | SuffixMatch | SubstringMatch | '=' | Includes | DashMatch ) ws ( ident | String_ ) ws )? ']'
     ;
  */
-export class Attrib implements ParserItem {
+export class Attrib implements Matcher {
     squareBracket = new LexerItem("SquareBracket");
     ws1 = new Ws();
     typeNamespacePrefix = new TypeNamespacePrefix();
@@ -533,12 +735,20 @@ export class Attrib implements ParserItem {
     ws4 = new Ws();
     squareBracketEnd = new LexerItem("SquareBracketEnd");
     consumed = () => {
-        const hasComparator = this.prefixMatch.value || this.suffixMatch.value || this.substringMatch.value || this.equals.value || this.includes.value || this.dashMatch.value;
+        const hasComparator =
+            this.prefixMatch.value ||
+            this.suffixMatch.value ||
+            this.substringMatch.value ||
+            this.equals.value ||
+            this.includes.value ||
+            this.dashMatch.value;
         if (hasComparator && !this.ident2.value && !this.stringIdent.value) {
             return false;
         }
         return Boolean(
-            this.squareBracket.value && this.ident1.value && this.squareBracketEnd.value
+            this.squareBracket.value &&
+            this.ident1.value &&
+            this.squareBracketEnd.value
         );
     };
     process = (queue: Queue): Queue => {
@@ -600,6 +810,9 @@ export class Attrib implements ParserItem {
         searcher.feedParserItem(this.ws4);
         searcher.feedLexerItem(this.squareBracketEnd);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -607,14 +820,18 @@ export class Attrib implements ParserItem {
         : PseudoNot ws negationArg ws ')'
         ;
  */
-export class Negation implements ParserItem {
+export class Negation implements Matcher {
     pseudoNot = new LexerItem("PseudoNot");
     ws1 = new Ws();
     negationArg = new NegationArg();
     ws2 = new Ws();
     backBrace = new LexerItem("BackBrace");
     consumed = () => {
-        return Boolean(this.pseudoNot.value && this.negationArg.consumed() && this.backBrace.value);
+        return Boolean(
+            this.pseudoNot.value &&
+            this.negationArg.consumed() &&
+            this.backBrace.value
+        );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
@@ -641,6 +858,9 @@ export class Negation implements ParserItem {
         searcher.feedParserItem(this.ws2);
         searcher.feedLexerItem(this.backBrace);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -653,7 +873,7 @@ export class Negation implements ParserItem {
         | pseudo
         ;
  */
-export class NegationArg implements ParserItem {
+export class NegationArg implements Matcher {
     typeSelector = new TypeSelector();
     universal = new Universal();
     hash = new LexerItem("Hash");
@@ -662,7 +882,12 @@ export class NegationArg implements ParserItem {
     pseudo = new Pseudo();
     consumed = () => {
         return Boolean(
-            this.typeSelector.consumed() || this.universal.consumed() || this.hash.value || this.className.consumed() || this.attrib.consumed() || this.pseudo.consumed()
+            this.typeSelector.consumed() ||
+            this.universal.consumed() ||
+            this.hash.value ||
+            this.className.consumed() ||
+            this.attrib.consumed() ||
+            this.pseudo.consumed()
         );
     };
     process = (queue: Queue): Queue => {
@@ -700,6 +925,9 @@ export class NegationArg implements ParserItem {
         searcher.feedParserItem(this.attrib);
         searcher.feedParserItem(this.pseudo);
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -707,7 +935,7 @@ export class NegationArg implements ParserItem {
         : Space*
         ;
 */
-export class Ws implements ParserItem {
+export class Ws implements Matcher {
     spaces: LexerItem<"Space">[] = [];
     consumed = () => {
         return true;
@@ -725,6 +953,9 @@ export class Ws implements ParserItem {
     search = (searcher: Searcher) => {
         this.spaces.forEach((space) => searcher.feedLexerItem(space));
     };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
+    };
 }
 
 /**
@@ -732,23 +963,27 @@ export class Ws implements ParserItem {
     : ( ( Plus | Minus | Number | String_ | ident ) ws )+
     ;
  */
-export class Expression implements ParserItem {
+export class Expression implements Matcher {
     expressions: {
-        plus: LexerItem<"Plus">,
-        minus: LexerItem<"Minus">,
-        number: LexerItem<"Number">,
-        string: LexerItem<"String_">,
-        ident: LexerItem<"Ident">,
-        ws: Ws,
-    }[] = []
+        plus: LexerItem<"Plus">;
+        minus: LexerItem<"Minus">;
+        number: LexerItem<"Number">;
+        string: LexerItem<"String_">;
+        ident: LexerItem<"Ident">;
+        ws: Ws;
+    }[] = [];
     consumed = () => {
-        return this.expressions.length > 0 && this.expressions.every(({
-            plus,
-            minus,
-            number,
-            string,
-            ident,
-        }) => plus.value || minus.value || number.value || string.value || ident.value);
+        return (
+            this.expressions.length > 0 &&
+            this.expressions.every(
+                ({ plus, minus, number, string, ident }) =>
+                    plus.value ||
+                    minus.value ||
+                    number.value ||
+                    string.value ||
+                    ident.value
+            )
+        );
     };
     process = (queue: Queue): Queue => {
         const lexers: [LexerType, LexerItem<LexerType>][] = [
@@ -758,11 +993,11 @@ export class Expression implements ParserItem {
             ["String_", new LexerItem("String_")],
             ["Ident", new LexerItem("Ident")],
         ];
-        const current = queue.items[queue.at]
+        const current = queue.items[queue.at];
         const found = lexers.find(([type]) => type === current.type)?.[1];
         if (found) {
             found.value = current.value;
-            const baseExpression: typeof this.expressions["0"] = {
+            const baseExpression: (typeof this.expressions)["0"] = {
                 ident: new LexerItem("Ident"),
                 minus: new LexerItem("Minus"),
                 number: new LexerItem("Number"),
@@ -772,19 +1007,34 @@ export class Expression implements ParserItem {
             };
             switch (current.type) {
                 case "Plus":
-                    this.expressions.push({ ...baseExpression, plus: found as LexerItem<"Plus"> });
+                    this.expressions.push({
+                        ...baseExpression,
+                        plus: found as LexerItem<"Plus">,
+                    });
                     break;
                 case "Minus":
-                    this.expressions.push({ ...baseExpression, minus: found as LexerItem<"Minus"> });
+                    this.expressions.push({
+                        ...baseExpression,
+                        minus: found as LexerItem<"Minus">,
+                    });
                     break;
                 case "Number":
-                    this.expressions.push({ ...baseExpression, number: found as LexerItem<"Number"> });
+                    this.expressions.push({
+                        ...baseExpression,
+                        number: found as LexerItem<"Number">,
+                    });
                     break;
                 case "String_":
-                    this.expressions.push({ ...baseExpression, string: found as LexerItem<"String_"> });
+                    this.expressions.push({
+                        ...baseExpression,
+                        string: found as LexerItem<"String_">,
+                    });
                     break;
                 case "Ident":
-                    this.expressions.push({ ...baseExpression, ident: found as LexerItem<"Ident"> });
+                    this.expressions.push({
+                        ...baseExpression,
+                        ident: found as LexerItem<"Ident">,
+                    });
                     break;
             }
             const tryWs = baseExpression.ws.process(queue.next());
@@ -793,14 +1043,7 @@ export class Expression implements ParserItem {
         return queue;
     };
     search = (searcher: Searcher) => {
-        this.expressions.forEach(({
-            plus,
-            minus,
-            number,
-            string,
-            ident,
-            ws,
-        }) => {
+        this.expressions.forEach(({ plus, minus, number, string, ident, ws }) => {
             searcher.feedLexerItem(plus);
             searcher.feedLexerItem(minus);
             searcher.feedLexerItem(number);
@@ -808,5 +1051,8 @@ export class Expression implements ParserItem {
             searcher.feedLexerItem(ident);
             searcher.feedParserItem(ws);
         });
+    };
+    match = (htmlElements: HtmlElement[]): HtmlElement[] => {
+        return [];
     };
 }

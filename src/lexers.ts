@@ -46,17 +46,10 @@ export const htmlLexerAtoms = {
     STYLE_SHORT_BODY: { value: /.*<\/>/gmu, popMode: true, mode: "STYLE" },
     ATTVALUE_VALUE: {
         value: new RegExp(
-            ` *(${htmlFragments.DOUBLE_QUOTE_STRING()}|${htmlFragments.SINGLE_QUOTE_STRING()}|${htmlFragments.ATTCHARS()}|${htmlFragments.HEXCHARS()}|${htmlFragments.DECCHARS()})`,
+            `((${htmlFragments.DOUBLE_QUOTE_STRING()}(${htmlFragments.ATTCHARS()}|${htmlFragments.SINGLE_QUOTE_STRING()}|${htmlFragments.HEXCHARS()}|${htmlFragments.DECCHARS()})*${htmlFragments.DOUBLE_QUOTE_STRING()})|(${htmlFragments.SINGLE_QUOTE_STRING()}(${htmlFragments.ATTCHARS()}${htmlFragments.DOUBLE_QUOTE_STRING()}|${htmlFragments.HEXCHARS()}|${htmlFragments.DECCHARS()})*${htmlFragments.SINGLE_QUOTE_STRING()}))?`,
             "gmu"
         ),
         popMode: true,
-        mode: "ATTVALUE",
-    },
-    ATTRIBUTE: {
-        value: new RegExp(
-            `(${htmlFragments.DOUBLE_QUOTE_STRING()}|${htmlFragments.SINGLE_QUOTE_STRING()}|${htmlFragments.ATTCHARS()}|${htmlFragments.HEXCHARS()}|${htmlFragments.DECCHARS()})`,
-            "gmu"
-        ),
         mode: "ATTVALUE",
     },
 } as const;
