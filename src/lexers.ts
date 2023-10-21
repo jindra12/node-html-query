@@ -97,7 +97,7 @@ export const cssLexerAtoms = {
     BackBrace: /\)/gmu,
 } as const;
 
-export type LexerType = keyof typeof htmlLexerAtoms | keyof typeof cssLexerAtoms;
+export type LexerType = keyof typeof htmlLexerAtoms | keyof typeof cssLexerAtoms | "EOF";
 
 export interface Lexer {
     value: RegExp;
