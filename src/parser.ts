@@ -84,6 +84,22 @@ export const htmlParser = (input: string) => {
     return document;
 };
 
+export const tryHtmlParser = (input: string) => {
+    try {
+        return htmlParser(input);
+    } catch {
+        return undefined;
+    }
+};
+
+export const tryQueryParser = (input: string) => {
+    try {
+        return queryParser(input);
+    } catch {
+        return undefined;
+    }
+};
+
 export const queryParser = (input: string) => {
     const lexerAtoms = parseQueryLexer(input);
     const createQueue = (at: number): Queue => {

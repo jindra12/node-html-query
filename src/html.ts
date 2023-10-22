@@ -408,7 +408,24 @@ export class HtmlElement implements ParserItem {
         }
     };
 
-    changeAttribute = (attributeName: string, nextValue?: string) => {
+    modifyAttribute = (attributeName: string, modifier: (existingAttribute?: string) => (undefined | string)) => {
+        const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
+        if (attributeIndex !== -1) {
+            this.cache.attributes.invalid = true;
+            const nextAttribute = new HtmlAttribute();
+            nextAttribute.tagName.value = attributeName;
+            const currentAttribute = sanitizeAttribute(nextAttribute.attribute.value.value);
+            const modifiedAttribute = modifier(currentAttribute);
+            if (modifiedAttribute) {
+                const desanitized = desanitizeAttribute(modifiedAttribute);
+                nextAttribute.attribute.tagEquals.value = "=";
+                nextAttribute.attribute.value.value = desanitized;
+            }
+            this.htmlAttributes.splice(attributeIndex, 1, nextAttribute);
+        }
+    };
+
+    replaceAttribute = (attributeName: string, nextValue?: string) => {
         const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
         if (attributeIndex !== -1) {
             this.cache.attributes.invalid = true;

@@ -254,6 +254,15 @@ export const inputValidation = (attributes: Record<string, string>, getAttribute
     return valid;
 };
 
+export const flatten = <T>(multi: T[][]): T[] => {
+    return multi.reduce((flatten: T[], item) => {
+        item.forEach((value) => {
+            flatten.push(value);
+        })
+        return flatten;
+    }, []);
+};
+
 let id = 0;
 export const uniqueId = (prefix: string) => {
     return `${prefix}${id++}`
