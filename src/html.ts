@@ -1,7 +1,7 @@
 // Source and inspiration for this AST: https://github.com/antlr/grammars-v4/blob/master/html/HTMLLexer.g4, https://github.com/antlr/grammars-v4/blob/master/html/HTMLParser.g4
 
 import { ParserItem, LexerItem, Searcher, Queue } from "./types";
-import { uniqueId } from "./utils";
+import { desanitizeAttribute, sanitizeAttribute, uniqueId } from "./utils";
 
 /**
  [The "BSD licence"]
@@ -46,10 +46,12 @@ export class HtmlDocument implements ParserItem {
 
     cache: {
         children: { invalid: boolean, value: HtmlElement[] };
+        descendants: { invalid: boolean, value: HtmlElement[] };
         indexes: { invalid: boolean, value: Record<string, number> };
     } = {
         indexes: { invalid: true, value: {} },
         children: { invalid: true, value: [] },
+        descendants: { invalid: true, value: [] },
     };
 
     identifier: string;
@@ -57,6 +59,19 @@ export class HtmlDocument implements ParserItem {
     constructor() {
         this.identifier = uniqueId("html_document");
     }
+
+    descendants = () => {
+        if (!this.cache.descendants.invalid) {
+            return this.cache.descendants.value;
+        }
+        this.cache.descendants.invalid = false;
+        return this.cache.descendants.value = this.children().concat(this.children().map((child) => child.descendants()).reduce((flatten: HtmlElement[], elements) => {
+            elements.forEach((element) => {
+                flatten.push(element);
+            });
+            return flatten;
+        }, []));
+    };
 
     addChild = (child: HtmlElement, index: number | undefined) => {
         this.cache.children.invalid = true;
@@ -118,7 +133,7 @@ export class HtmlDocument implements ParserItem {
             return -1;
         }
         if (!this.cache.indexes.invalid) {
-            return this.cache.indexes.value[element.identifier];
+            return this.cache.indexes.value[element.identifier] ?? -1;
         }
         this.cache.indexes.invalid = false;
         this.cache.indexes.value = this.htmlElements.reduce((indexes: Record<string, number>, element, index) => {
@@ -329,40 +344,83 @@ export class HtmlElement implements ParserItem {
         this.identifier = uniqueId("htmlelement");
     }
 
+    content = () => this.tagClose.close1.closingGroup.htmlContent;
+
     children = () => {
-        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+        if (!this.consumed() || !this.content().consumed()) {
             return [];
         }
-        return this.tagClose.close1.closingGroup.htmlContent.children();
+        return this.content().children();
+    };
+
+    descendants = () => {
+        const seeker = (htmlElements: HtmlElement[], collector: (element: HtmlElement) => void) => {
+            htmlElements.forEach(collector);
+            htmlElements.forEach((element) => seeker(element.children(), collector));
+        };
+        const descendants: HtmlElement[] = [];
+        seeker([this], element => {
+            descendants.push(element);
+        });
+        return descendants;
     };
 
     addChild = (child: HtmlElement, index: number | undefined) => {
-        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+        if (!this.consumed() || !this.content().consumed()) {
             return [];
         }
-        this.tagClose.close1.closingGroup.htmlContent.addChild(child, index);
+        this.content().addChild(child, index);
         return this;
     };
 
     removeChild = (child: HtmlElement | number) => {
-        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+        if (!this.consumed() || !this.content().consumed()) {
             return [];
         }
-        this.tagClose.close1.closingGroup.htmlContent.removeChild(child);
+        this.content().removeChild(child);
         return this;
     };
 
     replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
-        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+        if (!this.consumed() || !this.content().consumed()) {
             return [];
         }
-        this.tagClose.close1.closingGroup.htmlContent.replaceChild(child, replacement);
+        this.content().replaceChild(child, replacement);
         return this;
     };
 
-    addAttribute = (attributeName: string, attributeValue: string) => {
+    addAttribute = (attributeName: string, attributeValue?: string) => {
         this.cache.attributes.invalid = true;
-        
+        const attribute = new HtmlAttribute();
+        attribute.tagName.value = attributeName;
+        if (attributeValue) {
+            const desanitized = desanitizeAttribute(attributeValue);
+            attribute.attribute.tagEquals.value = "=";
+            attribute.attribute.value.value = desanitized;
+        }
+    };
+
+    removeAttribute = (attributeName: string) => {
+        const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
+        if (attributeIndex !== -1) {
+            this.cache.attributes.invalid = true;
+            this.htmlAttributes.splice(attributeIndex, 1);
+        }
+    };
+
+    changeAttribute = (attributeName: string, nextValue?: string) => {
+        const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
+        if (attributeIndex !== -1) {
+            this.cache.attributes.invalid = true;
+            const nextAttribute = new HtmlAttribute();
+            nextAttribute.tagName.value = attributeName;
+            if (nextValue) {
+                const desanitized = desanitizeAttribute(nextValue);
+                nextAttribute.attribute.tagEquals.value = "=";
+                nextAttribute.attribute.value.value = desanitized;
+            }
+            this.htmlAttributes.splice(attributeIndex, 1, nextAttribute);
+        }
     };
 
     attributes = () => {
@@ -375,14 +433,14 @@ export class HtmlElement implements ParserItem {
         this.cache.attributes.invalid = false;
         return this.cache.attributes.value = this.htmlAttributes.reduce((attributes: Record<string, string>, attribute) => {
             if (attribute.consumed()) {
-                attributes[attribute.tagName.value] = attribute.attribute.value.value;
+                attributes[attribute.tagName.value] = sanitizeAttribute(attribute.attribute.value.value) || "";
             }
             return attributes;
         }, {});
     };
 
     endTagConsumed = () => {
-        return (
+        return Boolean(
             this.tagClose.close1.tag.value || this.tagClose.close2.tagSlashClose.value
         );
     };
@@ -417,15 +475,13 @@ export class HtmlElement implements ParserItem {
 
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (this.tagClose.close1.tag.value) {
-            const tryHtmlContent =
-                this.tagClose.close1.closingGroup.htmlContent.process(queue);
+        if (this.tagClose.close1.tag.value && !this.tagClose.close1.closingGroup.tagOpen.value) {
+            const tryHtmlContent = this.tagClose.close1.closingGroup.htmlContent.process(queue);
             if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
                 return this.process(tryHtmlContent);
             }
-            return queue;
         }
-        if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+        if (this.tagClose.close1.tag.value) {
             if (current.type === "TAG_OPEN") {
                 this.tagClose.close1.closingGroup.tagOpen.value = current.value;
                 return this.process(queue.next());
@@ -593,7 +649,7 @@ export class HtmlContent implements ParserItem {
             return -1;
         }
         if (!this.cache.indexes.invalid) {
-            return this.cache.indexes.value[element.identifier];
+            return this.cache.indexes.value[element.identifier] ?? -1;
         }
         this.cache.indexes.invalid = false;
         this.cache.indexes.value = this.content.reduce(

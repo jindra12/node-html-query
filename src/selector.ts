@@ -242,6 +242,9 @@ export class Combinator implements Matcher {
         searcher.feedParserItem(this.ws);
     };
     match = (htmlElements: HtmlElement[], _: HtmlElement[]): HtmlElement[] => {
+        if (!this.consumed()) {
+            return htmlElements;
+        }
         if (this.plus.value) {
             return htmlElements
                 .map((element) => element.parent.nextSibling(element))
@@ -265,6 +268,14 @@ export class Combinator implements Matcher {
                 .filter((element: HtmlElement | undefined): element is HtmlElement =>
                     Boolean(element)
                 );
+        }
+        if (this.space.value) {
+            return htmlElements.map((element) => element.descendants()).reduce((manyElements, elements) => {
+                elements.forEach((element) => {
+                    manyElements.push(element);
+                });
+                return manyElements;
+            }, []);
         }
         return htmlElements;
     };
@@ -605,7 +616,7 @@ export class Pseudo implements Matcher {
 export class FunctionalPseudo implements Matcher {
     funct = new LexerItem("Function_");
     ws = new Ws();
-    expression = new Expression();
+    expression = new Expression(this);
     backBrace = new LexerItem("BackBrace");
     consumed = () => {
         return Boolean(
@@ -653,7 +664,7 @@ export class FunctionalPseudo implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        return this.expression.match(htmlElements, allHtmlElements, this);
+        return this.expression.match(htmlElements, allHtmlElements);
     };
 }
 
@@ -1192,6 +1203,11 @@ export class Expression implements Matcher {
     ws5 = new Ws();
     selectorGroup2 = new SelectorGroup();
 
+    functionalPseudo: FunctionalPseudo;
+    constructor(functionalPseudo: FunctionalPseudo) {
+        this.functionalPseudo = functionalPseudo;
+    }
+
     consumed = () => {
         if (this.even.value || this.odd.value || this.selectorGroup1.consumed()) {
             return true;
@@ -1295,23 +1311,19 @@ export class Expression implements Matcher {
         searcher.feedParserItem(this.ws5);
         searcher.feedParserItem(this.selectorGroup2);
     };
-    getIndexFactory = (functionalPseudo: FunctionalPseudo | undefined = undefined) => (element: HtmlElement) => {
+    getIndex = (element: HtmlElement) => {
         const childrenOfType = () => element.parent.children().filter((otherChild) => otherChild.tagName.value === element.tagName.value);
         const getIndexOfType = (childrenOfType: HtmlElement[]) => childrenOfType.findIndex((child) => child.identifier === element.identifier);
-        switch (functionalPseudo?.funct.value) {
+        switch (this.functionalPseudo.funct.value) {
             case "nth-child(":
                 return element.parent.getIndex(element);
             case ":nth-last-child(":
-                return element.parent.children().length - 1 - element.parent.getIndex(element);
+                return Math.max(-1, element.parent.children().length - 1 - element.parent.getIndex(element));
             case ":nth-last-of-type(":
                 const lastOfType = childrenOfType();
-                return lastOfType.length - 1 - getIndexOfType(lastOfType);
+                return Math.max(-1, lastOfType.length - 1 - getIndexOfType(lastOfType));
             case ":nth-of-type(":
                 return getIndexOfType(childrenOfType());
-            case ":has(":
-            case ":is(":
-            case ":where(":
-                return element.parent.getIndex(element);
             default:
                 return element.parent.getIndex(element);
         }
@@ -1319,20 +1331,47 @@ export class Expression implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        functionalPseudo: FunctionalPseudo | undefined = undefined,
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
-        if (this.selectorGroup1.consumed()) {
-            return this.selectorGroup1.match(htmlElements, allHtmlElements)
+        if (this.functionalPseudo.funct.value === ":is(" || this.functionalPseudo.funct.value === ":where(") {
+            if (this.selectorGroup1.consumed() && !this.combinator.consumed()) {
+                return this.selectorGroup1.match(htmlElements, allHtmlElements);
+            }
+            return [];
         }
-        const getIndex = this.getIndexFactory(functionalPseudo);
+        if (this.functionalPseudo.funct.value === ":has(") {
+            if (this.selectorGroup1.consumed()) {
+                const matched = this.selectorGroup1.match(htmlElements, allHtmlElements);
+                if (!this.combinator.consumed() || this.combinator.space.value) {
+                    return htmlElements.filter((value) => {
+                        return matched.some(matched => value.descendants().some((descendant) => descendant.identifier === matched.identifier))
+                    });
+                }
+                if (this.combinator.greater.value) {
+                    return htmlElements.filter((value) => {
+                        return matched.some(matched => value.content().getIndex(matched) !== -1)
+                    });
+                }
+                if (this.combinator.plus.value) {
+                    return htmlElements.filter((value) => {
+                        return matched.some(matched => value.parent.prevSibling(value)?.identifier === matched.identifier);
+                    });
+                }
+                if (this.combinator.tilde.value) {
+                    return htmlElements.filter((value) => {
+                        return matched.some(matched => value.parent.nextSibling(value)?.identifier === matched.identifier);
+                    });
+                }
+            }
+            return [];
+        }
         if (this.even.value) {
-            return htmlElements.filter((element) => (getIndex(element) + 1) % 2 === 0);
+            return htmlElements.filter((element) => (this.getIndex(element) + 1) % 2 === 0);
         }
         if (this.odd.value) {
-            return htmlElements.filter((element) => (getIndex(element) + 1) % 2 === 1);
+            return htmlElements.filter((element) => (this.getIndex(element) + 1) % 2 === 1);
         }
         const ofQuery = this.selectorGroup2.match(htmlElements, allHtmlElements);
         if (ofQuery.length === 0) {
@@ -1342,13 +1381,13 @@ export class Expression implements Matcher {
             if (!this.ident.value) {
                 if (!this.minus1.value) {
                     const index = parseInt(this.number1.value);
-                    const element = ofQuery.find((element) => getIndex(element) + 1 === index);
+                    const element = ofQuery.find((element) => this.getIndex(element) + 1 === index);
                     return element ? [element] : [];
                 }
             } else {
                 const modifier = (this.minus1.value ? -1 : 1) * parseInt(this.number1.value);
                 const addition = (this.minus2.value ? -1 : (this.plus.value ? 1 : 0)) * (parseInt(this.number2.value) || 0);
-                const upperIndexMatch = Math.max(...ofQuery.map((element) => getIndex(element) + 1));
+                const upperIndexMatch = Math.max(...ofQuery.map((element) => this.getIndex(element) + 1));
                 const indexAcc: Record<number, true> = {};
                 for (let i = 1; i < ofQuery.length + 1; i++) {
                     const resultIndex = modifier * i + addition;
@@ -1357,7 +1396,7 @@ export class Expression implements Matcher {
                     }
                     indexAcc[resultIndex] = true;
                 }
-                return ofQuery.filter((element) => indexAcc[getIndex(element) + 1]);
+                return ofQuery.filter((element) => indexAcc[this.getIndex(element) + 1]);
             }
         }
         return [];

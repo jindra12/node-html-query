@@ -2,7 +2,7 @@ import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Searcher } from "./types";
 
 const searchProducer = (
-    reducer: (item: ParserItem | LexerItem<LexerType>) => void
+    reducer: (item: ParserItem | LexerItem<LexerType>) => boolean
 ): Searcher => {
     const searcher: Searcher = {
         feedLexerItem: (lexer) => {
@@ -30,9 +30,25 @@ export const printer = (document: ParserItem) => {
         if (item instanceof LexerItem) {
             aggregate += item.value;
         }
+        return true;
     });
     document.search(searcher);
     return aggregate;
+};
+
+export const desanitizeAttribute = (attributeValue: string) => {
+    const hasDoubleQuote = attributeValue.includes('"');
+    const hasSingleQuote = attributeValue.includes("'");
+    const hasBothTypesOfQuote = hasSingleQuote && hasDoubleQuote;
+
+    if (hasBothTypesOfQuote) {
+        return `'${attributeValue.replace(/"/gmu, "&quot;")}'`;
+    } else if (hasDoubleQuote) {
+        return `'${attributeValue}'`;
+    } else {
+        return `"${attributeValue}"`
+    }
+
 };
 
 export const sanitizeAttribute = (attribute: string | undefined) => {
@@ -40,7 +56,7 @@ export const sanitizeAttribute = (attribute: string | undefined) => {
         return attribute;
     }
     if (attribute[0] === `"`) {
-        return attribute.replace(/"/gmu, "");
+        return attribute.replace(/^"/gmu, "").replace(/"$/gmu, "").replace(/&quot;/, '"');
     }
     if (attribute[0] === `'`) {
         return attribute.replace(/'/gmu, "");

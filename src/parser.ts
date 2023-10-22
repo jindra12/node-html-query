@@ -57,11 +57,11 @@ const parsedQueryLexer = Object.entries(cssLexerAtoms).reduce((lexer: Partial<Re
     return lexer;
 }, {});
 
-export const parseHtmlLexer = (input: string) => {
+const parseHtmlLexer = (input: string) => {
     return parseLexer(input, parsedHtmlLexer);
 };
 
-export const parseQueryLexer = (input: string) => {
+const parseQueryLexer = (input: string) => {
     return parseLexer(input, parsedQueryLexer);
 };
 
