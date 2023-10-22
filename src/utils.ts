@@ -35,7 +35,7 @@ export const printer = (document: ParserItem) => {
     return aggregate;
 };
 
-const sanitizeAttribute = (attribute: string | undefined) => {
+export const sanitizeAttribute = (attribute: string | undefined) => {
     if (!attribute) {
         return attribute;
     }
@@ -65,7 +65,7 @@ const sanitizeAttribute = (attribute: string | undefined) => {
         Represents elements with an attribute name of attr whose value contains at least one occurrence of value within the string.
  */
 export const matchAttribute = (attributes: Record<string, string>, attributeName: string, attributeValue: string, matchType: "[attr]" | "[attr=value]" | "[attr~=value]" | "[attr|=value]" | "[attr^=value]" | "[attr$=value]" | "[attr*=value]" | "not") => {
-    const comparedAttribute = sanitizeAttribute(attributes[attributeName]);
+    const comparedAttribute = attributes[attributeName];
     switch (matchType) {
         case "[attr^=value]":
             return comparedAttribute?.startsWith(attributeValue) || false;
@@ -97,12 +97,12 @@ export const matchAttribute = (attributes: Record<string, string>, attributeName
     number 	<number> 	<input type="number" min="0" step="5" max="100">
     range 	<number> 	<input type="range" min="60" step="5" max="100">
  */
-export const rangeComparator = (attributes: Record<string, string>, stepAttribute?: string) => {
-    const max = sanitizeAttribute(attributes["max"]) || "";
-    const min = sanitizeAttribute(attributes["min"]) || "";
-    const step = sanitizeAttribute(attributes["step"]) || "";
-    const value = sanitizeAttribute(attributes["value"]) || "";
-    const type = sanitizeAttribute(attributes["type"]) || "text";
+export const rangeComparator = (attributes: Record<string, string>) => {
+    const max = attributes["max"] || "";
+    const min = attributes["min"] || "";
+    const step = attributes["step"] || "";
+    const value = attributes["value"] || "";
+    const type = attributes["type"] || "text";
 
     const numValue = parseFloat(value);
     if (!isNaN(numValue)) {
@@ -196,13 +196,13 @@ export const rangeComparator = (attributes: Record<string, string>, stepAttribut
  * pattern, min, max, required, step, minlength, maxlength
  */
 export const inputValidation = (attributes: Record<string, string>, getAttributes: () => Record<string, string>[]) => {
-    const value = sanitizeAttribute(attributes["value"]) || "";
-    const type = sanitizeAttribute(attributes["type"]) || "text";
-    const name = sanitizeAttribute(attributes["name"]) || "";
+    const value = attributes["value"] || "";
+    const type = attributes["type"] || "text";
+    const name = attributes["name"] || "";
     const patternValidation = (() => {
-        const sanitized = sanitizeAttribute(attributes["pattern"]);
+        const pattern = attributes["pattern"];
         try {
-            return sanitized ? new RegExp(sanitized) : undefined;
+            return pattern ? new RegExp(pattern) : undefined;
         } catch {
             return undefined;
         }
@@ -218,9 +218,9 @@ export const inputValidation = (attributes: Record<string, string>, getAttribute
         if (type === "radio" && !value && valid) {
             const allAttributes = getAttributes();
             const hasAnotherChecked = allAttributes.some((attributes) => {
-                const otherValue = sanitizeAttribute(attributes["value"]) || "";
-                const otherType = sanitizeAttribute(attributes["type"]) || "text";
-                const otherName = sanitizeAttribute(attributes["name"]) || "";
+                const otherValue = attributes["value"] || "";
+                const otherType = attributes["type"] || "text";
+                const otherName = attributes["name"] || "";
                 return Boolean(otherValue) && otherType === "radio" && otherName === name;
             });
             valid = hasAnotherChecked;

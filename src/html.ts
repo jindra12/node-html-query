@@ -44,23 +44,90 @@ export class HtmlDocument implements ParserItem {
     scriptletOrSeaWs3: ScriptletOrSeaWs[] = [];
     htmlElements: HtmlElements[] = [];
 
+    cache: {
+        children: { invalid: boolean, value: HtmlElement[] };
+        indexes: { invalid: boolean, value: Record<string, number> };
+    } = {
+        indexes: { invalid: true, value: {} },
+        children: { invalid: true, value: [] },
+    };
+
     identifier: string;
+
     constructor() {
         this.identifier = uniqueId("html_document");
     }
 
+    addChild = (child: HtmlElement, index: number | undefined) => {
+        this.cache.children.invalid = true;
+        this.cache.indexes.invalid = true;
+        const item = new HtmlElements(this);
+        item.htmlElement = child;
+
+        if (index === undefined) {
+            this.htmlElements.push(item);
+        } else {
+            this.htmlElements.splice(index, 0, item);
+        }
+        return this;
+    };
+
+    removeChild = (child: HtmlElement | number) => {
+        if (typeof child === "number" && child >= 0 && child < this.htmlElements.length) {
+            this.htmlElements.splice(child, 1);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child);
+            this.htmlElements.splice(index, 1);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        }
+        return this;
+    };
+
+    replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
+        const item = new HtmlElements(this);
+        item.htmlElement = replacement;
+        if (typeof child === "number" && child >= 0 && child < this.htmlElements.length) {
+            this.htmlElements.splice(child, 1, item);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child);
+            this.htmlElements.splice(index, 1, item);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        }
+        return this;
+    };
+
     children = () => {
+        if (!this.cache.children.invalid) {
+            return this.cache.children.value;
+        }
         if (!this.consumed()) {
             return [];
         }
-        return this.htmlElements.map(({ htmlElement }) => htmlElement);
+        this.cache.children.invalid = false;
+        return this.cache.children.value = this.htmlElements.filter(({ htmlElement }) => htmlElement.consumed()).map(({ htmlElement }) => htmlElement);
     };
 
     getIndex = (element: HtmlElement) => {
-        return this.htmlElements.findIndex(
-            (htmlElement) =>
-                htmlElement.consumed() && htmlElement.htmlElement === element
-        );
+        if (!this.consumed()) {
+            return -1;
+        }
+        if (!this.cache.indexes.invalid) {
+            return this.cache.indexes.value[element.identifier];
+        }
+        this.cache.indexes.invalid = false;
+        this.cache.indexes.value = this.htmlElements.reduce((indexes: Record<string, number>, element, index) => {
+            if (element.consumed()) {
+                indexes[element.htmlElement.identifier] = index;
+            }
+            return indexes;
+        }, {});
+        return this.cache.indexes.value[element.identifier] ?? -1;
     };
 
     prevSibling = (element: HtmlElement) => {
@@ -245,6 +312,17 @@ export class HtmlElement implements ParserItem {
 
     parent: HtmlContent | HtmlDocument;
     identifier: string;
+    cache: {
+        attributes: {
+            value: Record<string, string>,
+            invalid: boolean,
+        },
+    } = {
+        attributes: {
+            value: {},
+            invalid: true,
+        },
+    }
 
     constructor(parent: HtmlContent | HtmlDocument) {
         this.parent = parent;
@@ -255,14 +333,47 @@ export class HtmlElement implements ParserItem {
         if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
             return [];
         }
-        return this.tagClose.close1.closingGroup.htmlContent.content.map(({ inner }) => inner.htmlElement);
+        return this.tagClose.close1.closingGroup.htmlContent.children();
+    };
+
+    addChild = (child: HtmlElement, index: number | undefined) => {
+        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+            return [];
+        }
+        this.tagClose.close1.closingGroup.htmlContent.addChild(child, index);
+        return this;
+    };
+
+    removeChild = (child: HtmlElement | number) => {
+        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+            return [];
+        }
+        this.tagClose.close1.closingGroup.htmlContent.removeChild(child);
+        return this;
+    };
+
+    replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
+        if (!this.consumed() || !this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+            return [];
+        }
+        this.tagClose.close1.closingGroup.htmlContent.replaceChild(child, replacement);
+        return this;
+    };
+
+    addAttribute = (attributeName: string, attributeValue: string) => {
+        this.cache.attributes.invalid = true;
+        
     };
 
     attributes = () => {
         if (!this.consumed()) {
             return {};
         }
-        return this.htmlAttributes.reduce((attributes: Record<string, string>, attribute) => {
+        if (!this.cache.attributes.invalid) {
+            return this.cache.attributes.value;
+        }
+        this.cache.attributes.invalid = false;
+        return this.cache.attributes.value = this.htmlAttributes.reduce((attributes: Record<string, string>, attribute) => {
             if (attribute.consumed()) {
                 attributes[attribute.tagName.value] = attribute.attribute.value.value;
             }
@@ -398,6 +509,14 @@ export class HtmlContent implements ParserItem {
         charData: HtmlChardata;
     }> = [];
 
+    cache: {
+        children: { invalid: boolean, value: HtmlElement[] };
+        indexes: { invalid: boolean, value: Record<string, number> };
+    } = {
+        indexes: { invalid: true, value: {} },
+        children: { invalid: true, value: [] },
+    };
+
     identifier: string;
     constructor() {
         this.identifier = uniqueId("html_content");
@@ -407,17 +526,91 @@ export class HtmlContent implements ParserItem {
         if (!this.consumed()) {
             return [];
         }
-        return this.content.map(({ inner: { htmlElement } }) => htmlElement);
+        if (!this.cache.children.invalid) {
+            return this.cache.children.value;
+        }
+        this.cache.children.invalid = false;
+        return this.cache.children.value = this.content.filter(({ inner: { htmlElement } }) => htmlElement.consumed()).map(({ inner: { htmlElement } }) => htmlElement);
+    };
+
+    addChild = (child: HtmlElement, index: number | undefined) => {
+        this.cache.children.invalid = true;
+        this.cache.indexes.invalid = true;
+        const item = {
+            inner: {
+                htmlElement: child,
+                cData: new LexerItem("CDATA"),
+                htmlComment: new HtmlComment(),
+            },
+            charData: new HtmlChardata(),
+        };
+        if (index === undefined) {
+            this.content.push(item);
+        } else {
+            this.content.splice(index, 0, item);
+        }
+        return this;
+    };
+
+    removeChild = (child: HtmlElement | number) => {
+        if (typeof child === "number" && child >= 0 && child < this.content.length) {
+            this.content.splice(child, 1);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child);
+            this.content.splice(index, 1);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        }
+        return this;
+    };
+
+    replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
+        const item = {
+            inner: {
+                htmlElement: replacement,
+                cData: new LexerItem("CDATA"),
+                htmlComment: new HtmlComment(),
+            },
+            charData: new HtmlChardata(),
+        };
+        if (typeof child === "number" && child >= 0 && child < this.content.length) {
+            this.content.splice(child, 1, item);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child);
+            this.content.splice(index, 1, item);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        }
+        return this;
     };
 
     getIndex = (element: HtmlElement) => {
-        return this.content.findIndex(
-            ({ inner: { htmlElement } }) =>
-                htmlElement.consumed() && htmlElement.identifier === element.identifier
+        if (!this.consumed()) {
+            return -1;
+        }
+        if (!this.cache.indexes.invalid) {
+            return this.cache.indexes.value[element.identifier];
+        }
+        this.cache.indexes.invalid = false;
+        this.cache.indexes.value = this.content.reduce(
+            (indexes: Record<string, number>, { inner: { htmlElement } }, index) => {
+                if (htmlElement.consumed()) {
+                    indexes[htmlElement.identifier] = index;
+                }
+                return indexes;
+            }, {}
         );
+        return this.cache.indexes.value[element.identifier] ?? -1;
     }
 
     prevSibling = (element: HtmlElement) => {
+        if (!this.consumed()) {
+            return undefined;
+        }
         const index = this.getIndex(element);
         if (index === -1) {
             return undefined;
@@ -426,6 +619,9 @@ export class HtmlContent implements ParserItem {
     };
 
     nextSibling = (element: HtmlElement) => {
+        if (!this.consumed()) {
+            return undefined;
+        }
         const index = this.getIndex(element);
         if (index === -1) {
             return undefined;
@@ -535,7 +731,9 @@ export class HtmlContent implements ParserItem {
         }
         return queue;
     };
-    consumed = () => true;
+    consumed = () => {
+        return this.content.length === 0 || this.content.every(({ inner: { cData, htmlComment, htmlElement } }) => cData.value || htmlComment.consumed() || htmlElement.consumed());
+    };
 }
 
 /**
