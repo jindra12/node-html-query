@@ -1,7 +1,7 @@
 import { HtmlDocument, HtmlElement } from "./html";
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Queue, Searcher } from "./types";
-import { inputValidation, matchAttribute, rangeComparator } from "./utils";
+import { consumeCache, inputValidation, matchAttribute, rangeComparator } from "./utils";
 
 export interface Matcher extends ParserItem {
     match: (
@@ -22,7 +22,7 @@ export class SelectorGroup implements Matcher {
         ws: Ws;
         selector: Selector;
     }[] = [];
-    consumed = () => {
+    consumed = consumeCache(() => {
         return (
             this.selector.consumed() &&
             (this.selectors.length === 0 ||
@@ -31,7 +31,7 @@ export class SelectorGroup implements Matcher {
                         comma.value && selector.consumed() && ws.consumed()
                 ))
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         if (!this.selector.consumed()) {
             const tryConsumeSelector = this.selector.process(queue);
@@ -111,7 +111,7 @@ export class Selector implements Matcher {
         simpleSelectorSequence: SimpleSelectorSequence;
         ws: Ws;
     }[] = [];
-    consumed = () => {
+    consumed = consumeCache(() => {
         return (
             this.simpleSelectorSequence.consumed() &&
             this.ws.consumed() &&
@@ -123,7 +123,7 @@ export class Selector implements Matcher {
                         ws.consumed()
                 ))
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         if (!this.simpleSelectorSequence.consumed()) {
             const tryProcess = this.simpleSelectorSequence.process(queue);
@@ -204,14 +204,14 @@ export class Combinator implements Matcher {
     tilde = new LexerItem("Tilde");
     space = new LexerItem("Space");
     ws = new Ws();
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.plus.value ||
             this.greater.value ||
             this.tilde.value ||
             this.space.value
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -298,14 +298,14 @@ export class SimpleSelectorSequence implements Matcher {
         negation: Negation;
     }[] = [];
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         const hasPreface =
             this.typeSelector.consumed() || this.universal.consumed();
         if (hasPreface) {
             return true;
         }
         return this.modifiers.length > 0;
-    };
+    });
     process = (queue: Queue): Queue => {
         if (!this.typeSelector.consumed() && !this.universal.consumed()) {
             const tryTypeSelector = this.typeSelector.process(queue);
@@ -434,12 +434,12 @@ export class Pseudo implements Matcher {
     pseudoGeneral = new LexerItem("PseudoGeneral");
     ident = new LexerItem("Ident");
     functionalPseudo = new FunctionalPseudo();
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.pseudoGeneral.value &&
             (this.ident.value || this.functionalPseudo.consumed())
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "PseudoGeneral") {
@@ -513,7 +513,7 @@ export class Pseudo implements Matcher {
                         indexes[parentIndex] = {};
                     }
                     indexes[parentIndex][element.identifier] = {
-                        tagName: element.tagName.value,
+                        tagName: element.getTagName(),
                         order: element.parent.getIndex(element),
                     };
                     return indexes;
@@ -527,12 +527,14 @@ export class Pseudo implements Matcher {
             (element: HtmlElement) =>
                 (values: { tagName: string; order: number }[]) =>
                     values
-                        .filter(({ tagName }) => element.tagName.value === tagName)
+                        .filter(({ tagName }) => element.getTagName() === tagName)
                         .map(({ order }) => order);
 
         return htmlElements.filter((element) => {
             const children = element.children();
             switch (this.ident.value) {
+                case "checkbox":
+                    return matchAttribute(element.attributes(), "type", "checkbox", "[attr=value]"); 
                 case "checked":
                     return matchAttribute(element.attributes(), "checked", "", "[attr]");
                 case "disabled":
@@ -707,7 +709,7 @@ export class TypeNamespacePrefix implements Matcher {
         }
         const namespaceRegex = new RegExp(`^${this.ident.value}:`, "gmu");
         return htmlElements.filter((htmlElement) =>
-            namespaceRegex.test(htmlElement.tagName.value)
+            namespaceRegex.test(htmlElement.getTagName())
         );
     };
 }
@@ -780,7 +782,7 @@ export class ElementName implements Matcher {
             return htmlElements;
         }
         return htmlElements.filter(
-            (element) => element.tagName.value === this.ident.value
+            (element) => element.getTagName() === this.ident.value
         );
     };
 }
@@ -1181,6 +1183,7 @@ export class Ws implements ParserItem {
         | Odd
         | (Combinator ws)? selectorGroup
         | Minus? Number (ident ws (( Plus | Minus ) ws Number)?)? ws ( Of ws selectorGroup)? )?
+        | _String
         
     ;
  */
@@ -1202,6 +1205,7 @@ export class Expression implements Matcher {
     of = new LexerItem("Of");
     ws5 = new Ws();
     selectorGroup2 = new SelectorGroup();
+    str = new LexerItem("String_");
 
     functionalPseudo: FunctionalPseudo;
     constructor(functionalPseudo: FunctionalPseudo) {
@@ -1209,6 +1213,9 @@ export class Expression implements Matcher {
     }
 
     consumed = () => {
+        if (this.str.value) {
+            return true;
+        }
         if (this.even.value || this.odd.value || this.selectorGroup1.consumed()) {
             return true;
         }
@@ -1230,6 +1237,10 @@ export class Expression implements Matcher {
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
+        if (current.type === "String_") {
+            this.str.value = current.value;
+            return queue.next();
+        }
         if (current.type === "Even") {
             this.even.value = current.value;
             return queue.next();
@@ -1310,9 +1321,10 @@ export class Expression implements Matcher {
         searcher.feedLexerItem(this.of);
         searcher.feedParserItem(this.ws5);
         searcher.feedParserItem(this.selectorGroup2);
+        searcher.feedLexerItem(this.str);
     };
     getIndex = (element: HtmlElement) => {
-        const childrenOfType = () => element.parent.children().filter((otherChild) => otherChild.tagName.value === element.tagName.value);
+        const childrenOfType = () => element.parent.children().filter((otherChild) => otherChild.getTagName() === element.getTagName());
         const getIndexOfType = (childrenOfType: HtmlElement[]) => childrenOfType.findIndex((child) => child.identifier === element.identifier);
         switch (this.functionalPseudo.funct.value) {
             case "nth-child(":
@@ -1334,6 +1346,21 @@ export class Expression implements Matcher {
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
+        }
+        if (this.functionalPseudo.funct.value === ":eq(") {
+            const index = parseInt(this.str.value);
+            if (!isNaN(index)) {
+                return htmlElements.filter((_, i) => index >= 0 ? i === index : (htmlElements.length - 1 + index) === i);
+            }
+            return [];
+        }
+        if (this.functionalPseudo.funct.value === ":contains(") {
+            if (this.str.value) {
+                return htmlElements.filter((htmlElement) => {
+                    return htmlElement.texts().some((text) => text.includes(this.str.value));
+                });
+            }
+            return [];
         }
         if (this.functionalPseudo.funct.value === ":is(" || this.functionalPseudo.funct.value === ":where(") {
             if (this.selectorGroup1.consumed() && !this.combinator.consumed()) {

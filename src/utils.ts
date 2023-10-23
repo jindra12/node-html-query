@@ -1,6 +1,11 @@
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Searcher } from "./types";
 
+export const consumeCache = (consumeFn: () => boolean) => {
+    let resolved: boolean | undefined;
+    return () => resolved ||= consumeFn();
+};
+
 const searchProducer = (
     reducer: (item: ParserItem | LexerItem<LexerType>) => boolean
 ): Searcher => {
@@ -24,7 +29,7 @@ const searchProducer = (
     return searcher;
 };
 
-export const printer = (document: ParserItem) => {
+export const parserItemToString = (document: ParserItem) => {
     let aggregate = "";
     const searcher = searchProducer((item) => {
         if (item instanceof LexerItem) {

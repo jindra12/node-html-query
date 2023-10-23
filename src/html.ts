@@ -1,7 +1,7 @@
 // Source and inspiration for this AST: https://github.com/antlr/grammars-v4/blob/master/html/HTMLLexer.g4, https://github.com/antlr/grammars-v4/blob/master/html/HTMLParser.g4
 
 import { ParserItem, LexerItem, Searcher, Queue } from "./types";
-import { desanitizeAttribute, sanitizeAttribute, uniqueId } from "./utils";
+import { consumeCache, desanitizeAttribute, sanitizeAttribute, uniqueId } from "./utils";
 
 /**
  [The "BSD licence"]
@@ -45,14 +45,14 @@ export class HtmlDocument implements ParserItem {
     htmlElements: HtmlElements[] = [];
 
     cache: {
-        children: { invalid: boolean, value: HtmlElement[] };
-        descendants: { invalid: boolean, value: HtmlElement[] };
-        indexes: { invalid: boolean, value: Record<string, number> };
+        children: { invalid: boolean; value: HtmlElement[] };
+        descendants: { invalid: boolean; value: HtmlElement[] };
+        indexes: { invalid: boolean; value: Record<string, number> };
     } = {
-        indexes: { invalid: true, value: {} },
-        children: { invalid: true, value: [] },
-        descendants: { invalid: true, value: [] },
-    };
+            indexes: { invalid: true, value: {} },
+            children: { invalid: true, value: [] },
+            descendants: { invalid: true, value: [] },
+        };
 
     identifier: string;
 
@@ -61,71 +61,96 @@ export class HtmlDocument implements ParserItem {
     }
 
     descendants = () => {
+        if (!this.consumed()) {
+            return [];
+        }
         if (!this.cache.descendants.invalid) {
             return this.cache.descendants.value;
         }
         this.cache.descendants.invalid = false;
-        return this.cache.descendants.value = this.children().concat(this.children().map((child) => child.descendants()).reduce((flatten: HtmlElement[], elements) => {
-            elements.forEach((element) => {
-                flatten.push(element);
-            });
-            return flatten;
-        }, []));
+        return (this.cache.descendants.value = this.children().concat(
+            this.children()
+                .map((child) => child.descendants())
+                .reduce((flatten: HtmlElement[], elements) => {
+                    elements.forEach((element) => {
+                        flatten.push(element);
+                    });
+                    return flatten;
+                }, [])
+        ));
     };
 
-    addChild = (child: HtmlElement, index: number | undefined) => {
-        this.cache.children.invalid = true;
-        this.cache.indexes.invalid = true;
-        const item = new HtmlElements(this);
-        item.htmlElement = child;
-
-        if (index === undefined) {
-            this.htmlElements.push(item);
-        } else {
-            this.htmlElements.splice(index, 0, item);
+    addChild = (child: HtmlElement, index: number | undefined = undefined) => {
+        if (this.consumed()) {
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+            const item = new HtmlElements(this);
+            item.htmlElement = child;
+            child.parent = this;
+    
+            if (index === undefined) {
+                this.htmlElements.push(item);
+            } else {
+                this.htmlElements.splice(index, 0, item);
+            }
         }
         return this;
     };
 
     removeChild = (child: HtmlElement | number) => {
-        if (typeof child === "number" && child >= 0 && child < this.htmlElements.length) {
-            this.htmlElements.splice(child, 1);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
-        } else if (child instanceof HtmlElement) {
-            const index = this.getIndex(child);
-            this.htmlElements.splice(index, 1);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
+        if (this.consumed()) {
+            if (
+                typeof child === "number" &&
+                child >= 0 &&
+                child < this.htmlElements.length
+            ) {
+                this.htmlElements.splice(child, 1);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            } else if (child instanceof HtmlElement) {
+                const index = this.getIndex(child);
+                this.htmlElements.splice(index, 1);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            }
         }
         return this;
     };
 
     replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
-        const item = new HtmlElements(this);
-        item.htmlElement = replacement;
-        if (typeof child === "number" && child >= 0 && child < this.htmlElements.length) {
-            this.htmlElements.splice(child, 1, item);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
-        } else if (child instanceof HtmlElement) {
-            const index = this.getIndex(child);
-            this.htmlElements.splice(index, 1, item);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
+        if (this.consumed()) {
+            const item = new HtmlElements(this);
+            item.htmlElement = replacement;
+            item.htmlElement.parent = this;
+            if (
+                typeof child === "number" &&
+                child >= 0 &&
+                child < this.htmlElements.length
+            ) {
+                this.htmlElements.splice(child, 1, item);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            } else if (child instanceof HtmlElement) {
+                const index = this.getIndex(child);
+                this.htmlElements.splice(index, 1, item);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            }
         }
         return this;
     };
 
     children = () => {
-        if (!this.cache.children.invalid) {
-            return this.cache.children.value;
-        }
         if (!this.consumed()) {
             return [];
         }
+        if (!this.cache.children.invalid) {
+            return this.cache.children.value;
+        }
         this.cache.children.invalid = false;
-        return this.cache.children.value = this.htmlElements.filter(({ htmlElement }) => htmlElement.consumed()).map(({ htmlElement }) => htmlElement);
+        return (this.cache.children.value = this.htmlElements
+            .filter(({ htmlElement }) => htmlElement.consumed())
+            .map(({ htmlElement }) => htmlElement));
     };
 
     getIndex = (element: HtmlElement) => {
@@ -136,12 +161,15 @@ export class HtmlDocument implements ParserItem {
             return this.cache.indexes.value[element.identifier] ?? -1;
         }
         this.cache.indexes.invalid = false;
-        this.cache.indexes.value = this.htmlElements.reduce((indexes: Record<string, number>, element, index) => {
-            if (element.consumed()) {
-                indexes[element.htmlElement.identifier] = index;
-            }
-            return indexes;
-        }, {});
+        this.cache.indexes.value = this.htmlElements.reduce(
+            (indexes: Record<string, number>, element, index) => {
+                if (element.consumed()) {
+                    indexes[element.htmlElement.identifier] = index;
+                }
+                return indexes;
+            },
+            {}
+        );
         return this.cache.indexes.value[element.identifier] ?? -1;
     };
 
@@ -170,7 +198,7 @@ export class HtmlDocument implements ParserItem {
         searcher.feedParserItems(this.htmlElements);
     };
 
-    consumed = () => true;
+    consumed = consumeCache(() => true);
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (!this.XML.value) {
@@ -229,9 +257,9 @@ export class ScriptletOrSeaWs implements ParserItem {
         searcher.feedLexerItem(this.scriptlet);
         searcher.feedLexerItem(this.seaWs);
     };
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.scriptlet.value || this.seaWs.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -266,9 +294,9 @@ export class HtmlElements implements ParserItem {
         searcher.feedParserItems(this.htmlMisc2);
     };
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         return this.htmlElement.consumed();
-    };
+    });
 
     process = (queue: Queue): Queue => {
         if (!this.htmlElement.consumed()) {
@@ -310,7 +338,7 @@ export class HtmlElement implements ParserItem {
         close1: {
             tag: new LexerItem("TAG_CLOSE"),
             closingGroup: {
-                htmlContent: new HtmlContent(),
+                htmlContent: new HtmlContent(this),
                 tagClose: new LexerItem("TAG_CLOSE"),
                 tagName: new LexerItem("TAG_NAME"),
                 tagOpen: new LexerItem("TAG_OPEN"),
@@ -325,24 +353,84 @@ export class HtmlElement implements ParserItem {
     script: Script = new Script();
     style: Style = new Style();
 
+    data: Record<string, string> = {};
     parent: HtmlContent | HtmlDocument;
     identifier: string;
     cache: {
         attributes: {
-            value: Record<string, string>,
-            invalid: boolean,
-        },
+            value: Record<string, string>;
+            invalid: boolean;
+        };
+        styles: {
+            value: Record<string, string>;
+            invalid: boolean;
+        };
     } = {
-        attributes: {
-            value: {},
-            invalid: true,
-        },
-    }
+            attributes: {
+                value: {},
+                invalid: true,
+            },
+            styles: {
+                value: {},
+                invalid: true,
+            },
+        };
 
     constructor(parent: HtmlContent | HtmlDocument) {
         this.parent = parent;
         this.identifier = uniqueId("htmlelement");
     }
+
+    getStyles = () => {
+        if (!this.consumed()) {
+            return {};
+        }
+        if (!this.cache.styles.invalid) {
+            return this.cache.styles.value;
+        }
+        const attributes = this.attributes();
+        this.cache.styles.invalid = false;
+        return (this.cache.styles.value = attributes["style"]
+            .split(";")
+            .map((part) => part.split(":"))
+            .reduce((styles: Record<string, string>, [key, value]) => {
+                styles[key] = value;
+                return styles;
+            }, {}));
+    };
+
+    modifyStyle = (styleName: string, styleModifier: (value?: string) => string) => {
+        if (this.consumed()) {
+            this.cache.styles.invalid = true;
+            this.cache.attributes.invalid = true;
+            this.modifyAttribute("style", (attribute) => {
+                if (!attribute) {
+                    return `${styleName}:${styleModifier()}`;
+                }
+                const split = attribute.split(";").map((part) => part.split(":"));
+                const findIndex = split.findIndex(([key]) => key === styleName);
+                if (findIndex === -1) {
+                    split.push([styleName, styleModifier()]);
+                } else {
+                    split[findIndex] = [styleName, styleModifier(split[findIndex][1])];
+                }
+                return split.map((part) => part.join(":")).join(";");
+            });
+        }
+        return this;
+    };
+
+    getTagName = () => {
+        if (!this.consumed()) {
+            return "";
+        }
+        if (this.script.consumed()) {
+            return "script";
+        } else if (this.style.consumed()) {
+            return "style";
+        }
+        return this.tagName.value;
+    };
 
     content = () => this.tagClose.close1.closingGroup.htmlContent;
 
@@ -353,13 +441,53 @@ export class HtmlElement implements ParserItem {
         return this.content().children();
     };
 
+    emptyText = () => {
+        if (!this.consumed()) {
+            return this;
+        }
+        this.content().htmlCharData.htmlText.value = "";
+        this.content().content.forEach(({ charData }) => {
+            charData.htmlText.value = "";
+        });
+        this.children().forEach((child) => {
+            child.emptyText();
+        });
+        return this;
+    };
+
+    texts = () => {
+        if (!this.consumed()) {
+            return [];
+        }
+        const acc: string[] = [];
+        if (this.content().htmlCharData.consumed()) {
+            acc.push(this.content().htmlCharData.htmlText.value);
+        }
+        this.content().content.forEach(({ charData }) => {
+            acc.push(charData.htmlText.value);
+        });
+        this.children().forEach((child) => {
+            const texts = child.texts();
+            texts.forEach((text) => {
+                acc.push(text);
+            });
+        });
+        return acc.filter(Boolean);
+    };
+
     descendants = () => {
-        const seeker = (htmlElements: HtmlElement[], collector: (element: HtmlElement) => void) => {
+        if (!this.consumed()) {
+            return [];
+        }
+        const seeker = (
+            htmlElements: HtmlElement[],
+            collector: (element: HtmlElement) => void
+        ) => {
             htmlElements.forEach(collector);
             htmlElements.forEach((element) => seeker(element.children(), collector));
         };
         const descendants: HtmlElement[] = [];
-        seeker([this], element => {
+        seeker([this], (element) => {
             descendants.push(element);
         });
         return descendants;
@@ -389,55 +517,105 @@ export class HtmlElement implements ParserItem {
         return this;
     };
 
-    addAttribute = (attributeName: string, attributeValue?: string) => {
-        this.cache.attributes.invalid = true;
-        const attribute = new HtmlAttribute();
-        attribute.tagName.value = attributeName;
-        if (attributeValue) {
-            const desanitized = desanitizeAttribute(attributeValue);
-            attribute.attribute.tagEquals.value = "=";
-            attribute.attribute.value.value = desanitized;
+    getHtmlAttributes = () => {
+        if (!this.consumed()) {
+            return [];
         }
+        if (this.script.consumed()) {
+            return this.script.attributes;
+        } else if (this.style.consumed()) {
+            return this.style.attributes;
+        }
+        return this.htmlAttributes;
+    };
+
+    addAttribute = (attributeName: string, attributeValue?: string) => {
+        if (this.consumed()) {
+            if (attributeName === "style") {
+                this.cache.styles.invalid = true;
+            }
+            this.cache.attributes.invalid = true;
+            const attribute = new HtmlAttribute();
+            attribute.tagName.value = attributeName;
+            if (attributeValue) {
+                const desanitized = desanitizeAttribute(attributeValue);
+                attribute.attribute.tagEquals.value = "=";
+                attribute.attribute.value.value = desanitized;
+            }
+            this.getHtmlAttributes().push(attribute);
+        }
+        return this;
     };
 
     removeAttribute = (attributeName: string) => {
-        const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
-        if (attributeIndex !== -1) {
-            this.cache.attributes.invalid = true;
-            this.htmlAttributes.splice(attributeIndex, 1);
+        if (this.consumed()) {
+            if (attributeName === "style") {
+                this.cache.styles.invalid = true;
+            }
+            const attributeIndex = this.getHtmlAttributes().findIndex(
+                (attribute) => attribute.tagName.value === attributeName
+            );
+            if (attributeIndex !== -1) {
+                this.cache.attributes.invalid = true;
+                this.getHtmlAttributes().splice(attributeIndex, 1);
+            }
         }
+        return this;
     };
 
-    modifyAttribute = (attributeName: string, modifier: (existingAttribute?: string) => (undefined | string)) => {
-        const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
-        if (attributeIndex !== -1) {
-            this.cache.attributes.invalid = true;
-            const nextAttribute = new HtmlAttribute();
-            nextAttribute.tagName.value = attributeName;
-            const currentAttribute = sanitizeAttribute(nextAttribute.attribute.value.value);
-            const modifiedAttribute = modifier(currentAttribute);
-            if (modifiedAttribute) {
-                const desanitized = desanitizeAttribute(modifiedAttribute);
-                nextAttribute.attribute.tagEquals.value = "=";
-                nextAttribute.attribute.value.value = desanitized;
+    modifyAttribute = (
+        attributeName: string,
+        modifier: (existingAttribute?: string) => undefined | string
+    ) => {
+        if (this.consumed()) {
+            if (attributeName === "style") {
+                this.cache.styles.invalid = true;
             }
-            this.htmlAttributes.splice(attributeIndex, 1, nextAttribute);
+            const attributeIndex = this.getHtmlAttributes().findIndex(
+                (attribute) => attribute.tagName.value === attributeName
+            );
+            if (attributeIndex !== -1) {
+                this.cache.attributes.invalid = true;
+                const nextAttribute = new HtmlAttribute();
+                nextAttribute.tagName.value = attributeName;
+                const currentAttribute = sanitizeAttribute(
+                    nextAttribute.attribute.value.value
+                );
+                const modifiedAttribute = modifier(currentAttribute);
+                if (modifiedAttribute) {
+                    const desanitized = desanitizeAttribute(modifiedAttribute);
+                    nextAttribute.attribute.tagEquals.value = "=";
+                    nextAttribute.attribute.value.value = desanitized;
+                }
+                this.getHtmlAttributes().splice(attributeIndex, 1, nextAttribute);
+            }
         }
+        return this;
     };
 
     replaceAttribute = (attributeName: string, nextValue?: string) => {
-        const attributeIndex = this.htmlAttributes.findIndex((attribute) => attribute.tagName.value === attributeName);
-        if (attributeIndex !== -1) {
-            this.cache.attributes.invalid = true;
-            const nextAttribute = new HtmlAttribute();
-            nextAttribute.tagName.value = attributeName;
-            if (nextValue) {
-                const desanitized = desanitizeAttribute(nextValue);
-                nextAttribute.attribute.tagEquals.value = "=";
-                nextAttribute.attribute.value.value = desanitized;
+        if (this.consumed()) {
+            if (attributeName === "style") {
+                this.cache.styles.invalid = true;
             }
-            this.htmlAttributes.splice(attributeIndex, 1, nextAttribute);
+            const attributeIndex = this.getHtmlAttributes().findIndex(
+                (attribute) => attribute.tagName.value === attributeName
+            );
+            if (attributeIndex !== -1) {
+                this.cache.attributes.invalid = true;
+                const nextAttribute = new HtmlAttribute();
+                nextAttribute.tagName.value = attributeName;
+                if (nextValue) {
+                    const desanitized = desanitizeAttribute(nextValue);
+                    nextAttribute.attribute.tagEquals.value = "=";
+                    nextAttribute.attribute.value.value = desanitized;
+                }
+                this.getHtmlAttributes().splice(attributeIndex, 1, nextAttribute);
+            } else {
+                return this.addAttribute(attributeName, nextValue);
+            }
         }
+        return this;
     };
 
     attributes = () => {
@@ -448,19 +626,23 @@ export class HtmlElement implements ParserItem {
             return this.cache.attributes.value;
         }
         this.cache.attributes.invalid = false;
-        return this.cache.attributes.value = this.htmlAttributes.reduce((attributes: Record<string, string>, attribute) => {
-            if (attribute.consumed()) {
-                attributes[attribute.tagName.value] = sanitizeAttribute(attribute.attribute.value.value) || "";
-            }
-            return attributes;
-        }, {});
+        return (this.cache.attributes.value = this.getHtmlAttributes().reduce(
+            (attributes: Record<string, string>, attribute) => {
+                if (attribute.consumed()) {
+                    attributes[attribute.tagName.value] =
+                        sanitizeAttribute(attribute.attribute.value.value) || "";
+                }
+                return attributes;
+            },
+            {}
+        ));
     };
 
-    endTagConsumed = () => {
+    endTagConsumed = consumeCache(() => {
         return Boolean(
             this.tagClose.close1.tag.value || this.tagClose.close2.tagSlashClose.value
         );
-    };
+    });
 
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.tagOpen);
@@ -472,9 +654,12 @@ export class HtmlElement implements ParserItem {
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagName);
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagOpen);
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagSlash);
+        searcher.feedLexerItem(this.scriptlet);
+        searcher.feedParserItem(this.script);
+        searcher.feedParserItem(this.style);
     };
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         if (this.tagOpen.value && this.tagName.value && this.endTagConsumed()) {
             return true;
         }
@@ -488,12 +673,16 @@ export class HtmlElement implements ParserItem {
             return true;
         }
         return false;
-    };
+    });
 
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (this.tagClose.close1.tag.value && !this.tagClose.close1.closingGroup.tagOpen.value) {
-            const tryHtmlContent = this.tagClose.close1.closingGroup.htmlContent.process(queue);
+        if (
+            this.tagClose.close1.tag.value &&
+            !this.tagClose.close1.closingGroup.tagOpen.value
+        ) {
+            const tryHtmlContent =
+                this.tagClose.close1.closingGroup.htmlContent.process(queue);
             if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
                 return this.process(tryHtmlContent);
             }
@@ -564,6 +753,31 @@ export class HtmlElement implements ParserItem {
         }
         return queue;
     };
+
+    clone = () => {
+        const element = new HtmlElement(this.parent);
+        element.tagOpen.value = this.tagOpen.value;
+        element.tagName.value = this.tagName.value;
+        element.htmlAttributes = this.htmlAttributes.map((a) => a.clone());
+        element.tagClose.close1.tag.value = this.tagClose.close1.tag.value;
+        element.tagClose.close1.closingGroup.htmlContent = this.content().clone();
+        element.tagClose.close1.closingGroup.tagClose.value =
+            this.tagClose.close1.closingGroup.tagClose.value;
+        element.tagClose.close1.closingGroup.tagName.value =
+            this.tagClose.close1.closingGroup.tagName.value;
+        element.tagClose.close1.closingGroup.tagOpen.value =
+            this.tagClose.close1.closingGroup.tagOpen.value;
+        element.tagClose.close1.closingGroup.tagSlash.value =
+            this.tagClose.close1.closingGroup.tagSlash.value;
+        element.tagClose.close2.tagSlashClose.value =
+            this.tagClose.close2.tagSlashClose.value;
+        element.scriptlet.value = this.scriptlet.value;
+        element.script = this.script.clone();
+        element.style = this.style.clone();
+        element.data = this.data;
+
+        return element;
+    };
 }
 
 /**
@@ -583,15 +797,17 @@ export class HtmlContent implements ParserItem {
     }> = [];
 
     cache: {
-        children: { invalid: boolean, value: HtmlElement[] };
-        indexes: { invalid: boolean, value: Record<string, number> };
+        children: { invalid: boolean; value: HtmlElement[] };
+        indexes: { invalid: boolean; value: Record<string, number> };
     } = {
-        indexes: { invalid: true, value: {} },
-        children: { invalid: true, value: [] },
-    };
+            indexes: { invalid: true, value: {} },
+            children: { invalid: true, value: [] },
+        };
 
     identifier: string;
-    constructor() {
+    parent: HtmlElement;
+    constructor(parent: HtmlElement) {
+        this.parent = parent;
         this.identifier = uniqueId("html_content");
     }
 
@@ -603,60 +819,92 @@ export class HtmlContent implements ParserItem {
             return this.cache.children.value;
         }
         this.cache.children.invalid = false;
-        return this.cache.children.value = this.content.filter(({ inner: { htmlElement } }) => htmlElement.consumed()).map(({ inner: { htmlElement } }) => htmlElement);
+        return (this.cache.children.value = this.content
+            .filter(({ inner: { htmlElement } }) => htmlElement.consumed())
+            .map(({ inner: { htmlElement } }) => htmlElement));
     };
 
-    addChild = (child: HtmlElement, index: number | undefined) => {
-        this.cache.children.invalid = true;
-        this.cache.indexes.invalid = true;
-        const item = {
-            inner: {
-                htmlElement: child,
-                cData: new LexerItem("CDATA"),
-                htmlComment: new HtmlComment(),
-            },
-            charData: new HtmlChardata(),
-        };
-        if (index === undefined) {
-            this.content.push(item);
-        } else {
-            this.content.splice(index, 0, item);
+    addText = (text: string, after?: HtmlElement) => {
+        if (this.consumed()) {
+            if (!after) {
+                this.htmlCharData.htmlText.value += text;
+            } else {
+                const index = this.getIndex(after);
+                if (index !== -1) {
+                    this.content[index].charData.htmlText.value += text;
+                }
+            }
+        }
+        return this;
+    };
+
+    addChild = (child: HtmlElement, index: number | undefined = undefined) => {
+        if (this.consumed()) {
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+            child.parent = this;
+            const item = {
+                inner: {
+                    htmlElement: child,
+                    cData: new LexerItem("CDATA"),
+                    htmlComment: new HtmlComment(),
+                },
+                charData: new HtmlChardata(),
+            };
+            if (index === undefined) {
+                this.content.push(item);
+            } else {
+                this.content.splice(index, 0, item);
+            }
         }
         return this;
     };
 
     removeChild = (child: HtmlElement | number) => {
-        if (typeof child === "number" && child >= 0 && child < this.content.length) {
-            this.content.splice(child, 1);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
-        } else if (child instanceof HtmlElement) {
-            const index = this.getIndex(child);
-            this.content.splice(index, 1);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
+        if (this.consumed()) {
+            if (
+                typeof child === "number" &&
+                child >= 0 &&
+                child < this.content.length
+            ) {
+                this.content.splice(child, 1);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            } else if (child instanceof HtmlElement) {
+                const index = this.getIndex(child);
+                this.content.splice(index, 1);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            }
         }
         return this;
     };
 
     replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
-        const item = {
-            inner: {
-                htmlElement: replacement,
-                cData: new LexerItem("CDATA"),
-                htmlComment: new HtmlComment(),
-            },
-            charData: new HtmlChardata(),
-        };
-        if (typeof child === "number" && child >= 0 && child < this.content.length) {
-            this.content.splice(child, 1, item);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
-        } else if (child instanceof HtmlElement) {
-            const index = this.getIndex(child);
-            this.content.splice(index, 1, item);
-            this.cache.children.invalid = true;
-            this.cache.indexes.invalid = true;
+        if (this.consumed()) {
+            const item = {
+                inner: {
+                    htmlElement: replacement,
+                    cData: new LexerItem("CDATA"),
+                    htmlComment: new HtmlComment(),
+                },
+                charData: new HtmlChardata(),
+            };
+            item.inner.htmlElement.parent = this;
+            if (
+                typeof child === "number" &&
+                child >= 0 &&
+                child < this.content.length
+            ) {
+                this.content.splice(child, 1, item);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            } else if (child instanceof HtmlElement) {
+                const index = this.getIndex(child);
+                this.content.splice(index, 1, item);
+                this.cache.children.invalid = true;
+                this.cache.indexes.invalid = true;
+            }
         }
         return this;
     };
@@ -675,10 +923,11 @@ export class HtmlContent implements ParserItem {
                     indexes[htmlElement.identifier] = index;
                 }
                 return indexes;
-            }, {}
+            },
+            {}
         );
         return this.cache.indexes.value[element.identifier] ?? -1;
-    }
+    };
 
     prevSibling = (element: HtmlElement) => {
         if (!this.consumed()) {
@@ -804,8 +1053,31 @@ export class HtmlContent implements ParserItem {
         }
         return queue;
     };
-    consumed = () => {
-        return this.content.length === 0 || this.content.every(({ inner: { cData, htmlComment, htmlElement } }) => cData.value || htmlComment.consumed() || htmlElement.consumed());
+    consumed = consumeCache(() => {
+        return (
+            this.content.length === 0 ||
+            this.content.every(
+                ({ inner: { cData, htmlComment, htmlElement } }) =>
+                    cData.value || htmlComment.consumed() || htmlElement.consumed()
+            )
+        );
+    });
+    clone = () => {
+        const content = new HtmlContent(this.parent);
+        content.htmlCharData = this.htmlCharData.clone();
+        content.content = this.content.map((value) => {
+            const item = {
+                charData: value.charData.clone(),
+                inner: {
+                    cData: new LexerItem("CDATA"),
+                    htmlComment: value.inner.htmlComment.clone(),
+                    htmlElement: value.inner.htmlElement.clone(),
+                },
+            };
+            item.inner.cData.value = value.inner.cData.value;
+            return item;
+        });
+        return content;
     };
 }
 
@@ -826,12 +1098,12 @@ export class HtmlAttribute implements ParserItem {
         searcher.feedLexerItem(this.attribute.tagEquals);
         searcher.feedLexerItem(this.attribute.value);
     };
-    consumed = () => {
+    consumed = consumeCache(() => {
         const attributeConsumed =
             (this.attribute.tagEquals.value && this.attribute.value.value) ||
             (!this.attribute.tagEquals.value && !this.attribute.value.value);
         return Boolean(this.tagName && attributeConsumed);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -846,6 +1118,13 @@ export class HtmlAttribute implements ParserItem {
                 return queue.next();
         }
         return queue;
+    };
+    clone = () => {
+        const attribute = new HtmlAttribute();
+        attribute.tagName.value = this.tagName.value;
+        attribute.attribute.tagEquals.value = this.attribute.tagEquals.value;
+        attribute.attribute.value.value = this.attribute.value.value;
+        return attribute;
     };
 }
 
@@ -864,9 +1143,9 @@ export class HtmlChardata implements ParserItem {
         searcher.feedLexerItem(this.seaWs);
     };
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.htmlText.value || this.seaWs.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -878,6 +1157,13 @@ export class HtmlChardata implements ParserItem {
                 return queue.next();
         }
         return queue;
+    };
+
+    clone = () => {
+        const clone = new HtmlChardata();
+        clone.htmlText.value = this.htmlText.value;
+        clone.seaWs.value = this.seaWs.value;
+        return clone;
     };
 }
 
@@ -894,9 +1180,9 @@ export class HtmlMisc implements ParserItem {
         searcher.feedParserItem(this.htmlComment);
         searcher.feedLexerItem(this.seaWs);
     };
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.seaWs.value || this.htmlComment.consumed());
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         const tryProcess = this.htmlComment.process(queue);
@@ -924,9 +1210,9 @@ class HtmlComment implements ParserItem {
         searcher.feedLexerItem(this.htmlComment);
         searcher.feedLexerItem(this.htmlConditionalComment);
     };
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.htmlComment.value || this.htmlConditionalComment.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -939,29 +1225,47 @@ class HtmlComment implements ParserItem {
         }
         return queue;
     };
+    clone = () => {
+        const comment = new HtmlComment();
+        comment.htmlComment.value = this.htmlComment.value;
+        comment.htmlConditionalComment.value = this.htmlConditionalComment.value;
+        return comment;
+    };
 }
 
 /**
   script
-    : SCRIPT_OPEN (SCRIPT_BODY | SCRIPT_SHORT_BODY)
+    : SCRIPT_OPEN htmlAttribute* (SCRIPT_BODY | SCRIPT_SHORT_BODY)
     ;
  */
 export class Script implements ParserItem {
     scriptOpen = new LexerItem("SCRIPT_OPEN");
     scriptBody = new LexerItem("SCRIPT_BODY");
     scriptShortBody = new LexerItem("SCRIPT_SHORT_BODY");
+    attributes: HtmlAttribute[] = [];
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.scriptOpen);
         searcher.feedLexerItem(this.scriptBody);
         searcher.feedLexerItem(this.scriptShortBody);
+        searcher.feedParserItems(this.attributes);
     };
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.scriptOpen.value &&
+            (this.attributes.length === 0 ||
+                this.attributes.every((attribute) => attribute.consumed())) &&
             (this.scriptBody.value || this.scriptShortBody.value)
         );
-    };
+    });
     process = (queue: Queue): Queue => {
+        if (this.scriptOpen.value) {
+            const attribute = new HtmlAttribute();
+            const tryParseAttribute = attribute.process(queue);
+            if (attribute.consumed()) {
+                this.attributes.push(attribute);
+                return this.process(tryParseAttribute);
+            }
+        }
         const current = queue.items[queue.at];
         switch (current.type) {
             case "SCRIPT_OPEN":
@@ -976,29 +1280,49 @@ export class Script implements ParserItem {
         }
         return queue;
     };
+    clone = () => {
+        const script = new Script();
+        script.scriptOpen.value = this.scriptOpen.value;
+        script.scriptBody.value = this.scriptBody.value;
+        script.scriptShortBody.value = this.scriptShortBody.value;
+        script.attributes = this.attributes.map((a) => a.clone());
+        return script;
+    };
 }
 
 /**
    style
-    : STYLE_OPEN (STYLE_BODY | STYLE_SHORT_BODY)
+    : STYLE_OPEN htmlAttribute* (STYLE_BODY | STYLE_SHORT_BODY)
     ;
  */
 export class Style implements ParserItem {
     styleOpen = new LexerItem("STYLE_OPEN");
     styleBody = new LexerItem("STYLE_BODY");
     styleShortBody = new LexerItem("STYLE_SHORT_BODY");
+    attributes: HtmlAttribute[] = [];
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.styleOpen);
         searcher.feedLexerItem(this.styleBody);
         searcher.feedLexerItem(this.styleShortBody);
+        searcher.feedParserItems(this.attributes);
     };
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.styleOpen.value &&
+            (this.attributes.length === 0 ||
+                this.attributes.every((attribute) => attribute.consumed())) &&
             (this.styleBody.value || this.styleShortBody.value)
         );
-    };
+    });
     process = (queue: Queue): Queue => {
+        if (this.styleOpen.value) {
+            const attribute = new HtmlAttribute();
+            const tryParseAttribute = attribute.process(queue);
+            if (attribute.consumed()) {
+                this.attributes.push(attribute);
+                return this.process(tryParseAttribute);
+            }
+        }
         const current = queue.items[queue.at];
         switch (current.type) {
             case "STYLE_OPEN":
@@ -1012,5 +1336,13 @@ export class Style implements ParserItem {
                 return queue.next();
         }
         return queue;
+    };
+    clone = () => {
+        const style = new Style();
+        style.styleOpen.value = this.styleOpen.value;
+        style.styleBody.value = this.styleOpen.value;
+        style.styleShortBody.value = this.styleShortBody.value;
+        style.attributes = this.attributes.map((a) => a.clone());
+        return style;
     };
 }

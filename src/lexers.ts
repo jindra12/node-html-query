@@ -24,14 +24,14 @@ export const htmlLexerAtoms = {
     DTD: /<!.*>/gmu,
     SCRIPTLET: /(<\?.*\?>)|(<%.*%>)/gmu,
     SEA_WS: /(\s|\t|\r|\n)+/gmu,
-    SCRIPT_OPEN: { value: /<script.*>/gmu, pushMode: "SCRIPT" },
-    STYLE_OPEN: { value: /<style.*>/gmu, pushMode: "STYLE" },
-    TAG_OPEN: { value: /</gmu, pushMode: "TAG" },
+    SCRIPT_OPEN: { value: /<script/gmu, pushMode: ["TAG", "SCRIPT"], },
+    STYLE_OPEN: { value: /<style/gmu, pushMode: ["TAG", "STYLE"], },
+    TAG_OPEN: { value: /</gmu, pushMode: ["TAG"] },
     HTML_TEXT: { value: /[^<]+/gmu },
     TAG_CLOSE: { value: />/gmu, popMode: true, mode: "TAG" },
     TAG_SLASH_CLOSE: { value: /\/>/gmu, popMode: true, mode: "TAG" },
     TAG_SLASH: { value: /\//gmu, mode: "TAG" },
-    TAG_EQUALS: { value: /=/gmu, mode: "TAG", pushMode: "ATTVALUE" },
+    TAG_EQUALS: { value: /=/gmu, mode: "TAG", pushMode: ["ATTVALUE"] },
     TAG_NAME: {
         value: new RegExp(
             `${htmlFragments.TAG_NameStartChar}(${htmlFragments.TAG_NameChar})*`,
@@ -103,7 +103,7 @@ export interface Lexer {
     value: RegExp;
     popMode?: boolean;
     mode?: "SCRIPT" | "STYLE" | "TAG" | "ATTVALUE";
-    pushMode?: "SCRIPT" | "STYLE" | "TAG" | "ATTVALUE";
+    pushMode?: ReadonlyArray<"SCRIPT" | "STYLE" | "TAG" | "ATTVALUE">;
 }
 
 export const normalizeHtmlLexer = (item: keyof typeof htmlLexerAtoms): Lexer => {

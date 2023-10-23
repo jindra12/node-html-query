@@ -29,7 +29,7 @@ const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer>>): Qu
                 mode.pop();
             }
             if (lexer.pushMode) {
-                mode.push(lexer.pushMode);
+                mode.push(...lexer.pushMode);
             }
             return true;
         });
