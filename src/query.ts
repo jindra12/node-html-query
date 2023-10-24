@@ -3,13 +3,13 @@ import { htmlParser, queryParser, tryHtmlParser, tryQueryParser } from "./parser
 import { flatten, parserItemToString } from "./utils";
 
 class QueryInstance {
-    private html: HtmlDocument;
+    private document: HtmlDocument;
     private virtualDoms: HtmlDocument[];
     private matched: HtmlElement[];
     private previous: QueryInstance;
 
     private addElementsToMatcher = (manipulator: (content: string, matched: HtmlElement) => void, firstArg: string | ((index: number, html: string) => string), ...content: string[]) => {
-        this.html.cache.descendants.invalid = true;
+        this.document.cache.descendants.invalid = true;
         this.matched.forEach((element, index) => {
             const textFirstArg = typeof firstArg === "function" ? firstArg(index, parserItemToString(element)) : firstArg;
             const allContent = [textFirstArg, ...content];
@@ -20,8 +20,8 @@ class QueryInstance {
         return this;
     }
 
-    constructor(html: HtmlDocument, matched: HtmlElement[], virtualDoms: HtmlDocument[], previous: QueryInstance | undefined) {
-        this.html = html;
+    constructor(document: HtmlDocument, matched: HtmlElement[], virtualDoms: HtmlDocument[], previous: QueryInstance | undefined) {
+        this.document = document;
         this.matched = matched;
         this.virtualDoms = virtualDoms;
         this.previous = previous || this;
@@ -29,34 +29,34 @@ class QueryInstance {
 
     find = (queryInput: string) => {
         const query = queryParser(queryInput);
-        return new QueryInstance(this.html, query.match(this.matched, this.html.descendants()), this.virtualDoms, this);
+        return new QueryInstance(this.document, query.match(this.matched, this.document.descendants()), this.virtualDoms, this);
     };
     add = (toAdd: QueryInstance | string, context?: QueryInstance) => {
         if (toAdd instanceof QueryInstance) {
-            return new QueryInstance(this.html, this.matched.concat(toAdd.matched), this.virtualDoms.concat(toAdd.virtualDoms), this);
+            return new QueryInstance(this.document, this.matched.concat(toAdd.matched), this.virtualDoms.concat(toAdd.virtualDoms), this);
         } else {
             const cssQuery = tryQueryParser(toAdd);
             if (cssQuery) {
                 if (context) {
                     const nextMatched: HtmlElement[] = [...this.matched];
                     context.matched.forEach((matched) => {
-                        cssQuery.match(matched.descendants(), this.html.descendants()).forEach((element) => {
+                        cssQuery.match(matched.descendants(), this.document.descendants()).forEach((element) => {
                             nextMatched.push(element);
                         });
                     });
                     return new QueryInstance(
-                        this.html,
+                        this.document,
                         nextMatched,
                         this.virtualDoms,
                         this,
                     );
                 } else {
                     const nextMatched: HtmlElement[] = [...this.matched];
-                    cssQuery.match(this.html.descendants(), this.html.descendants()).forEach((element) => {
+                    cssQuery.match(this.document.descendants(), this.document.descendants()).forEach((element) => {
                         nextMatched.push(element);
                     });
                     return new QueryInstance(
-                        this.html,
+                        this.document,
                         nextMatched,
                         this.virtualDoms,
                         this,
@@ -65,7 +65,7 @@ class QueryInstance {
             } else {
                 const htmlObject = tryHtmlParser(toAdd);
                 if (htmlObject) {
-                    return new QueryInstance(this.html, this.matched, this.virtualDoms.concat([htmlObject]), this);
+                    return new QueryInstance(this.document, this.matched, this.virtualDoms.concat([htmlObject]), this);
                 }
             }
         }
@@ -121,7 +121,7 @@ class QueryInstance {
         }, firstArg, ...content);
     };
     appendTo = (query: QueryInstance) => {
-        this.html.cache.descendants.invalid = true;
+        this.document.cache.descendants.invalid = true;
         query.matched.forEach((element) => {
             this.matched.forEach((nextChild) => {
                 element.content().addChild(nextChild);
@@ -192,13 +192,13 @@ class QueryInstance {
     change = (handler: string | ((event: Event) => void)) => this.bind("change", handler);
     children = () => {
         const children = flatten(this.matched.map((m) => m.children()));
-        return new QueryInstance(this.html, children, this.virtualDoms, this);
+        return new QueryInstance(this.document, children, this.virtualDoms, this);
     };
     clone = () => {
         const cloned = this.matched.map((m) => m.clone());
         const virtualDom = new HtmlDocument();
         cloned.forEach((clone) => virtualDom.addChild(clone));
-        return new QueryInstance(this.html, [], this.virtualDoms.concat([virtualDom]), this);
+        return new QueryInstance(this.document, [], this.virtualDoms.concat([virtualDom]), this);
     };
     closest = (selector: string, container?: QueryInstance) => {
         const parsed = tryQueryParser(selector);
@@ -216,7 +216,7 @@ class QueryInstance {
             if (descendantLimit && !descendantLimit[currentNode.identifier]) {
                 return undefined;
             }
-            if (parsed.match([currentNode], this.html.descendants())) {
+            if (parsed.match([currentNode], this.document.descendants())) {
                 return currentNode;
             }
             const parent = currentNode.parent;
@@ -232,7 +232,7 @@ class QueryInstance {
             }
             return ancestors;
         }, []);
-        return new QueryInstance(this.html, ancestors, this.virtualDoms, this);
+        return new QueryInstance(this.document, ancestors, this.virtualDoms, this);
     };
     contextmenu = (handler: string | ((event: Event) => void)) => this.bind("contextmenu", handler);
     css: (
@@ -294,8 +294,8 @@ class QueryInstance {
     detach = (selector: string) => {
         const query = tryQueryParser(selector)
         if (query) {
-            const toDelete = query.match(this.matched, this.html.descendants());
-            this.html.cache.descendants.invalid = true;
+            const toDelete = query.match(this.matched, this.document.descendants());
+            this.document.cache.descendants.invalid = true;
             toDelete.forEach((element) => {
                 element.parent.removeChild(element);
             });
@@ -304,7 +304,7 @@ class QueryInstance {
                 return map;
             }, {});
             const nextMatched = this.matched.filter((m) => !deleteMap[m.identifier]);
-            return new QueryInstance(this.html, nextMatched, this.virtualDoms, this);
+            return new QueryInstance(this.document, nextMatched, this.virtualDoms, this);
         }
         return this;
     }
@@ -319,7 +319,7 @@ class QueryInstance {
     };
     end = () => this.previous;
     eq = (index: number) => {
-        return new QueryInstance(this.html, this.matched.filter((_, i) => index >= 0 ? i === index : i === (this.matched.length - 1 + index)), this.virtualDoms, this);
+        return new QueryInstance(this.document, this.matched.filter((_, i) => index >= 0 ? i === index : i === (this.matched.length - 1 + index)), this.virtualDoms, this);
     };
     filter = (filter: string | QueryInstance) => {
         if (typeof filter === "string") {
@@ -330,7 +330,7 @@ class QueryInstance {
                 return matchedMap;
             }, {});
             return new QueryInstance(
-                this.html,
+                this.document,
                 this.matched.filter((m) => matchedMap[m.identifier]),
                 this.virtualDoms,
                 this,
@@ -339,14 +339,81 @@ class QueryInstance {
         return this;
     };
     even = () => {
-        return new QueryInstance(this.html, this.matched.filter((_, i) => i % 2 === 0), this.virtualDoms, this);
+        return new QueryInstance(this.document, this.matched.filter((_, i) => i % 2 === 0), this.virtualDoms, this);
     };
-    first = () => {
-        return new QueryInstance(this.html, [this.matched[0]], this.virtualDoms, this);
-    };
+    first = () => this.get(0);
     focus = (handler: string | ((event: Event) => void)) => this.bind("focus", handler);
     focusin = (handler: string | ((event: Event) => void)) => this.bind("focusin", handler);
     focusout = (handler: string | ((event: Event) => void)) => this.bind("focusout", handler);
+    has = (selector: string | QueryInstance) => {
+        if (typeof selector === "string") {
+            const query = tryQueryParser(selector);
+            if (query) {
+                return new QueryInstance(this.document, this.matched.filter((m) => {
+                    return query.match(m.descendants(), this.document.descendants()).length > 0;
+                }), this.virtualDoms, this);
+            }
+        } else if (selector instanceof QueryInstance) {
+            const matchedMap = selector.matched.reduce((matchedMap: Record<string, true>, element) => {
+                matchedMap[element.identifier] = true;
+                return matchedMap;
+            }, {});
+            return new QueryInstance(this.document, this.matched.filter((m) => {
+                return m.descendants().some((d) => matchedMap[d.identifier]);
+            }), this.virtualDoms, this);
+        }
+        return this;
+    };
+    hasClass = (className: string) => {
+        return this.matched.some((m) => m.attributes()["class"].split(" ").some((cls) => cls === className));
+    };
+    get = (index: number = 0) => {
+        return new QueryInstance(this.document, [this.matched[index >= 0 ? index : this.matched.length - 1 + index]], this.virtualDoms, this);
+    };
+    height: (
+        (() => string | undefined) | ((value: number) => QueryInstance)
+    ) = (height?: string): any => {
+        if (height) {
+            this.matched.forEach((m) => {
+                m.modifyAttribute("height", () => height);
+            });
+            return this;
+        }
+        return this.matched[0]?.attributes()["height"];
+    };
+    hide = () => {
+        this.matched.forEach((m) => {
+            m.modifyStyle("display", () => "hidden");
+        });
+        return this;
+    };
+    hover = (handler: string | ((event: Event) => void)) => this.bind("hover", handler);
+    html: (
+        (() => string | undefined) | ((html: string) => QueryInstance) | ((setter: (index: number, html: string) => string) => QueryInstance)
+    ) = (...args: any[]): any => {
+        if (args.length === 0) {
+            if (this.matched.length > 0) {
+                return parserItemToString(this.matched[0]);
+            } else {
+                return undefined;
+            }
+        } else {
+            this.matched.forEach((m, index) => {
+                const resolveArg = typeof args[0] === "string" ? args[0] : args[0](index, parserItemToString(m));
+                const nextDom = tryHtmlParser(resolveArg);
+                if (nextDom) {
+                    m.emptyText();
+                    m.children().forEach((child) => {
+                        m.content().removeChild(child);
+                    });
+                    nextDom.descendants().forEach((d) => {
+                        m.content().addChild(d);
+                    })
+                }
+            });
+        }
+        return this;
+    };
     
 }
 

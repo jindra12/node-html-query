@@ -481,6 +481,8 @@ export class Pseudo implements Matcher {
           :required 	input:required 	Selects <input> elements with a "required" attribute specified
           :root 	root 	Selects the document's root element
           :valid 	input:valid 	Selects all <input> elements with a valid value
+          :header
+          :image
        */
     match = (
         htmlElements: HtmlElement[],
@@ -603,6 +605,10 @@ export class Pseudo implements Matcher {
                     return inputValidation(element.attributes(), () =>
                         allHtmlElements.map((element) => element.attributes())
                     );
+                case "header":
+                    return /^h[1-6]$/.test(element.tagName.value);
+                case "image":
+                    return element.attributes()["type"] === "image";
                 default:
                     return false;
             }
@@ -1329,12 +1335,12 @@ export class Expression implements Matcher {
         switch (this.functionalPseudo.funct.value) {
             case "nth-child(":
                 return element.parent.getIndex(element);
-            case ":nth-last-child(":
+            case "nth-last-child(":
                 return Math.max(-1, element.parent.children().length - 1 - element.parent.getIndex(element));
-            case ":nth-last-of-type(":
+            case "nth-last-of-type(":
                 const lastOfType = childrenOfType();
                 return Math.max(-1, lastOfType.length - 1 - getIndexOfType(lastOfType));
-            case ":nth-of-type(":
+            case "nth-of-type(":
                 return getIndexOfType(childrenOfType());
             default:
                 return element.parent.getIndex(element);
