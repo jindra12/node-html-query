@@ -20,6 +20,28 @@ class QueryInstance {
         return this;
     }
 
+    private filterBySelector = (selector: string | QueryInstance | undefined, elements: HtmlElement[]) => {
+        if (selector === undefined) {
+            return new QueryInstance(this.document, elements, this.virtualDoms, this);
+        }
+        if (typeof selector === "string") {
+            const query = tryQueryParser(selector);
+            if (query) {
+                const matched = query.match(elements, this.document.descendants());
+                return new QueryInstance(this.document, matched, this.virtualDoms, this);
+            }
+        }
+        if (selector instanceof QueryInstance) {
+            const map = selector.matched.reduce((map: Record<string, true>, element) => {
+                map[element.identifier] = true;
+                return map;
+            }, {});
+            const matched = elements.filter((n) => map[n.identifier]);
+            return new QueryInstance(this.document, matched, this.virtualDoms, this);
+        }
+        return this;
+    }
+
     constructor(document: HtmlDocument, matched: HtmlElement[], virtualDoms: HtmlDocument[], previous: QueryInstance | undefined) {
         this.document = document;
         this.matched = matched;
@@ -173,22 +195,8 @@ class QueryInstance {
             }
         }, firstArg, ...content);
     };
-    bind = (eventType: string, eventHandler: string | ((event: Event) => void)) => {
-        const stringifyHandler = typeof eventHandler === "function" ? `(${eventHandler.toString()})(this)` : eventHandler;
-        this.matched.forEach((match) => {
-            match.modifyAttribute(`on${eventType}`, (existing) => {
-                if (!existing) {
-                    return stringifyHandler;
-                }
-                const split = existing.split(";");
-                split.push(stringifyHandler);
-                return split.join(";");
-            });
-        });
-        return this;
-    };
-    blur = (handler: string | ((event: Event) => void)) => this.bind("blur", handler);
-    change = (handler: string | ((event: Event) => void)) => this.bind("change", handler);
+    blur = (handler: string | ((event: Event) => void)) => this.on("blur", handler);
+    change = (handler: string | ((event: Event) => void)) => this.on("change", handler);
     children = () => {
         const children = flatten(this.matched.map((m) => m.children()));
         return new QueryInstance(this.document, children, this.virtualDoms, this);
@@ -233,7 +241,7 @@ class QueryInstance {
         }, []);
         return new QueryInstance(this.document, ancestors, this.virtualDoms, this);
     };
-    contextmenu = (handler: string | ((event: Event) => void)) => this.bind("contextmenu", handler);
+    contextmenu = (handler: string | ((event: Event) => void)) => this.on("contextmenu", handler);
     css: (
         ((propertyName: string) => (string | undefined)) | ((propertyNames: string[]) => Record<string, string>) | ((css: Record<string, string>) => QueryInstance) | ((propertyName: string, value: string | ((index: number, value: string) => string)) => QueryInstance)
     ) = (...args: any[]): any => {
@@ -289,7 +297,7 @@ class QueryInstance {
         }
         return this;
     };
-    dblclick = (handler: string | ((event: Event) => void)) => this.bind("dblclick", handler);
+    dblclick = (handler: string | ((event: Event) => void)) => this.on("dblclick", handler);
     detach = (selector: string) => {
         const query = tryQueryParser(selector)
         if (query) {
@@ -341,9 +349,9 @@ class QueryInstance {
         return new QueryInstance(this.document, this.matched.filter((_, i) => i % 2 === 0), this.virtualDoms, this);
     };
     first = () => this.get(0);
-    focus = (handler: string | ((event: Event) => void)) => this.bind("focus", handler);
-    focusin = (handler: string | ((event: Event) => void)) => this.bind("focusin", handler);
-    focusout = (handler: string | ((event: Event) => void)) => this.bind("focusout", handler);
+    focus = (handler: string | ((event: Event) => void)) => this.on("focus", handler);
+    focusin = (handler: string | ((event: Event) => void)) => this.on("focusin", handler);
+    focusout = (handler: string | ((event: Event) => void)) => this.on("focusout", handler);
     has = (selector: string | QueryInstance) => {
         if (typeof selector === "string") {
             const query = tryQueryParser(selector);
@@ -386,7 +394,7 @@ class QueryInstance {
         });
         return this;
     };
-    hover = (handler: string | ((event: Event) => void)) => this.bind("hover", handler);
+    hover = (handler: string | ((event: Event) => void)) => this.on("hover", handler);
     html: (
         (() => string | undefined) | ((html: string) => QueryInstance) | ((setter: (index: number, html: string) => string) => QueryInstance)
     ) = (...args: any[]): any => {
@@ -470,9 +478,9 @@ class QueryInstance {
         });
         return this;
     };
-    keypress = (handler: string | ((event: Event) => void)) => this.bind("keypress", handler);
-    keydown = (handler: string | ((event: Event) => void)) => this.bind("keydown", handler);
-    keyup = (handler: string | ((event: Event) => void)) => this.bind("keyup", handler);
+    keypress = (handler: string | ((event: Event) => void)) => this.on("keypress", handler);
+    keydown = (handler: string | ((event: Event) => void)) => this.on("keydown", handler);
+    keyup = (handler: string | ((event: Event) => void)) => this.on("keyup", handler);
     is = (selector: string | QueryInstance) => {
         if (typeof selector === "string") {
             const query = tryQueryParser(selector);
@@ -491,14 +499,102 @@ class QueryInstance {
     get length(): number {
         return this.matched.length;
     }
-    mousedown = (handler: string | ((event: Event) => void)) => this.bind("mousedown", handler);
-    mouseenter = (handler: string | ((event: Event) => void)) => this.bind("mouseenter", handler);
-    mouseleave = (handler: string | ((event: Event) => void)) => this.bind("mouseleave", handler);
-    mousemove = (handler: string | ((event: Event) => void)) => this.bind("mousemove", handler);
-    mouseout = (handler: string | ((event: Event) => void)) => this.bind("mouseout", handler);
-    mouseover = (handler: string | ((event: Event) => void)) => this.bind("mouseover", handler);
-    mouseup = (handler: string | ((event: Event) => void)) => this.bind("mouseup", handler);
-
+    mousedown = (handler: string | ((event: Event) => void)) => this.on("mousedown", handler);
+    mouseenter = (handler: string | ((event: Event) => void)) => this.on("mouseenter", handler);
+    mouseleave = (handler: string | ((event: Event) => void)) => this.on("mouseleave", handler);
+    mousemove = (handler: string | ((event: Event) => void)) => this.on("mousemove", handler);
+    mouseout = (handler: string | ((event: Event) => void)) => this.on("mouseout", handler);
+    mouseover = (handler: string | ((event: Event) => void)) => this.on("mouseover", handler);
+    mouseup = (handler: string | ((event: Event) => void)) => this.on("mouseup", handler);
+    next = (selector?: string | QueryInstance) => {
+        const nextSiblings = this.matched.map((m) => m.parent.nextSibling(m)!).filter(Boolean)
+        return this.filterBySelector(selector, nextSiblings);
+    };
+    nextAll = (selector?: string | QueryInstance) => {
+        const nextSiblings = flatten(this.matched.map((m) => {
+            const index = m.parent.getIndex(m);
+            return m.parent.children().filter((child) => child.parent.getIndex(child) > index);
+        }));
+        return this.filterBySelector(selector, nextSiblings);
+    };
+    nextUntil = (selector: string | QueryInstance) => {
+        const matchNextAll = this.nextAll();
+        const unmatchNextAll = this.nextAll(selector).matched.reduce((map: Record<string, true>, element) => {
+            map[element.identifier] = true;
+            return map;
+        }, {});
+        return new QueryInstance(this.document, matchNextAll.matched.filter(m => !unmatchNextAll[m.identifier]), this.virtualDoms, this);
+    };
+    not = (selector: string | QueryInstance) => {
+        const filtered = this.filterBySelector(selector, this.matched).matched.reduce((map: Record<string, true>, element) => {
+            map[element.identifier] = true;
+            return map;
+        }, {});
+        return new QueryInstance(this.document, this.matched.filter(m => !filtered[m.identifier]), this.virtualDoms, this);
+    };
+    odd = () => {
+        return new QueryInstance(this.document, this.matched.filter((_, i) => i % 2 === 1), this.virtualDoms, this);
+    };
+    off = (eventTypes: string) => {
+        this.matched.forEach((m) => {
+            eventTypes.split(" ").forEach((eventType) => {
+                m.removeAttribute(`on${eventType}`);
+            });
+        });
+        return this;
+    };
+    on = (eventTypes: string, eventHandler: string | ((event: Event) => void)) => {
+        const stringifyHandler = typeof eventHandler === "function" ? `(${eventHandler.toString()})(this)` : eventHandler;
+        this.matched.forEach((match) => {
+            eventTypes.split(" ").forEach((eventType) => {
+                match.modifyAttribute(`on${eventType}`, (existing) => {
+                    if (!existing) {
+                        return stringifyHandler;
+                    }
+                    const split = existing.split(";");
+                    split.push(stringifyHandler);
+                    return split.join(";");
+                });
+            });
+        });
+        return this;
+    };
+    once = (eventTypes: string, eventHandler: string | ((event: Event) => void)) => {
+        eventTypes.split(" ").forEach((eventType) => {
+            const stringifyHandler = typeof eventHandler === "function" ? eventHandler.toString() : eventHandler;
+            const onceHandler = `((event) => { const fn = ${stringifyHandler}; const result = fn(event); event.target.removeEventListener('${eventType}', fn); return result; })(this)`;
+            this.on(eventType, onceHandler);
+        });
+        return this;
+    };
+    parent = (selector: string | QueryInstance) => {
+        return this.filterBySelector(selector, this.matched.reduce((parents: HtmlElement[], element) => {
+            const parentContent = element.parent;
+            if (parentContent instanceof HtmlContent) {
+                parents.push(parentContent.parent);
+            }
+            return parents;
+        }, []));
+    };
+    parents = (selector?: string | QueryInstance) => {
+        return this.filterBySelector(selector, this.matched.reduce((parents: HtmlElement[], element) => {
+            let parentContent = element.parent;
+            while (parentContent instanceof HtmlContent) {
+                parents.push(parentContent.parent);
+                parentContent = parentContent.parent.parent;
+            }
+            return parents;
+        }, []));
+    };
+    parentsUntil = (selector: string | QueryInstance) => {
+        const parentsNot = this.parents(selector).matched.reduce((map: Record<string, true>, element) => {
+            map[element.identifier] = true;
+            return map;
+        }, {});
+        const parents = this.parents().matched;
+        return new QueryInstance(this.document, parents.filter((p) => !parentsNot[p.identifier]), this.virtualDoms, this);
+    };
+    
 }
 
 export const Query = (htmlInput: string) => {
