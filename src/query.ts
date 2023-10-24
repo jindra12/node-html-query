@@ -132,9 +132,8 @@ class QueryInstance {
                     element.content().addChild(child);
                 });
             });
-            this.virtualDoms = [];
         });
-        return this;
+        return new QueryInstance(this.document, this.matched, [], this);
     };
     attr: (
         ((attributeName: string) => (string | undefined)) | ((attributes: Record<string, string>) => QueryInstance) | ((attributeName: string, value: string | ((index: number, value: string) => string)) => QueryInstance)
@@ -414,7 +413,92 @@ class QueryInstance {
         }
         return this;
     };
-    
+    index = (selector?: string | QueryInstance) => {
+        if (selector === undefined) {
+            return this.matched[0] ? this.matched[0].parent.getIndex(this.matched[0]) : -1;
+        }
+        if (typeof selector === "string") {
+            const query = tryQueryParser(selector);
+            if (query) {
+                const matched = query.match(this.matched, this.document.descendants());
+                if (matched.length > 0) {
+                    return this.matched.findIndex((m) => m.identifier === matched[0].identifier);
+                }
+            }
+        }
+        if (selector instanceof QueryInstance) {
+            const firstMatch = selector.matched[0];
+            if (firstMatch) {
+                return this.matched.findIndex((m) => m.identifier === firstMatch.identifier);
+            }
+        }
+        return -1;
+    };
+    insertBefore = (selector: string | QueryInstance) => {
+        this.document.cache.descendants.invalid = true;
+        const toInsertBefore = typeof selector === "string" ? (() => {
+            const query = tryQueryParser(selector);
+            if (query) {
+                return query.match(this.matched, this.document.descendants());
+            }
+            return [];
+        })() : selector.matched;
+        toInsertBefore.forEach((m) => {
+            this.virtualDoms.forEach((v) => {
+                v.descendants().forEach(dom => {
+                    m.addChild(dom, m.parent.getIndex(m));
+                });
+            });
+        });
+        return this;
+    };
+    insertAfter = (selector: string | QueryInstance) => {
+        this.document.cache.descendants.invalid = true;
+        const toInsertAfter = typeof selector === "string" ? (() => {
+            const query = tryQueryParser(selector);
+            if (query) {
+                return query.match(this.matched, this.document.descendants());
+            }
+            return [];
+        })() : selector.matched;
+        toInsertAfter.forEach((m) => {
+            this.virtualDoms.forEach((v) => {
+                v.descendants().forEach(dom => {
+                    m.addChild(dom, m.parent.getIndex(m) + 1);
+                });
+            });
+        });
+        return this;
+    };
+    keypress = (handler: string | ((event: Event) => void)) => this.bind("keypress", handler);
+    keydown = (handler: string | ((event: Event) => void)) => this.bind("keydown", handler);
+    keyup = (handler: string | ((event: Event) => void)) => this.bind("keyup", handler);
+    is = (selector: string | QueryInstance) => {
+        if (typeof selector === "string") {
+            const query = tryQueryParser(selector);
+            if (query) {
+                return query.match(this.matched, this.document.descendants()).length > 0;
+            }
+            return false;
+        }
+        const map = selector.matched.reduce((map: Record<string, true>, element) => {
+            map[element.identifier] = true;
+            return map;
+        }, {});
+        return this.matched.some((m) => map[m.identifier]);
+    };
+    last = () => this.get(this.matched.length - 1);
+    get length(): number {
+        return this.matched.length;
+    }
+    mousedown = (handler: string | ((event: Event) => void)) => this.bind("mousedown", handler);
+    mouseenter = (handler: string | ((event: Event) => void)) => this.bind("mouseenter", handler);
+    mouseleave = (handler: string | ((event: Event) => void)) => this.bind("mouseleave", handler);
+    mousemove = (handler: string | ((event: Event) => void)) => this.bind("mousemove", handler);
+    mouseout = (handler: string | ((event: Event) => void)) => this.bind("mouseout", handler);
+    mouseover = (handler: string | ((event: Event) => void)) => this.bind("mouseover", handler);
+    mouseup = (handler: string | ((event: Event) => void)) => this.bind("mouseup", handler);
+
 }
 
 export const Query = (htmlInput: string) => {

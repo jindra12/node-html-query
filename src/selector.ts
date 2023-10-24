@@ -609,6 +609,8 @@ export class Pseudo implements Matcher {
                     return /^h[1-6]$/.test(element.tagName.value);
                 case "image":
                     return element.attributes()["type"] === "image";
+                case "input":
+                    return ["input", "button", "textarea", "select"].includes(element.tagName.value);
                 default:
                     return false;
             }
@@ -1189,7 +1191,7 @@ export class Ws implements ParserItem {
         | Odd
         | (Combinator ws)? selectorGroup
         | Minus? Number (ident ws (( Plus | Minus ) ws Number)?)? ws ( Of ws selectorGroup)? )?
-        | _String
+        | ident
         
     ;
  */
@@ -1201,7 +1203,7 @@ export class Expression implements Matcher {
     selectorGroup1 = new SelectorGroup();
     minus1 = new LexerItem("Minus");
     number1 = new LexerItem("Number");
-    ident = new LexerItem("Ident");
+    ident1 = new LexerItem("Ident");
     ws2 = new Ws();
     plus = new LexerItem("Plus");
     minus2 = new LexerItem("Minus");
@@ -1211,7 +1213,7 @@ export class Expression implements Matcher {
     of = new LexerItem("Of");
     ws5 = new Ws();
     selectorGroup2 = new SelectorGroup();
-    str = new LexerItem("String_");
+    ident2 = new LexerItem("Ident");
 
     functionalPseudo: FunctionalPseudo;
     constructor(functionalPseudo: FunctionalPseudo) {
@@ -1219,7 +1221,7 @@ export class Expression implements Matcher {
     }
 
     consumed = () => {
-        if (this.str.value) {
+        if (this.ident2.value) {
             return true;
         }
         if (this.even.value || this.odd.value || this.selectorGroup1.consumed()) {
@@ -1229,7 +1231,7 @@ export class Expression implements Matcher {
         const ofComplete = this.of.value && this.selectorGroup2.consumed();
     
         if (this.number1.value) {
-            if (this.ident.value) {
+            if (this.ident1.value) {
                 const optionalGroupMissing = !this.plus.value && !this.minus2.value && !this.number2.value;
                 const optionalGroupComplete = (this.plus.value || this.minus2.value) && this.number2.value;
                 if (optionalGroupComplete || optionalGroupMissing) {
@@ -1243,8 +1245,8 @@ export class Expression implements Matcher {
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "String_") {
-            this.str.value = current.value;
+        if (current.type === "Ident" && !this.number1.value && !this.minus1.value) {
+            this.ident2.value = current.value;
             return queue.next();
         }
         if (current.type === "Even") {
@@ -1270,16 +1272,16 @@ export class Expression implements Matcher {
             this.minus1.value = current.value;
             return this.process(queue.next());
         }
-        if (!this.ident.value && current.type === "Number") {
+        if (!this.ident1.value && current.type === "Number") {
             this.number1.value = current.value;
             return this.process(queue.next());
         }
         if (this.number1.value && current.type === "Ident") {
-            this.ident.value = current.value;
+            this.ident1.value = current.value;
             const tryWs = this.ws2.process(queue.next());
             return this.process(tryWs);
         }
-        if (this.ident.value) {
+        if (this.ident1.value) {
             if (!this.minus2.value && current.type === "Plus") {
                 this.plus.value = current.value;
                 const tryWs = this.ws3.process(queue.next());
@@ -1317,7 +1319,7 @@ export class Expression implements Matcher {
         searcher.feedParserItem(this.selectorGroup1);
         searcher.feedLexerItem(this.minus1);
         searcher.feedLexerItem(this.number1);
-        searcher.feedLexerItem(this.ident);
+        searcher.feedLexerItem(this.ident1);
         searcher.feedParserItem(this.ws2);
         searcher.feedLexerItem(this.plus);
         searcher.feedLexerItem(this.minus2);
@@ -1327,7 +1329,7 @@ export class Expression implements Matcher {
         searcher.feedLexerItem(this.of);
         searcher.feedParserItem(this.ws5);
         searcher.feedParserItem(this.selectorGroup2);
-        searcher.feedLexerItem(this.str);
+        searcher.feedLexerItem(this.ident2);
     };
     getIndex = (element: HtmlElement) => {
         const childrenOfType = () => element.parent.children().filter((otherChild) => otherChild.getTagName() === element.getTagName());
@@ -1353,28 +1355,34 @@ export class Expression implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        if (this.functionalPseudo.funct.value === ":eq(") {
-            const index = parseInt(this.str.value);
+        if (this.functionalPseudo.funct.value === ":lang") {
+            if (this.ident1.value) {
+                return htmlElements.filter((htmlElements) => htmlElements.attributes()["lang"] === this.ident1.value);
+            }
+            return [];
+        }
+        if (this.functionalPseudo.funct.value === "eq(") {
+            const index = parseInt(this.ident2.value);
             if (!isNaN(index)) {
                 return htmlElements.filter((_, i) => index >= 0 ? i === index : (htmlElements.length - 1 + index) === i);
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === ":contains(") {
-            if (this.str.value) {
+        if (this.functionalPseudo.funct.value === "contains(") {
+            if (this.ident2.value) {
                 return htmlElements.filter((htmlElement) => {
-                    return htmlElement.texts().some((text) => text.includes(this.str.value));
+                    return htmlElement.texts().some((text) => text.includes(this.ident2.value));
                 });
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === ":is(" || this.functionalPseudo.funct.value === ":where(") {
+        if (this.functionalPseudo.funct.value === "is(" || this.functionalPseudo.funct.value === "where(") {
             if (this.selectorGroup1.consumed() && !this.combinator.consumed()) {
                 return this.selectorGroup1.match(htmlElements, allHtmlElements);
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === ":has(") {
+        if (this.functionalPseudo.funct.value === "has(") {
             if (this.selectorGroup1.consumed()) {
                 const matched = this.selectorGroup1.match(htmlElements, allHtmlElements);
                 if (!this.combinator.consumed() || this.combinator.space.value) {
@@ -1411,7 +1419,7 @@ export class Expression implements Matcher {
             return ofQuery;
         }
         if (this.number1.value) {
-            if (!this.ident.value) {
+            if (!this.ident1.value) {
                 if (!this.minus1.value) {
                     const index = parseInt(this.number1.value);
                     const element = ofQuery.find((element) => this.getIndex(element) + 1 === index);

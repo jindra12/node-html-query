@@ -493,7 +493,7 @@ export class HtmlElement implements ParserItem {
         return descendants;
     };
 
-    addChild = (child: HtmlElement, index: number | undefined) => {
+    addChild = (child: HtmlElement, index: number | undefined = undefined) => {
         if (!this.consumed() || !this.content().consumed()) {
             return [];
         }
