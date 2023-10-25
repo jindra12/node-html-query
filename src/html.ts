@@ -339,10 +339,10 @@ export class HtmlElement implements ParserItem {
             tag: new LexerItem("TAG_CLOSE"),
             closingGroup: {
                 htmlContent: new HtmlContent(this),
-                tagClose: new LexerItem("TAG_CLOSE"),
-                tagName: new LexerItem("TAG_NAME"),
                 tagOpen: new LexerItem("TAG_OPEN"),
                 tagSlash: new LexerItem("TAG_SLASH"),
+                tagName: new LexerItem("TAG_NAME"),
+                tagClose: new LexerItem("TAG_CLOSE"),
             },
         },
         close2: {
@@ -380,6 +380,15 @@ export class HtmlElement implements ParserItem {
         this.parent = parent;
         this.identifier = uniqueId("htmlelement");
     }
+
+    convertWithChildren = () => {
+        this.tagClose.close2.tagSlashClose.value = "";
+        this.tagClose.close1.tag.value = ">";
+        this.tagClose.close1.closingGroup.tagOpen.value = "<";
+        this.tagClose.close1.closingGroup.tagSlash.value = "/";
+        this.tagClose.close1.closingGroup.tagName.value = this.tagName.value;
+        this.tagClose.close1.closingGroup.tagClose.value = ">";
+    };
 
     getStyles = () => {
         if (!this.consumed()) {
@@ -856,6 +865,7 @@ export class HtmlContent implements ParserItem {
             } else {
                 this.content.splice(index, 0, item);
             }
+            this.parent.convertWithChildren();
         }
         return this;
     };

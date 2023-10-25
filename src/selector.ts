@@ -461,29 +461,6 @@ export class Pseudo implements Matcher {
         searcher.feedLexerItem(this.ident);
         searcher.feedParserItem(this.functionalPseudo);
     };
-    /**
-          :checked 	input:checked 	Selects every checked <input> element
-          :disabled 	input:disabled 	Selects every disabled <input> element
-          :empty 	p:empty 	Selects every <p> element that has no children
-          :enabled 	input:enabled 	Selects every enabled <input> element
-          :first-child 	p:first-child 	Selects every <p> elements that is the first child of its parent
-          :first-of-type 	p:first-of-type 	Selects every <p> element that is the first <p> element of its parent
-          :in-range 	input:in-range 	Selects <input> elements with a value within a specified range
-          :invalid 	input:invalid 	Selects all <input> elements with an invalid value
-          :last-child 	p:last-child 	Selects every <p> elements that is the last child of its parent
-          :last-of-type 	p:last-of-type 	Selects every <p> element that is the last <p> element of its parent
-          :only-of-type 	p:only-of-type 	Selects every <p> element that is the only <p> element of its parent
-          :only-child 	p:only-child 	Selects every <p> element that is the only child of its parent
-          :optional 	input:optional 	Selects <input> elements with no "required" attribute
-          :out-of-range 	input:out-of-range 	Selects <input> elements with a value outside a specified range
-          :read-only 	input:read-only 	Selects <input> elements with a "readonly" attribute specified
-          :read-write 	input:read-write 	Selects <input> elements with no "readonly" attribute
-          :required 	input:required 	Selects <input> elements with a "required" attribute specified
-          :root 	root 	Selects the document's root element
-          :valid 	input:valid 	Selects all <input> elements with a valid value
-          :header
-          :image
-       */
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[]
@@ -611,6 +588,10 @@ export class Pseudo implements Matcher {
                     return element.attributes()["type"] === "image";
                 case "input":
                     return ["input", "button", "textarea", "select"].includes(element.tagName.value);
+                case "password":
+                    return element.tagName.value === "input" && element.attributes()["type"] === "password";
+                case "radio":
+                    return element.tagName.value === "input" && element.attributes()["type"] === "radio";
                 default:
                     return false;
             }
