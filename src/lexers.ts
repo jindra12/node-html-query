@@ -3,7 +3,7 @@ export const htmlFragments = {
     DIGIT: () => /[0-9]/gmu,
     TAG_NameChar: () =>
         new RegExp(
-            `(${htmlFragments.TAG_NameStartChar()}|-|:| |.|${htmlFragments.DIGIT()}|\\u00B7|[\\u0300-\\u036F]|[\\u203F-\\u2040])`,
+            `(${htmlFragments.TAG_NameStartChar()}|-| |.|${htmlFragments.DIGIT()}|\\u00B7|[\\u0300-\\u036F]|[\\u203F-\\u2040])`,
             "gmu"
         ),
     TAG_NameStartChar: () =>
