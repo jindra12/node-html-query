@@ -603,6 +603,8 @@ export class Pseudo implements Matcher {
                     return element.attributes()["type"] === "reset";
                 case "submit":
                     return element.attributes()["type"] === "submit";
+                case "text":
+                    return element.tagName.value === "input" && element.attributes()["type"] === "text";
                 default:
                     return false;
             }

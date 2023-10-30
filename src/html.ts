@@ -80,6 +80,22 @@ export class HtmlDocument implements ParserItem {
         ));
     };
 
+    prevSibling = (element: HtmlElement) => {
+        const index = this.getIndex(element);
+        if (index === -1) {
+            return undefined;
+        }
+        return this.htmlElements[index - 1]?.htmlElement;
+    };
+
+    nextSibling = (element: HtmlElement) => {
+        const index = this.getIndex(element);
+        if (index === -1) {
+            return undefined;
+        }
+        return this.htmlElements[index + 1]?.htmlElement;
+    };
+
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
         if (this.consumed()) {
             this.cache.children.invalid = true;
@@ -171,22 +187,6 @@ export class HtmlDocument implements ParserItem {
             {}
         );
         return this.cache.indexes.value[element.identifier] ?? -1;
-    };
-
-    prevSibling = (element: HtmlElement) => {
-        const index = this.getIndex(element);
-        if (index === -1) {
-            return undefined;
-        }
-        return this.htmlElements[index - 1]?.htmlElement;
-    };
-
-    nextSibling = (element: HtmlElement) => {
-        const index = this.getIndex(element);
-        if (index === -1) {
-            return undefined;
-        }
-        return this.htmlElements[index + 1]?.htmlElement;
     };
 
     search = (searcher: Searcher) => {
@@ -354,7 +354,7 @@ export class HtmlElement implements ParserItem {
     style: Style = new Style();
 
     data: Record<string, string> = {};
-    parent: HtmlContent | HtmlDocument;
+    parent: HtmlElement | HtmlDocument;
     identifier: string;
     cache: {
         attributes: {
@@ -376,7 +376,7 @@ export class HtmlElement implements ParserItem {
             },
         };
 
-    constructor(parent: HtmlContent | HtmlDocument) {
+    constructor(parent: HtmlElement | HtmlDocument) {
         this.parent = parent;
         this.identifier = uniqueId("htmlelement");
     }
@@ -389,6 +389,14 @@ export class HtmlElement implements ParserItem {
         this.tagClose.close1.closingGroup.tagName.value = this.tagName.value;
         this.tagClose.close1.closingGroup.tagClose.value = ">";
     };
+
+    prevSibling = (element: HtmlElement) => {
+        return this.parent instanceof HtmlDocument ? this.parent.prevSibling(element) : this.parent.content().prevSibling(element);
+    };
+
+    nextSibling = (element: HtmlElement) => {
+        return this.parent instanceof HtmlDocument ? this.parent.nextSibling(element) : this.parent.content().nextSibling(element);
+    }
 
     getStyles = () => {
         if (!this.consumed()) {
@@ -500,6 +508,10 @@ export class HtmlElement implements ParserItem {
             descendants.push(element);
         });
         return descendants;
+    };
+
+    getIndex = (element: HtmlElement) => {
+        return this.content().getIndex(element);
     };
 
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
@@ -851,7 +863,7 @@ export class HtmlContent implements ParserItem {
         if (this.consumed()) {
             this.cache.children.invalid = true;
             this.cache.indexes.invalid = true;
-            child.parent = this;
+            child.parent = this.parent;
             const item = {
                 inner: {
                     htmlElement: child,
@@ -900,7 +912,7 @@ export class HtmlContent implements ParserItem {
                 },
                 charData: new HtmlChardata(),
             };
-            item.inner.htmlElement.parent = this;
+            item.inner.htmlElement.parent = this.parent;
             if (
                 typeof child === "number" &&
                 child >= 0 &&
@@ -979,7 +991,7 @@ export class HtmlContent implements ParserItem {
                 return this.process(tryCharData);
             }
         } else {
-            const htmlElement = new HtmlElement(this);
+            const htmlElement = new HtmlElement(this.parent);
             const tryHtmlElement = htmlElement.process(queue);
             const cData = new LexerItem("CDATA");
             const htmlComment = new HtmlComment();
@@ -1044,7 +1056,7 @@ export class HtmlContent implements ParserItem {
                         inner: {
                             cData: new LexerItem("CDATA"),
                             htmlComment: htmlComment,
-                            htmlElement: new HtmlElement(this),
+                            htmlElement: new HtmlElement(this.parent),
                         },
                     });
                     return this.process(tryProcessCharData);
@@ -1054,7 +1066,7 @@ export class HtmlContent implements ParserItem {
                         inner: {
                             cData: new LexerItem("CDATA"),
                             htmlComment: htmlComment,
-                            htmlElement: new HtmlElement(this),
+                            htmlElement: new HtmlElement(this.parent),
                         },
                     });
                     return this.process(tryHtmlComment);
