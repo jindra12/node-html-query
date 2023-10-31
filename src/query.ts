@@ -24,14 +24,17 @@ interface TypeCombiner {
     tagName(): string;
     tagName(value: string): QueryInstance;
     tagName(setter: (index: number, tagName: string) => string): QueryInstance;
+    text(): string;
+    text(value: string): QueryInstance;
+    text(setter: (index: number, value: string) => string): QueryInstance;
     val(): string;
     val(value: string | number | boolean): QueryInstance;
     val(setter: (index: number, value: string) => (string | number | boolean)): QueryInstance;
-
 }
 
 type ValueType = TypeCombiner["val"];
 type TagNameType = TypeCombiner["tagName"];
+type TextType = TypeCombiner["text"];
 type HtmlType = TypeCombiner["html"];
 type DataType = TypeCombiner["data"];
 type CssType = TypeCombiner["css"];
@@ -278,7 +281,7 @@ class QueryInstance {
     attr: AttrType = (...args: any[]): any => {
         const firstArg = args[0];
         if (typeof firstArg === "string") {
-            if (args.length === 1) {
+            if (args.length === 1 || args[1] === undefined) {
                 return this.matched[0]?.attributes()[firstArg] || "";
             }
             this.matched.forEach((matched, index) => {
@@ -393,7 +396,7 @@ class QueryInstance {
     css: CssType = (...args: any[]): any => {
         const firstArg = args[0];
         if (typeof firstArg === "string") {
-            if (args.length === 1) {
+            if (args.length === 1 || args[1] === undefined) {
                 return this.matched[0]?.getStyles()[firstArg];
             }
             this.matched.forEach((matched, index) => {
@@ -432,9 +435,9 @@ class QueryInstance {
         return this;
     };
     data: DataType = (...args: any[]): any => {
-        if (args.length === 0) {
+        if (args.length === 0 || args[0] === undefined) {
             return this.matched[0]?.data || {};
-        } else if (args.length === 1) {
+        } else if (args.length === 1 || args[1] === undefined) {
             if (typeof args[0] === "string") {
                 return this.matched[0]?.data[args[0]];
             }
@@ -445,7 +448,7 @@ class QueryInstance {
                     });
                 });
             }
-        } else if (args.length === 2) {
+        } else if (args.length === 2 || args[2] === undefined) {
             this.matched.forEach((matched) => {
                 matched.data[args[0]] = args[1];
             });
@@ -608,7 +611,7 @@ class QueryInstance {
     html: HtmlType = (
         ...args: any[]
     ): any => {
-        if (args.length === 0) {
+        if (args.length === 0 || args[0] === undefined) {
             if (this.matched.length > 0) {
                 return parserItemToString(this.matched[0]);
             } else {
@@ -1021,7 +1024,7 @@ class QueryInstance {
      * Using this instead of prop()
      */
     tagName: TagNameType = (...args: any[]): any => {
-        if (args.length === 0) {
+        if (args.length === 0 || args[0] === undefined) {
             return this.matched[0]?.tagName.value;
         }
         this.matched.forEach((m, i) => {
@@ -1210,16 +1213,11 @@ class QueryInstance {
     };
     submit = (handler: string | ((event: Event) => void)) =>
         this.on("submit", handler);
-    text:
-        | (() => string)
-        | ((value: string | number | boolean) => QueryInstance)
-        | ((
-            setter: (index: number, text: string) => string | number | boolean
-        ) => QueryInstance) = (...args: any[]): any => {
-            if (args.length === 0) {
+    text: TextType = (...args: any[]): any => {
+            if (args.length === 0 || args[0] === undefined) {
                 return this.matched[0]?.texts().join("");
             }
-            if (args.length === 1) {
+            if (args.length === 1 || args[1] === undefined) {
                 this.matched.forEach((m, index) => {
                     const value = (
                         typeof args[0] === "function"
@@ -1376,7 +1374,7 @@ class QueryInstance {
         return this;
     };
     val: ValueType = (...args: any[]): any => {
-        if (args.length === 0) {
+        if (args.length === 0 || args[0] === undefined) {
             return this.matched[0]?.attributes()["value"];
         }
         this.attr("value");
