@@ -7,18 +7,35 @@ import {
 } from "./parser";
 import { flatten, parserItemToString, uniqueId } from "./utils";
 
-type SetterFn = string | ((index: number, value: string) => string);
+interface TypeCombiner {
+    attr(name: string): string | undefined;
+    attr(attributes: Record<string, string>): QueryInstance;
+    attr(attributeName: string, value: string | ((index: number, value: string) => string)): QueryInstance;
+    css(propertyName: string): string | undefined;
+    css(css: Record<string, string>): QueryInstance;
+    css(propertyName: string, value: string | ((index: number, value: string) => string)): QueryInstance;
+    data(key: string): string | undefined;
+    data(object: Record<string, string>): QueryInstance;
+    data(): Record<string, string>;
+    data(key: string, value: string): QueryInstance;
+    html(): string | undefined;
+    html(value: string): QueryInstance;
+    html(setter: (index: number, value: string) => string): QueryInstance;
+    tagName(): string;
+    tagName(value: string): QueryInstance;
+    tagName(setter: (index: number, tagName: string) => string): QueryInstance;
+    val(): string;
+    val(value: string | number | boolean): QueryInstance;
+    val(setter: (index: number, value: string) => (string | number | boolean)): QueryInstance;
 
-type AttrType<T extends string | Record<string, string> = string, E extends (T extends string ? SetterFn : undefined) = (T extends string ? string : undefined)> = (attr: T, fn?: E) => T extends string ? E extends SetterFn ? QueryInstance : string : QueryInstance;
+}
 
-/**
- * | ((attributeName: string) => string | undefined)
-        | ((attributes: Record<string, string>) => QueryInstance)
-        | ((
-            attributeName: string,
-            value: string | ((index: number, value: string) => string)
-        ) => QueryInstance)
- */
+type ValueType = TypeCombiner["val"];
+type TagNameType = TypeCombiner["tagName"];
+type HtmlType = TypeCombiner["html"];
+type DataType = TypeCombiner["data"];
+type CssType = TypeCombiner["css"];
+type AttrType = TypeCombiner["attr"];
 
 class QueryInstance {
     private document: HtmlDocument;
@@ -259,31 +276,31 @@ class QueryInstance {
         return this;
     };
     attr: AttrType = (...args: any[]): any => {
-            const firstArg = args[0];
-            if (typeof firstArg === "string") {
-                if (args.length === 1) {
-                    return this.matched[0]?.attributes()[firstArg] || "";
-                }
-                this.matched.forEach((matched, index) => {
-                    const attributes = matched.attributes();
-                    const resolveValue =
-                        typeof args[1] === "string"
-                            ? args[1]
-                            : args[1](index, attributes[firstArg] || "");
-                    matched.replaceAttribute(firstArg, resolveValue);
-                });
-            } else if (typeof firstArg === "object" && firstArg) {
-                this.matched.forEach((matched) => {
-                    Object.entries(firstArg as Record<string, string>).forEach(
-                        ([attributeName, attributeValue]) => {
-                            matched.replaceAttribute(attributeName, attributeValue);
-                        }
-                    );
-                });
+        const firstArg = args[0];
+        if (typeof firstArg === "string") {
+            if (args.length === 1) {
+                return this.matched[0]?.attributes()[firstArg] || "";
             }
+            this.matched.forEach((matched, index) => {
+                const attributes = matched.attributes();
+                const resolveValue =
+                    typeof args[1] === "string"
+                        ? args[1]
+                        : args[1](index, attributes[firstArg] || "");
+                matched.replaceAttribute(firstArg, resolveValue);
+            });
+        } else if (typeof firstArg === "object" && firstArg) {
+            this.matched.forEach((matched) => {
+                Object.entries(firstArg as Record<string, string>).forEach(
+                    ([attributeName, attributeValue]) => {
+                        matched.replaceAttribute(attributeName, attributeValue);
+                    }
+                );
+            });
+        }
 
-            return this;
-        };
+        return this;
+    };
     before = (
         firstArg: string | ((index: number, html: string) => string),
         ...content: string[]
@@ -373,79 +390,68 @@ class QueryInstance {
     };
     contextmenu = (handler: string | ((event: Event) => void)) =>
         this.on("contextmenu", handler);
-    css:
-        | ((propertyName: string) => string | undefined)
-        | ((propertyNames: string[]) => Record<string, string>)
-        | ((css: Record<string, string>) => QueryInstance)
-        | ((
-            propertyName: string,
-            value: string | ((index: number, value: string) => string)
-        ) => QueryInstance) = (...args: any[]): any => {
-            const firstArg = args[0];
-            if (typeof firstArg === "string") {
-                if (args.length === 1) {
-                    return this.matched[0]?.getStyles()[firstArg];
-                }
-                this.matched.forEach((matched, index) => {
-                    const resolveValue =
-                        typeof args[1] === "string"
-                            ? () => args[1]
-                            : (value: string | undefined) => args[1](index, value);
-                    matched.modifyStyle(firstArg, resolveValue);
-                });
-            } else if (Array.isArray(firstArg)) {
-                const selectedMap = firstArg.reduce(
-                    (selectedMap: Record<string, true>, item: string) => {
-                        selectedMap[item] = true;
-                        return selectedMap;
-                    },
-                    {}
-                );
-                return Object.entries(this.matched[0]?.getStyles() || {}).reduce(
-                    (selected: Record<string, string>, [styleName, styleValue]) => {
-                        if (selectedMap[styleName]) {
-                            selected[styleName] = styleValue;
-                        }
-                        return selected;
-                    },
-                    {}
-                );
-            } else if (typeof firstArg === "object" && firstArg) {
-                this.matched.forEach((matched) => {
-                    Object.entries(firstArg as Record<string, string>).forEach(
-                        ([styleName, styleValue]) => {
-                            matched.modifyStyle(styleName, () => styleValue);
-                        }
-                    );
-                });
+    css: CssType = (...args: any[]): any => {
+        const firstArg = args[0];
+        if (typeof firstArg === "string") {
+            if (args.length === 1) {
+                return this.matched[0]?.getStyles()[firstArg];
             }
-            return this;
-        };
-    data:
-        | ((key: string, value: string) => QueryInstance)
-        | ((key: string) => string | undefined)
-        | ((object: Record<string, string>) => QueryInstance)
-        | (() => Record<string, string>) = (...args: any[]): any => {
-            if (args.length === 0) {
-                return this.matched[0]?.data || {};
-            } else if (args.length === 1) {
-                if (typeof args[0] === "string") {
-                    return this.matched[0]?.data[args[0]];
-                }
-                if (typeof args[0] === "object" && args[0]) {
-                    Object.keys(args[0]).forEach((key) => {
-                        this.matched.forEach((matched) => {
-                            matched.data[key] = args[0][key];
-                        });
+            this.matched.forEach((matched, index) => {
+                const resolveValue =
+                    typeof args[1] === "string"
+                        ? () => args[1]
+                        : (value: string | undefined) => args[1](index, value);
+                matched.modifyStyle(firstArg, resolveValue);
+            });
+        } else if (Array.isArray(firstArg)) {
+            const selectedMap = firstArg.reduce(
+                (selectedMap: Record<string, true>, item: string) => {
+                    selectedMap[item] = true;
+                    return selectedMap;
+                },
+                {}
+            );
+            return Object.entries(this.matched[0]?.getStyles() || {}).reduce(
+                (selected: Record<string, string>, [styleName, styleValue]) => {
+                    if (selectedMap[styleName]) {
+                        selected[styleName] = styleValue;
+                    }
+                    return selected;
+                },
+                {}
+            );
+        } else if (typeof firstArg === "object" && firstArg) {
+            this.matched.forEach((matched) => {
+                Object.entries(firstArg as Record<string, string>).forEach(
+                    ([styleName, styleValue]) => {
+                        matched.modifyStyle(styleName, () => styleValue);
+                    }
+                );
+            });
+        }
+        return this;
+    };
+    data: DataType = (...args: any[]): any => {
+        if (args.length === 0) {
+            return this.matched[0]?.data || {};
+        } else if (args.length === 1) {
+            if (typeof args[0] === "string") {
+                return this.matched[0]?.data[args[0]];
+            }
+            if (typeof args[0] === "object" && args[0]) {
+                Object.keys(args[0]).forEach((key) => {
+                    this.matched.forEach((matched) => {
+                        matched.data[key] = args[0][key];
                     });
-                }
-            } else if (args.length === 2) {
-                this.matched.forEach((matched) => {
-                    matched.data[args[0]] = args[1];
                 });
             }
-            return this;
-        };
+        } else if (args.length === 2) {
+            this.matched.forEach((matched) => {
+                matched.data[args[0]] = args[1];
+            });
+        }
+        return this;
+    };
     dblclick = (handler: string | ((event: Event) => void)) =>
         this.on("dblclick", handler);
     empty = () => {
@@ -599,38 +605,35 @@ class QueryInstance {
     };
     hover = (handler: string | ((event: Event) => void)) =>
         this.on("hover", handler);
-    html:
-        | (() => string | undefined)
-        | ((html: string) => QueryInstance)
-        | ((setter: (index: number, html: string) => string) => QueryInstance) = (
-            ...args: any[]
-        ): any => {
-            if (args.length === 0) {
-                if (this.matched.length > 0) {
-                    return parserItemToString(this.matched[0]);
-                } else {
-                    return undefined;
-                }
+    html: HtmlType = (
+        ...args: any[]
+    ): any => {
+        if (args.length === 0) {
+            if (this.matched.length > 0) {
+                return parserItemToString(this.matched[0]);
             } else {
-                this.matched.forEach((m, index) => {
-                    const resolveArg =
-                        typeof args[0] === "string"
-                            ? args[0]
-                            : args[0](index, parserItemToString(m));
-                    const nextDom = tryHtmlParser(resolveArg);
-                    if (nextDom) {
-                        m.emptyText();
-                        m.children().forEach((child) => {
-                            m.content().removeChild(child);
-                        });
-                        nextDom.descendants().forEach((d) => {
-                            m.content().addChild(d);
-                        });
-                    }
-                });
+                return undefined;
             }
-            return this;
-        };
+        } else {
+            this.matched.forEach((m, index) => {
+                const resolveArg =
+                    typeof args[0] === "string"
+                        ? args[0]
+                        : args[0](index, parserItemToString(m));
+                const nextDom = tryHtmlParser(resolveArg);
+                if (nextDom) {
+                    m.emptyText();
+                    m.children().forEach((child) => {
+                        m.content().removeChild(child);
+                    });
+                    nextDom.descendants().forEach((d) => {
+                        m.content().addChild(d);
+                    });
+                }
+            });
+        }
+        return this;
+    };
     index = (
         selector?: string | QueryInstance,
         namespaces: Record<string, string> = {}
@@ -1017,24 +1020,20 @@ class QueryInstance {
     /**
      * Using this instead of prop()
      */
-    tagName:
-        | (() => string)
-        | ((tagName: string) => QueryInstance)
-        | ((setter: (index: number, tagName: string) => string) => QueryInstance) =
-        (...args: any[]): any => {
-            if (args.length === 0) {
-                return this.matched[0]?.tagName.value;
+    tagName: TagNameType = (...args: any[]): any => {
+        if (args.length === 0) {
+            return this.matched[0]?.tagName.value;
+        }
+        this.matched.forEach((m, i) => {
+            const resolveArg =
+                typeof args[0] === "string" ? args[0] : args[0](i, m.tagName.value);
+            m.tagName.value = resolveArg;
+            if (!m.tagClose.close2.tagSlashClose.value) {
+                m.tagClose.close1.closingGroup.tagName.value = resolveArg;
             }
-            this.matched.forEach((m, i) => {
-                const resolveArg =
-                    typeof args[0] === "string" ? args[0] : args[0](i, m.tagName.value);
-                m.tagName.value = resolveArg;
-                if (!m.tagClose.close2.tagSlashClose.value) {
-                    m.tagClose.close1.closingGroup.tagName.value = resolveArg;
-                }
-            });
-            return this;
-        };
+        });
+        return this;
+    };
     pushStack = (instance: QueryInstance) =>
         createQuery(
             this.document,
@@ -1376,9 +1375,7 @@ class QueryInstance {
             });
         return this;
     };
-    val: (
-        (() => (string | undefined)) | ((value: string | number | boolean) => QueryInstance) | ((setter: (index: number, value: string) => (string | number | boolean)) => QueryInstance)
-    ) = (...args: any[]): any => {
+    val: ValueType = (...args: any[]): any => {
         if (args.length === 0) {
             return this.matched[0]?.attributes()["value"];
         }
