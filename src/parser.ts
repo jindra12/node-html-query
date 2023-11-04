@@ -3,13 +3,13 @@ import { Lexer, LexerType, cssLexerAtoms, htmlLexerAtoms } from "./lexers";
 import { SelectorGroup } from "./selector";
 import { Queue, QueueItem } from "./types";
 
-const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer>>): QueueItem[] => {
+export const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer>>, initialMode: string[] = []) => {
     const acc: QueueItem[] = [];
     const lexers = Object.values(lexer);
     const lexerKeys = Object.keys(lexer) as LexerType[];
 
     let parsedIndex = 0;
-    const mode: string[] = [];
+    const mode: string[] = initialMode;
     
     while (parsedIndex < input.length) {
         let matchedValue = "";
@@ -42,27 +42,27 @@ const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer>>): Qu
         });
     }
     acc.push({ type: "EOF", value: "" });
-    return acc;
+    return { queue: acc, mode: mode };
 };
 
-const parsedHtmlLexer = Object.entries(htmlLexerAtoms).reduce((lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
+export const parsedHtmlLexer = Object.entries(htmlLexerAtoms).reduce((lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
     const typedKey = lexerKey as LexerType;
     lexer[typedKey] = lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
     return lexer;
 }, {});
 
-const parsedQueryLexer = Object.entries(cssLexerAtoms).reduce((lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
+export const parsedQueryLexer = Object.entries(cssLexerAtoms).reduce((lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
     const typedKey = lexerKey as LexerType;
     lexer[typedKey] = lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
     return lexer;
 }, {});
 
 const parseHtmlLexer = (input: string) => {
-    return parseLexer(input, parsedHtmlLexer);
+    return parseLexer(input, parsedHtmlLexer).queue;
 };
 
 const parseQueryLexer = (input: string) => {
-    return parseLexer(input, parsedQueryLexer);
+    return parseLexer(input, parsedQueryLexer).queue;
 };
 
 export const htmlParser = (input: string) => {
@@ -84,22 +84,6 @@ export const htmlParser = (input: string) => {
     return document;
 };
 
-export const tryHtmlParser = (input: string) => {
-    try {
-        return htmlParser(input);
-    } catch {
-        return undefined;
-    }
-};
-
-export const tryQueryParser = (input: string) => {
-    try {
-        return queryParser(input);
-    } catch {
-        return undefined;
-    }
-};
-
 export const queryParser = (input: string) => {
     const lexerAtoms = parseQueryLexer(input);
     const createQueue = (at: number): Queue => {
@@ -117,4 +101,20 @@ export const queryParser = (input: string) => {
         throw `Error in parsing encountered at: ${remainingLexerAtoms.slice(0, 5).map(({ type }) => type).join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 100)}...`
     }
     return selectorGroup;
+};
+
+export const tryHtmlParser = (input: string) => {
+    try {
+        return htmlParser(input);
+    } catch {
+        return undefined;
+    }
+};
+
+export const tryQueryParser = (input: string) => {
+    try {
+        return queryParser(input);
+    } catch {
+        return undefined;
+    }
 };
