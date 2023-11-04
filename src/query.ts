@@ -10,10 +10,16 @@ import { flatten, parserItemToString, uniqueId } from "./utils";
 interface TypeCombiner {
     attr(name: string): string | undefined;
     attr(attributes: Record<string, string>): QueryInstance;
-    attr(attributeName: string, value: string | ((index: number, value: string) => string)): QueryInstance;
+    attr(
+        attributeName: string,
+        value: string | ((index: number, value: string) => string)
+    ): QueryInstance;
     css(propertyName: string): string | undefined;
     css(css: Record<string, string>): QueryInstance;
-    css(propertyName: string, value: string | ((index: number, value: string) => string)): QueryInstance;
+    css(
+        propertyName: string,
+        value: string | ((index: number, value: string) => string)
+    ): QueryInstance;
     data(key: string): string | undefined;
     data(object: Record<string, string>): QueryInstance;
     data(): Record<string, string>;
@@ -29,7 +35,14 @@ interface TypeCombiner {
     text(setter: (index: number, value: string) => string): QueryInstance;
     val(): string;
     val(value: string | number | boolean): QueryInstance;
-    val(setter: (index: number, value: string) => (string | number | boolean)): QueryInstance;
+    val(
+        setter: (index: number, value: string) => string | number | boolean
+    ): QueryInstance;
+    wrap(parent: QueryInstance): QueryInstance;
+    wrap(
+        parent: (index: number, child: QueryInstance) => QueryInstance | string
+    ): QueryInstance;
+    wrap(parent: string): QueryInstance;
 }
 
 type ValueType = TypeCombiner["val"];
@@ -39,6 +52,7 @@ type HtmlType = TypeCombiner["html"];
 type DataType = TypeCombiner["data"];
 type CssType = TypeCombiner["css"];
 type AttrType = TypeCombiner["attr"];
+type WrapType = TypeCombiner["wrap"];
 
 class QueryInstance {
     private document: HtmlDocument;
@@ -51,7 +65,6 @@ class QueryInstance {
         firstArg: string | ((index: number, html: string) => string),
         ...content: string[]
     ) => {
-        this.document.cache.descendants.invalid = true;
         this.matched.forEach((element, index) => {
             const textFirstArg =
                 typeof firstArg === "function"
@@ -62,8 +75,42 @@ class QueryInstance {
                 manipulator(content, element);
             });
         });
+        this.document.cache.descendants.invalid = true;
         return this;
     };
+
+    private getLowestChild = (element: HtmlElement): HtmlElement => {
+        if (element.children().length === 0) {
+            return element;
+        }
+        return this.getLowestChild(element.children()[0]);
+    };
+
+    private getParentAssigner = (resolved: string | QueryInstance, namespaces: Record<string, string>) => {
+        let parent: HtmlElement | undefined = undefined;
+        let appendTo: HtmlElement | undefined = undefined;
+        if (typeof resolved === "string") {
+            const query = tryQueryParser(resolved);
+            if (query) {
+                parent = query.match(
+                    this.document.descendants(),
+                    this.document.descendants(),
+                    namespaces
+                )[0];
+                appendTo = parent;
+            } else {
+                const html = tryHtmlParser(resolved);
+                if (html) {
+                    parent = html.descendants()[0];
+                    appendTo = this.getLowestChild(parent);
+                }
+            }
+        } else {
+            parent = resolved.matched[0]?.clone();
+            appendTo = parent;
+        }
+        return [parent, appendTo] as const;
+    }
 
     private filterBySelector = (
         selector: string | QueryInstance | undefined,
@@ -114,7 +161,7 @@ class QueryInstance {
         for (let i = 0; i < this.matched.length; i++) {
             yield this.get(i);
         }
-    };
+    }
 
     find = (queryInput: string, namespaces: Record<string, string> = {}) => {
         const query = queryParser(queryInput);
@@ -264,7 +311,6 @@ class QueryInstance {
         );
     };
     appendTo = (query: QueryInstance) => {
-        this.document.cache.descendants.invalid = true;
         query.matched.forEach((element) => {
             this.matched.forEach((nextChild) => {
                 element.content().addChild(nextChild);
@@ -276,6 +322,7 @@ class QueryInstance {
                 });
             });
         });
+        this.document.cache.descendants.invalid = true;
         return this;
     };
     attr: AttrType = (...args: any[]): any => {
@@ -608,9 +655,7 @@ class QueryInstance {
     };
     hover = (handler: string | ((event: Event) => void)) =>
         this.on("hover", handler);
-    html: HtmlType = (
-        ...args: any[]
-    ): any => {
+    html: HtmlType = (...args: any[]): any => {
         if (args.length === 0 || args[0] === undefined) {
             if (this.matched.length > 0) {
                 return parserItemToString(this.matched[0]);
@@ -675,7 +720,6 @@ class QueryInstance {
         selector: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
-        this.document.cache.descendants.invalid = true;
         const toInsertBefore =
             typeof selector === "string"
                 ? (() => {
@@ -697,13 +741,13 @@ class QueryInstance {
                 });
             });
         });
+        this.document.cache.descendants.invalid = true;
         return createQuery(this.document, this.matched, this.virtualDoms, this);
     };
     insertAfter = (
         selector: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
-        this.document.cache.descendants.invalid = true;
         const toInsertAfter =
             typeof selector === "string"
                 ? (() => {
@@ -725,6 +769,7 @@ class QueryInstance {
                 });
             });
         });
+        this.document.cache.descendants.invalid = true;
         return createQuery(this.document, this.matched, [], this);
     };
     keypress = (handler: string | ((event: Event) => void)) =>
@@ -964,7 +1009,6 @@ class QueryInstance {
         );
     };
     prependTo = (query: QueryInstance) => {
-        this.document.cache.descendants.invalid = true;
         query.matched.forEach((element) => {
             this.matched.forEach((nextChild) => {
                 element.content().addChild(nextChild, 0);
@@ -976,6 +1020,7 @@ class QueryInstance {
                 });
             });
         });
+        this.document.cache.descendants.invalid = true;
         return createQuery(this.document, this.matched, [], this);
     };
     prev = (
@@ -1048,15 +1093,14 @@ class QueryInstance {
         const resolveHandler =
             typeof handler === "string" ? handler : handler.toString();
         const wrapHandler = `document.addEventListener("load", ${resolveHandler})`;
-        this.document.cache.descendants.invalid = true;
         const script = htmlParser(
             `<script>${wrapHandler}</script>`
         ).descendants()[0];
         this.document.addChild(script);
+        this.document.cache.descendants.invalid = true;
         return this;
     };
     remove = (selector?: string, namespaces: Record<string, string> = {}) => {
-        this.document.cache.descendants.invalid = true;
         if (selector) {
             const query = tryQueryParser(selector);
             if (query) {
@@ -1084,6 +1128,7 @@ class QueryInstance {
             this.matched.forEach((m) => m.parent.removeChild(m));
             return createQuery(this.document, [], this.virtualDoms, this);
         }
+        this.document.cache.descendants.invalid = true;
         return this;
     };
     removeAttr = (attributeNames: string) => {
@@ -1138,7 +1183,6 @@ class QueryInstance {
         replacement: string | QueryInstance | string[] | QueryInstance[],
         namespaces: Record<string, string> = {}
     ) => {
-        this.document.cache.descendants.invalid = true;
         const arrayified = Array.isArray(replacement) ? replacement : [replacement];
         const elements = flatten(
             arrayified.map((item) => {
@@ -1160,6 +1204,7 @@ class QueryInstance {
                 parent.addChild(replacement, index);
             });
         });
+        this.document.cache.descendants.invalid = true;
         return this;
     };
     replaceWith = (
@@ -1171,7 +1216,6 @@ class QueryInstance {
             | QueryInstance[],
         namespaces: Record<string, string> = {}
     ) => {
-        this.document.cache.descendants.invalid = true;
         const executed = typeof content === "function" ? content() : content;
         const arrayified = Array.isArray(executed) ? executed : [executed];
         const elements = flatten(
@@ -1193,7 +1237,7 @@ class QueryInstance {
                 parent.addChild(e, index);
             });
         });
-
+        this.document.cache.descendants.invalid = true;
         return createQuery(this.document, [], this.virtualDoms, this);
     };
     select = (handler: string | ((event: Event) => void)) =>
@@ -1214,21 +1258,21 @@ class QueryInstance {
     submit = (handler: string | ((event: Event) => void)) =>
         this.on("submit", handler);
     text: TextType = (...args: any[]): any => {
-            if (args.length === 0 || args[0] === undefined) {
-                return this.matched[0]?.texts().join("");
-            }
-            if (args.length === 1 || args[1] === undefined) {
-                this.matched.forEach((m, index) => {
-                    const value = (
-                        typeof args[0] === "function"
-                            ? args[0](index, m.texts().join(""))
-                            : args[0]
-                    ).toString();
-                    m.content().addText(value);
-                });
-            }
-            return this;
-        };
+        if (args.length === 0 || args[0] === undefined) {
+            return this.matched[0]?.texts().join("");
+        }
+        if (args.length === 1 || args[1] === undefined) {
+            this.matched.forEach((m, index) => {
+                const value = (
+                    typeof args[0] === "function"
+                        ? args[0](index, m.texts().join(""))
+                        : args[0]
+                ).toString();
+                m.content().addText(value);
+            });
+        }
+        return this;
+    };
     toggle = (...args: (string | ((event: Event) => void))[]) => {
         const propName = uniqueId("handler");
         const stringified = args.map((arg) =>
@@ -1325,7 +1369,6 @@ class QueryInstance {
         selector?: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
-        this.document.cache.descendants.invalid = true;
         const toUnwrap = this.matched.reduce(
             (toUnwrap: { element: HtmlElement; parent: HtmlElement }[], element) => {
                 if (element.parent instanceof HtmlElement) {
@@ -1371,6 +1414,7 @@ class QueryInstance {
             .forEach(({ element }) => {
                 unwrap(element);
             });
+        this.document.cache.descendants.invalid = true;
         return this;
     };
     val: ValueType = (...args: any[]): any => {
@@ -1379,6 +1423,82 @@ class QueryInstance {
         }
         this.attr("value");
         return this.attr("value", args[0]);
+    };
+    wrap: WrapType = (...args: any[]): any => {
+        this.matched.forEach((m, index) => {
+            const resolved: string | QueryInstance =
+                typeof args[0] === "function" ? args[0](index, m) : args[0];
+            const namespaces: Record<string, string> = args[1] || {};
+            const [parent, appendTo] = this.getParentAssigner(resolved, namespaces);
+            if (parent && appendTo) {
+                appendTo.addChild(m);
+                m.parent.replaceChild(m, parent);
+            }
+        });
+        this.document.cache.descendants.invalid = true;
+        return this;
+    };
+    wrapAll: WrapType = (...args: any[]): any => {
+        if (this.matched.length === 0) {
+            return this;
+        }
+        const [parent, appendTo] = this.getParentAssigner(typeof args[0] === "function" ? args[0](0, this.get(0)) : args[0], args[1] || {});
+        if (!parent || !appendTo) {
+            return this;
+        }
+        const parents = this.matched.map((_, i) => this.get(i).parents().matched);
+        const parentsWithCount = parents.reduce((parentsWithCount: Record<string, { count: number, lowestIndex: number, parent: HtmlElement }>, parents) => {
+            parents.forEach((parent, index) => {
+                if (parentsWithCount[parent.identifier]) {
+                    parentsWithCount[parent.identifier].count++;
+                    if (parentsWithCount[parent.identifier].lowestIndex > index) {
+                        parentsWithCount[parent.identifier].lowestIndex = index;
+                    }
+                } else {
+                    parentsWithCount[parent.identifier] = {
+                        count: 1,
+                        parent: parent,
+                        lowestIndex: index,
+                    };
+                }
+            });
+            return parentsWithCount;
+        }, {});
+
+        const commonParents = Object.values(parentsWithCount).filter(({ count }) => count === this.matched.length);
+        const lowestIndex = commonParents.sort((aParent, bParent) => aParent.lowestIndex - bParent.lowestIndex)[0];
+        if (lowestIndex) {
+            lowestIndex.parent.children().forEach((child) => {
+                appendTo.addChild(child);
+                lowestIndex.parent.removeChild(child);
+            });
+            lowestIndex.parent.addChild(parent);
+        } else {
+            this.document.children().forEach((child) => {
+                appendTo.addChild(child);
+                this.document.removeChild(child);
+            });
+            this.document.addChild(parent);
+        }
+        this.document.cache.descendants.invalid = true;
+        return this;
+    };
+    wrapInner: WrapType = (...args: any[]): any => {
+        this.matched.forEach((m, index) => {
+            const resolved: string | QueryInstance =
+                typeof args[0] === "function" ? args[0](index, m) : args[0];
+            const namespaces: Record<string, string> = args[1] || {};
+            const [parent, appendTo] = this.getParentAssigner(resolved, namespaces);
+            if (parent && appendTo) {
+                m.children().forEach((child) => {
+                    appendTo.addChild(child);
+                    m.removeChild(child);
+                });
+                m.addChild(parent);
+            }
+        });
+        this.document.cache.descendants.invalid = true;
+        return this;
     }
 }
 
