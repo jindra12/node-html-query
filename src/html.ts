@@ -1133,11 +1133,17 @@ export class HtmlAttribute implements ParserItem {
                 this.tagName.value = current.value;
                 return this.process(queue.next());
             case "TAG_EQUALS":
-                this.attribute.tagEquals.value = current.value;
-                return this.process(queue.next());
+                if (this.tagName.value) {
+                    this.attribute.tagEquals.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
             case "ATTVALUE_VALUE":
-                this.attribute.value.value = current.value;
-                return queue.next();
+                if (this.attribute.tagEquals.value) {
+                    this.attribute.value.value = current.value;
+                    return queue.next();
+                }
+                break;
         }
         return queue;
     };
@@ -1261,9 +1267,11 @@ class HtmlComment implements ParserItem {
     ;
  */
 export class Script implements ParserItem {
+    tagOpen = new LexerItem("TAG_OPEN");
     scriptOpen = new LexerItem("SCRIPT_OPEN");
     scriptBody = new LexerItem("SCRIPT_BODY");
     scriptShortBody = new LexerItem("SCRIPT_SHORT_BODY");
+    tagClose = new LexerItem("TAG_CLOSE");
     attributes: HtmlAttribute[] = [];
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.scriptOpen);
@@ -1273,10 +1281,11 @@ export class Script implements ParserItem {
     };
     consumed = consumeCache(() => {
         return Boolean(
+            this.tagOpen.value &&
             this.scriptOpen.value &&
             (this.attributes.length === 0 ||
                 this.attributes.every((attribute) => attribute.consumed())) &&
-            (this.scriptBody.value || this.scriptShortBody.value)
+            (this.scriptBody.value || this.scriptShortBody.value) && this.tagClose.value
         );
     });
     process = (queue: Queue): Queue => {
@@ -1290,15 +1299,33 @@ export class Script implements ParserItem {
         }
         const current = queue.items[queue.at];
         switch (current.type) {
-            case "SCRIPT_OPEN":
-                this.scriptOpen.value = current.value;
+            case "TAG_OPEN":
+                this.tagOpen.value = current.value;
                 return this.process(queue.next());
+            case "SCRIPT_OPEN":
+                if (this.tagOpen.value) {
+                    this.scriptOpen.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
             case "SCRIPT_BODY":
-                this.scriptBody.value = current.value;
-                return queue.next();
+                if (this.scriptOpen.value) {
+                    this.scriptBody.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
             case "SCRIPT_SHORT_BODY":
-                this.scriptShortBody.value = current.value;
-                return queue.next();
+                if (this.scriptOpen.value) {
+                    this.scriptShortBody.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
+            case "TAG_CLOSE":
+                if (this.scriptBody.value || this.scriptShortBody.value) {
+                    this.tagClose.value = current.value;
+                    return queue.next();
+                }
+                break;
         }
         return queue;
     };
@@ -1318,9 +1345,11 @@ export class Script implements ParserItem {
     ;
  */
 export class Style implements ParserItem {
+    tagOpen = new LexerItem("TAG_OPEN");
     styleOpen = new LexerItem("STYLE_OPEN");
     styleBody = new LexerItem("STYLE_BODY");
     styleShortBody = new LexerItem("STYLE_SHORT_BODY");
+    tagClose = new LexerItem("TAG_CLOSE");
     attributes: HtmlAttribute[] = [];
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.styleOpen);
@@ -1330,10 +1359,11 @@ export class Style implements ParserItem {
     };
     consumed = consumeCache(() => {
         return Boolean(
+            this.tagOpen.value &&
             this.styleOpen.value &&
             (this.attributes.length === 0 ||
                 this.attributes.every((attribute) => attribute.consumed())) &&
-            (this.styleBody.value || this.styleShortBody.value)
+            (this.styleBody.value || this.styleShortBody.value) && this.tagClose.value
         );
     });
     process = (queue: Queue): Queue => {
@@ -1347,15 +1377,32 @@ export class Style implements ParserItem {
         }
         const current = queue.items[queue.at];
         switch (current.type) {
-            case "STYLE_OPEN":
-                this.styleOpen.value = current.value;
+            case "TAG_OPEN":
+                this.tagOpen.value = current.value;
                 return this.process(queue.next());
+            case "STYLE_OPEN":
+                if (this.tagOpen.value) {
+                    this.styleOpen.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
             case "STYLE_BODY":
-                this.styleBody.value = current.value;
-                return queue.next();
+                if (this.styleOpen.value) {
+                    this.styleBody.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
             case "STYLE_SHORT_BODY":
-                this.styleShortBody.value = current.value;
-                return queue.next();
+                if (this.styleOpen.value) {
+                    this.styleShortBody.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
+            case "TAG_CLOSE":
+                if (this.styleBody.value || this.styleShortBody.value) {
+                    this.tagClose.value = current.value;
+                    return queue.next();
+                }
         }
         return queue;
     };

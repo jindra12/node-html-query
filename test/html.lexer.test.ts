@@ -3,37 +3,182 @@ import { parseLexer, parsedHtmlLexer } from "../src/parser";
 
 type LexerType = keyof typeof htmlLexerAtoms;
 
-const testMap: Record<LexerType, { matches?: "yes" | "no", modes?: string[], nextModes?: string[], value: string }[]> = {
+const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?: string[], value: string }[]> = {
     ATTVALUE_VALUE: [{
+        value: `"hello"`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `"9"`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `'9'`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `'&//!'`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `"&/!"`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `&//!`,
+        inverse: true,
+    }, {
+        value: `&/!`,
+        inverse: true,
+    }, {
+        value: "Hello",
+        inverse: true,
+    }, {
+        value: `"'"`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `'"'`,
+        modes: ["ATTVALUE"],
+        nextModes: [],
+    }, {
+        value: `"""`,
+        inverse: true,
+    }, {
+        value: `'''`,
+        inverse: true,
+    }],
+    CDATA: [{
+        value: `<![CDATA[
+            characters with markup
+        ]]>`,
+    }, {
+        value: `<[CDATA[
+            characters with markup
+        ]]>`,
+        inverse: true,
+    }],
+    DTD: [{
+        value: "<!DOCTYPE note SYSTEM \"note.dtd\">"
+    }, {
+        value: "<DOCTYPE note SYSTEM \"note.dtd\">",
+        inverse: true,
+    }],
+    HTML_COMMENT: [{
         value: "<!-- Hello world?! <*> / !-->"
     }, {
         value: "<!-- -->"
     }, {
         value: "<!-- Hello world?! <*> / !--",
-        matches: "no",
+        inverse: true,
     }, {
         value: "!-- Hello world?! <*> / !-->",
-        matches: "no",
+        inverse: true,
     }],
-    CDATA: [],
-    DTD: [],
-    HTML_COMMENT: [],
-    HTML_CONDITIONAL_COMMENT: [],
-    HTML_TEXT: [],
-    SCRIPT_BODY: [],
-    SCRIPT_OPEN: [],
-    SCRIPT_SHORT_BODY: [],
-    SCRIPTLET: [],
-    SEA_WS: [],
-    STYLE_BODY: [],
-    STYLE_OPEN: [],
-    STYLE_SHORT_BODY: [],
-    TAG_CLOSE: [],
-    TAG_EQUALS: [],
-    TAG_NAME: [],
-    TAG_OPEN: [],
-    TAG_SLASH: [],
-    TAG_SLASH_CLOSE: [],
+    HTML_CONDITIONAL_COMMENT: [{
+        value: `<!--[if lt IE 9]>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/respond.js/1.4.2/respond.js" integrity="sha512-BWbLJlfp8hzXlxT6K5KLdxPVAj+4Zn2e4FVq5P7NSFH/mkAJ18UiZRQUD4anR3jyp0/WYkeZ0Zmq5EWWrDxneQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <![endif]-->`
+    }],
+    HTML_TEXT: [{
+        value: "Hello world>?!",
+    }, {
+        value: `"Hello world"`,
+    }, {
+        value: "<Hello world!",
+        inverse: true,
+    }],
+    SCRIPT_BODY: [{
+        value: "function() { return '</script>'; }</script>",
+        modes: ["SCRIPT"],
+        nextModes: []
+    }],
+    SCRIPT_OPEN: [{
+        value: "script",
+        nextModes: ["SCRIPT"],
+    }, {
+        value: "scripts",
+        inverse: true,
+    }],
+    SCRIPT_SHORT_BODY: [{
+        value: "/",
+        nextModes: [],
+        modes: ["SCRIPT"],
+    }],
+    SCRIPTLET: [{
+        value: "<%%>"
+    }, {
+        value: "<% <div></div> %>",
+    }, {
+        value: "<??>",
+    }, {
+        value: "<? <div></div> ?>",
+    }, {
+        value: "",
+        inverse: true,
+    }],
+    SEA_WS: [{
+        value: `
+        
+        `
+    }, {
+        value: "    ",
+    }, {
+        value: " ",
+    }, {
+        value: "",
+        inverse: true,
+    }],
+    STYLE_BODY: [{
+        value: ".style-kind: { content: ' '; position: absolute; }</style",
+        modes: ["STYLE"],
+        nextModes: [],
+    }],
+    STYLE_OPEN: [{
+        value: "style",
+        nextModes: ["STYLE"],
+    }],
+    STYLE_SHORT_BODY: [{
+        value: "/",
+        modes: ["STYLE"],
+    }],
+    TAG_CLOSE: [{
+        value: ">",
+    }],
+    TAG_EQUALS: [{
+        value: "=",
+    }],
+    TAG_NAME: [{
+        value: "data-val-required",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
+    }, {
+        value: "class",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
+    }, {
+        value: "id",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
+    }, {
+        value: "div",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
+    }],
+    TAG_OPEN: [{
+        value: "<",
+        nextModes: ["<"]
+    }],
+    TAG_SLASH: [{
+        value: "/",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
+    }],
+    TAG_SLASH_CLOSE: [{
+        value: "/>",
+        modes: ["TAG"],
+        nextModes: [],
+    }],
     TAG_WHITESPACE: [],
     XML: []
 };
@@ -42,15 +187,15 @@ describe("Match HTML lexer items correctly", () => {
     Object.entries(testMap).forEach(([key, tests]) => {
         const lexerType = key as LexerType;
         tests.forEach((test) => {
-            it(`${test.matches === "no" ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, in mode ${test.modes?.join(", ") || "none"} and changes modes to: ${test.nextModes?.join(", ") || "none"}`, () => {
-                if (!test.matches) {
+            it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, in mode ${test.modes?.join(", ") || "none"} and changes modes to: ${test.nextModes?.join(", ") || "none"}`, () => {
+                if (!test.inverse) {
                     expect(() => parseLexer(test.value, parsedHtmlLexer, test.modes)).toThrow();
                 } else {
                     const parsed = parseLexer(test.value, parsedHtmlLexer, test.modes);
                     expect(parsed.queue).toHaveLength(2);
                     expect(parsed[0].queue.type).toEqual(lexerType);
                     expect(parsed[1].queue.type).toEqual("EOF");
-                    expect(parsed.mode).toEqual(test.nextModes);
+                    expect(parsed.mode).toEqual(test.nextModes || []);
                 }
             });
         });
