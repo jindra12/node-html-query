@@ -179,8 +179,21 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         modes: ["TAG"],
         nextModes: [],
     }],
-    TAG_WHITESPACE: [],
-    XML: []
+    TAG_WHITESPACE: [{
+        value: `
+        
+        `
+    }, {
+        value: "    ",
+    }, {
+        value: " ",
+    }, {
+        value: "",
+        inverse: true,
+    }],
+    XML: [{
+        value: "<?xml id='1' >"
+    }]
 };
 
 describe("Match HTML lexer items correctly", () => {
