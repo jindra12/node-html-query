@@ -1,5 +1,6 @@
 import { htmlLexerAtoms } from "../src/lexers";
 import { parseLexer, parsedHtmlLexer } from "../src/parser";
+import { Queue, QueueItem } from "../src/types";
 
 type LexerType = keyof typeof htmlLexerAtoms;
 
@@ -196,6 +197,8 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     }]
 };
 
+const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue.map((item) => item.value);
+
 describe("Match HTML lexer items correctly", () => {
     Object.entries(testMap).forEach(([key, tests]) => {
         const lexerType = key as LexerType;
@@ -212,5 +215,15 @@ describe("Match HTML lexer items correctly", () => {
                 }
             });
         });
+    });
+    it("Can break down complex HTML structures", () => {
+        expect(parseQueue("<div />")).toEqual(["<", "div", "/", ">", ""]);
+        expect(parseQueue("<div></div>")).toEqual(["<", "div", ">", "<", "/", "div", ">", ""]);
+        expect(parseQueue("<div><br /></div>")).toEqual(["<", "div", ">", "<", "br", " ", "/", ">", "<", "/", "div", ">", ""]);
+        expect(parseQueue(`<div class="identifier" />`)).toEqual(["<", "div", "class", "=", `"identifier"`, " ", "/", ">", ""]);
+        expect(parseQueue(`<div class='identifier' />`)).toEqual(["<", "div", "class", "=", `'identifier'`, " ", "/", ">", ""]);
+        expect(parseQueue(`<body><div class='identifier' /></body>`)).toEqual(["<", "body", ">", "<", "div", "class", "=", `'identifier'`, " ", "/", ">", "<", "/", "body", ">", ""]);
+        expect(parseQueue("<script id='1'>function() { return 'this is javascript </>'; }</script>")).toEqual(["<", "script", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script", ">"]);
+        expect(parseQueue(`<style>.class #id > div { content: "</>" }</style>`)).toEqual(["<", "style>", `.class #id > div { content: "</>" }</style`, ">"])
     });
 });

@@ -1,5 +1,5 @@
 import { cssLexerAtoms } from "../src/lexers";
-import { parseLexer, parsedHtmlLexer } from "../src/parser";
+import { parseLexer, parsedQueryLexer } from "../src/parser";
 
 type LexerType = keyof typeof cssLexerAtoms;
 
@@ -170,20 +170,27 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
     }],
 };
 
+const parseQueue = (input: string) => parseLexer(input, parsedQueryLexer).queue.map((item) => item.value);
+
 describe("Match CSS lexer items correctly", () => {
     Object.entries(testMap).forEach(([key, tests]) => {
         const lexerType = key as LexerType;
         tests.forEach((test) => {
             it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}`, () => {
                 if (!test.inverse) {
-                    expect(() => parseLexer(test.value, parsedHtmlLexer)).toThrow();
+                    expect(() => parseLexer(test.value, parsedQueryLexer)).toThrow();
                 } else {
-                    const parsed = parseLexer(test.value, parsedHtmlLexer);
+                    const parsed = parseLexer(test.value, parsedQueryLexer);
                     expect(parsed.queue).toHaveLength(2);
                     expect(parsed[0].queue.type).toEqual(lexerType);
                     expect(parsed[1].queue.type).toEqual("EOF");
                 }
             });
         });
+    });
+    it("Can break down complex query structures", () => {
+        expect(parseQueue(".className #id")).toEqual([".", "className", "#", "id"]);
+        expect(parseQueue("#id:not(.class)::before")).toEqual(["#", "id", ":not(", ".", "class", ")", "::", "before"]);
+        expect(parseQueue("li:first-child(2n + 1 of .class > #id)")).toEqual(["li", ":", "first-child(", "2n", "+", "1", "of", "class", ">", "#", "id", ")"]);
     });
 });
