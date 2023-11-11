@@ -65,8 +65,7 @@ const parseQueryLexer = (input: string) => {
     return parseLexer(input, parsedQueryLexer).queue;
 };
 
-export const htmlParser = (input: string) => {
-    const lexerAtoms = parseHtmlLexer(input);
+export const createQueueFromItems = (lexerAtoms: QueueItem[]) => {
     const createQueue = (at: number): Queue => {
         return {
             items: lexerAtoms,
@@ -74,32 +73,29 @@ export const htmlParser = (input: string) => {
             next: () => createQueue(at + 1),
         };
     };
-    const queue = createQueue(0);
-    const document = new HtmlDocument();
-    const endQueue = document.process(queue);
+    return createQueue(0);
+};
+
+export const checkIfNothingRemains = (lexerAtoms: QueueItem[], endQueue: Queue) => {
     const remainingLexerAtoms = lexerAtoms.slice(endQueue.at).filter((atom) => atom.type !== "EOF");
     if (remainingLexerAtoms.length > 0) {
         throw `Error in parsing encountered at: ${remainingLexerAtoms.slice(0, 5).map(({ type }) => type).join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 100)}...`
     }
+}
+
+export const htmlParser = (input: string) => {
+    const lexerAtoms = parseHtmlLexer(input);
+    const document = new HtmlDocument();
+    const endQueue = document.process(createQueueFromItems(lexerAtoms));
+    checkIfNothingRemains(lexerAtoms, endQueue);
     return document;
 };
 
 export const queryParser = (input: string) => {
     const lexerAtoms = parseQueryLexer(input);
-    const createQueue = (at: number): Queue => {
-        return {
-            items: lexerAtoms,
-            at: at,
-            next: () => createQueue(at + 1),
-        };
-    };
-    const queue = createQueue(0);
     const selectorGroup = new SelectorGroup();
-    const endQueue = selectorGroup.process(queue);
-    const remainingLexerAtoms = lexerAtoms.slice(endQueue.at).filter((atom) => atom.type !== "EOF");
-    if (remainingLexerAtoms.length > 0) {
-        throw `Error in parsing encountered at: ${remainingLexerAtoms.slice(0, 5).map(({ type }) => type).join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 100)}...`
-    }
+    const endQueue = selectorGroup.process(createQueueFromItems(lexerAtoms));
+    checkIfNothingRemains(lexerAtoms, endQueue);
     return selectorGroup;
 };
 
