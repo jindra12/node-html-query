@@ -26,60 +26,63 @@ const tests: { [Type in keyof typeof Html]: {
 }} = {
     HtmlAttribute: {
         instance: new Html.HtmlAttribute(),
-        passes: [],
-        fails: [],
+        passes: ["data-checked", "data-checked='value'", `checked="che'cked"`],
+        fails: ["data=", "=data"],
     },
     HtmlChardata: {
         instance: new Html.HtmlChardata(),
-        passes: [],
-        fails: [],
+        passes: ["", " ", `
+        `, "Literally any text that contains anything except for html characters ě+ěřščřčžščž"],
+        fails: ["<", ""],
     },
     HtmlContent: {
         instance: new Html.HtmlContent(testElement),
-        passes: [],
+        passes: ["This be a text, <div>This be an element</div>, this is a text again <!-- this is a comment -->, <span />"],
         fails: [],
     },
     HtmlDocument: {
         instance: new Html.HtmlDocument(),
-        passes: [],
-        fails: [],
+        passes: [`<!DOCTYPE html><html><head><title>Title of the document</title></head><body>The content of the document......</body></html>`, "<?xml version=\"1.0\">", "<div class='class' />"],
+        fails: ["<div<"],
     },
     HtmlElement: {
         instance: new Html.HtmlElement(testElement),
-        passes: [],
-        fails: [],
+        passes: ["<br />", "<div></div>", "<div><br /></div>", "<div class='lol'></div>", "<script>function() {return 1}</script>", "<style>.className { border: solid 1px black }</style>"],
+        fails: ["><", "<div", "div>"],
     },
     HtmlElements: {
         instance: new Html.HtmlElements(testDocument),
-        passes: [],
-        fails: [],
+        passes: ["<div />", "<!--comment--><div></div>"],
+        fails: ["<--not a comment-->"],
     },
     HtmlMisc: {
         instance: new Html.HtmlMisc(),
-        passes: [],
-        fails: [],
+        passes: ["<!--comment-->", `
+        `],
+        fails: ["Random text"],
     },
     Script: {
         instance: new Html.Script(),
-        passes: [],
-        fails: [],
+        passes: ["<script>function() {return 1}</script>"],
+        fails: ["script>function() {return 1}</script>", "<script>function() {return 1}</script", "<scrip>function() {return 1}</scrip>"],
     },
     ScriptletOrSeaWs: {
         instance: new Html.ScriptletOrSeaWs(),
-        passes: [],
-        fails: [],
+        passes: [`
+        `, " ", "<?xml ?>", "<% xml %>"],
+        fails: ["", "< xml >"],
     },
     Style: {
         instance: new Html.Style(),
-        passes: [],
-        fails: [],
+        passes: ["<style>.className { border: solid 1px black }</style>"],
+        fails: ["<style>.className { border: solid 1px black }</style", "style>.className { border: solid 1px black }</style>", "<styl>.className { border: solid 1px black }</styl>"],
     },
 };
 
 describe("Can parse HTML items", () => {
     Object.entries(tests).forEach(([name, test]) => {
         test.passes.forEach((passes) => {
-            it(`${name} parse ${passes.slice(0, 100)} contents and return exactly the same string`, () => {
+            it(`${name} parse ${passes.slice(0, 10)} contents and return exactly the same string`, () => {
                 expect(testParseToString(passes, test.instance)).toBe(passes);
             });
         });

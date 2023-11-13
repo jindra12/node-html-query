@@ -1350,7 +1350,7 @@ export class Expression implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        if (this.functionalPseudo.funct.value === ":lang") {
+        if (this.functionalPseudo.funct.value === "lang") {
             if (this.ident1.value) {
                 return htmlElements.filter((htmlElements) => htmlElements.attributes()["lang"] === this.ident1.value);
             }
