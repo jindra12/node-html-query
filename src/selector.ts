@@ -622,11 +622,11 @@ export class FunctionalPseudo implements Matcher {
     ws = new Ws();
     expression = new Expression(this);
     backBrace = new LexerItem("BackBrace");
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.funct.value && this.expression.consumed() && this.backBrace.value
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Function_") {
@@ -673,9 +673,9 @@ export class TypeNamespacePrefix implements Matcher {
     ident = new LexerItem("Ident");
     namespace = new LexerItem("Namespace");
     universal = new LexerItem("Universal");
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.universal.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Ident" && !this.universal.value) {
@@ -720,9 +720,9 @@ export class TypeSelector implements Matcher {
     typeNamespacePrefix = new TypeNamespacePrefix();
     elementName = new ElementName();
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.elementName.consumed());
-    };
+    });
     process = (queue: Queue): Queue => {
         const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
         if (this.typeNamespacePrefix.consumed()) {
@@ -762,9 +762,9 @@ export class TypeSelector implements Matcher {
 */
 export class ElementName implements Matcher {
     ident = new LexerItem("Ident");
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.ident.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Ident") {
@@ -795,9 +795,9 @@ export class Universal implements Matcher {
     typeNamespacePrefix = new TypeNamespacePrefix();
     universal = new LexerItem("Universal");
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.universal.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
         if (this.typeNamespacePrefix.consumed()) {
@@ -834,9 +834,9 @@ export class Universal implements Matcher {
 export class ClassName implements Matcher {
     dot = new LexerItem("Dot");
     ident = new LexerItem("Ident");
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(this.dot.value && this.ident.value);
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Dot") {
@@ -890,7 +890,7 @@ export class Attrib implements Matcher {
     stringIdent = new LexerItem("String_");
     ws4 = new Ws();
     squareBracketEnd = new LexerItem("SquareBracketEnd");
-    consumed = () => {
+    consumed = consumeCache(() => {
         const hasComparator =
             this.prefixMatch.value ||
             this.suffixMatch.value ||
@@ -906,7 +906,7 @@ export class Attrib implements Matcher {
             this.ident1.value &&
             this.squareBracketEnd.value
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "SquareBracket") {
@@ -1016,13 +1016,13 @@ export class Negation implements Matcher {
     negationArg = new NegationArg();
     ws2 = new Ws();
     backBrace = new LexerItem("BackBrace");
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.pseudoNot.value &&
             this.negationArg.consumed() &&
             this.backBrace.value
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "PseudoNot") {
@@ -1081,7 +1081,7 @@ export class NegationArg implements Matcher {
     className = new ClassName();
     attrib = new Attrib();
     pseudo = new Pseudo();
-    consumed = () => {
+    consumed = consumeCache(() => {
         return Boolean(
             this.typeSelector.consumed() ||
             this.universal.consumed() ||
@@ -1090,7 +1090,7 @@ export class NegationArg implements Matcher {
             this.attrib.consumed() ||
             this.pseudo.consumed()
         );
-    };
+    });
     process = (queue: Queue): Queue => {
         const tryProcessSelector = this.typeSelector.process(queue);
         if (this.typeSelector.consumed()) {
@@ -1160,9 +1160,9 @@ export class NegationArg implements Matcher {
 */
 export class Ws implements ParserItem {
     spaces: LexerItem<"Space">[] = [];
-    consumed = () => {
+    consumed = consumeCache(() => {
         return true;
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Space") {
@@ -1214,7 +1214,7 @@ export class Expression implements Matcher {
         this.functionalPseudo = functionalPseudo;
     }
 
-    consumed = () => {
+    consumed = consumeCache(() => {
         if (this.ident2.value) {
             return true;
         }
@@ -1236,7 +1236,7 @@ export class Expression implements Matcher {
             }
         }
         return false;
-    };
+    });
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Ident" && !this.number1.value && !this.minus1.value) {
