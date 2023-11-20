@@ -86,7 +86,10 @@ class QueryInstance {
         return this.getLowestChild(element.children()[0]);
     };
 
-    private getParentAssigner = (resolved: string | QueryInstance, namespaces: Record<string, string>) => {
+    private getParentAssigner = (
+        resolved: string | QueryInstance,
+        namespaces: Record<string, string>
+    ) => {
         let parent: HtmlElement | undefined = undefined;
         let appendTo: HtmlElement | undefined = undefined;
         if (typeof resolved === "string") {
@@ -110,7 +113,7 @@ class QueryInstance {
             appendTo = parent;
         }
         return [parent, appendTo] as const;
-    }
+    };
 
     private filterBySelector = (
         selector: string | QueryInstance | undefined,
@@ -1100,6 +1103,20 @@ class QueryInstance {
         this.document.cache.descendants.invalid = true;
         return this;
     };
+    reduce = <TAccumulator>(
+        reducer: (
+            accumulator: TAccumulator,
+            value: QueryInstance,
+            index: number,
+            self: QueryInstance
+        ) => TAccumulator,
+        initialValue: TAccumulator
+    ) => {
+        for (let i = 0; i < this.matched.length; i++) {
+            initialValue = reducer(initialValue, this.get(i), i, this);
+        }
+        return initialValue;
+    };
     remove = (selector?: string, namespaces: Record<string, string> = {}) => {
         if (selector) {
             const query = tryQueryParser(selector);
@@ -1442,31 +1459,47 @@ class QueryInstance {
         if (this.matched.length === 0) {
             return this;
         }
-        const [parent, appendTo] = this.getParentAssigner(typeof args[0] === "function" ? args[0](0, this.get(0)) : args[0], args[1] || {});
+        const [parent, appendTo] = this.getParentAssigner(
+            typeof args[0] === "function" ? args[0](0, this.get(0)) : args[0],
+            args[1] || {}
+        );
         if (!parent || !appendTo) {
             return this;
         }
         const parents = this.matched.map((_, i) => this.get(i).parents().matched);
-        const parentsWithCount = parents.reduce((parentsWithCount: Record<string, { count: number, lowestIndex: number, parent: HtmlElement }>, parents) => {
-            parents.forEach((parent, index) => {
-                if (parentsWithCount[parent.identifier]) {
-                    parentsWithCount[parent.identifier].count++;
-                    if (parentsWithCount[parent.identifier].lowestIndex > index) {
-                        parentsWithCount[parent.identifier].lowestIndex = index;
+        const parentsWithCount = parents.reduce(
+            (
+                parentsWithCount: Record<
+                    string,
+                    { count: number; lowestIndex: number; parent: HtmlElement }
+                >,
+                parents
+            ) => {
+                parents.forEach((parent, index) => {
+                    if (parentsWithCount[parent.identifier]) {
+                        parentsWithCount[parent.identifier].count++;
+                        if (parentsWithCount[parent.identifier].lowestIndex > index) {
+                            parentsWithCount[parent.identifier].lowestIndex = index;
+                        }
+                    } else {
+                        parentsWithCount[parent.identifier] = {
+                            count: 1,
+                            parent: parent,
+                            lowestIndex: index,
+                        };
                     }
-                } else {
-                    parentsWithCount[parent.identifier] = {
-                        count: 1,
-                        parent: parent,
-                        lowestIndex: index,
-                    };
-                }
-            });
-            return parentsWithCount;
-        }, {});
+                });
+                return parentsWithCount;
+            },
+            {}
+        );
 
-        const commonParents = Object.values(parentsWithCount).filter(({ count }) => count === this.matched.length);
-        const lowestIndex = commonParents.sort((aParent, bParent) => aParent.lowestIndex - bParent.lowestIndex)[0];
+        const commonParents = Object.values(parentsWithCount).filter(
+            ({ count }) => count === this.matched.length
+        );
+        const lowestIndex = commonParents.sort(
+            (aParent, bParent) => aParent.lowestIndex - bParent.lowestIndex
+        )[0];
         if (lowestIndex) {
             lowestIndex.parent.children().forEach((child) => {
                 appendTo.addChild(child);
@@ -1499,7 +1532,7 @@ class QueryInstance {
         });
         this.document.cache.descendants.invalid = true;
         return this;
-    }
+    };
 }
 
 const createQuery = (

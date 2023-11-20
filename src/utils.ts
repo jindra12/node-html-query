@@ -87,6 +87,7 @@ export const sanitizeAttribute = (attribute: string | undefined) => {
  */
 export const matchAttribute = (attributes: Record<string, string>, attributeName: string, attributeValue: string, matchType: "[attr]" | "[attr=value]" | "[attr~=value]" | "[attr|=value]" | "[attr^=value]" | "[attr$=value]" | "[attr*=value]" | "not") => {
     const comparedAttribute = attributes[attributeName];
+    attributeValue = sanitizeAttribute(attributeValue)!;
     switch (matchType) {
         case "[attr^=value]":
             return comparedAttribute?.startsWith(attributeValue) || false;

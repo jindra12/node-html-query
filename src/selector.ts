@@ -268,11 +268,10 @@ export class Combinator implements Matcher {
                 }, []);
         }
         if (this.tilde.value) {
-            return htmlElements
-                .map((element) => element.parent.prevSibling(element))
-                .filter((element: HtmlElement | undefined): element is HtmlElement =>
-                    Boolean(element)
-                );
+            return flatten(htmlElements.map((element) => {
+                const index = element.parent.getIndex(element);
+                return element.parent.children().filter(child => child.parent.getIndex(child) > index); 
+            }));
         }
         if (this.space.value) {
             return htmlElements.map((element) => element.descendants()).reduce((manyElements, elements) => {
@@ -526,7 +525,7 @@ export class Pseudo implements Matcher {
                 case "disabled":
                     return matchAttribute(element.attributes(), "disabled", "", "[attr]");
                 case "empty":
-                    return children.length === 0;
+                    return children.length === 0 && element.texts().join("") === "";
                 case "enabled":
                     return matchAttribute(element.attributes(), "disabled", "", "not");
                 case "first-child":
