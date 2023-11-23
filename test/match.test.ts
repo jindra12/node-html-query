@@ -174,9 +174,39 @@ const matches: {
         results: ["<input min='2020-01-01' max='2020-12-31' value='2020-05-01' />"],
     },
     {
-        html: "<input min='2020-W10' max='2020-W20' value='2020-W21' /><input min='2020-W10' max='2020-W20' value='2020-W12' />",
+        html: "<input min='2020-01-01' max='2020-12-31' value='2021-01-01' /><input min='2020-01-01' max='2020-12-31' value='2020-05-01' step='2' /><input min='2020-01-01' max='2020-12-31' value='2020-05-02' step='2' />",
+        query: "input:in-range",
+        results: ["<input min='2020-01-01' max='2020-12-31' value='2020-05-02' step='2' />"],
+    },
+    {
+        html: "<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T22:00' /><input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:00' />",
+        query: "input:in-range",
+        results: ["<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:00' />"],
+    },
+    {
+        html: "<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T22:00' /><input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:01' step='2' /><input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:00' step='2' />",
+        query: "input:in-range",
+        results: ["<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:00' step='2' />"],
+    },
+    {
+        html: "<input min='2020-W10' max='2020-W20' value='2020-W21' /><input min='2020-W10' max='2020-W20' value='2021-W11' /><input min='2020-W10' max='2020-W20' value='2020-W12' />",
         query: "input:in-range",
         results: ["<input min='2020-W10' max='2020-W20' value='2020-W12' />"],
+    },
+    {
+        html: "<input min='2020-W10' max='2020-W20' value='2020-W21' /><input min='2020-W10' max='2020-W20' value='2021-W11' /><input min='2020-W10' max='2020-W20' value='2020-W12' step='5' /><input min='2020-W10' max='2020-W20' value='2020-W12' step='6' />",
+        query: "input:in-range",
+        results: ["<input min='2020-W10' max='2020-W20' value='2020-W12' step='6' />"],
+    },
+    {
+        html: "<input min='10:00' max='11:00' value='12:00' /><input min='10:00' max='11:00' value='11:01' /><input min='10:00' max='11:00' value='09:01' /><input min='05:00' max='06:00' value='05:50' />",
+        query: "input:in-range",
+        results: ["<input min='05:00' max='06:00' value='05:50' />"],
+    },
+    {
+        html: "<input min='2020-01' max='2020-12' value='2021-01' /><input min='2020-01' max='2020-12' value='2020-05' />",
+        query: "input:in-range",
+        results: ["<input min='2020-01' max='2020-12' value='2020-05' />"],
     },
     {
         html: "<input value='Hello' pattern='Wo?rld' /><input value='Wrld' pattern='Wo?rld' />",
@@ -199,9 +229,164 @@ const matches: {
         results: ["<input min='1' value='2' step='3' />"],
     },
     {
-        html: "",
+        html: "<input minlength='3' maxlength='5' value='aaaa' /><input minlength='3' value='aaaa' /><input maxlength='5' value='aaaa' /><input minlength='3' maxlength='5' value='aaaaaa' />",
         query: "input:invalid",
-        results: [""],
+        results: ["<input minlength='3' maxlength='5' value='aaaaaa' />"],
+    },
+    {
+        html: "<div><p /><span></span></div>",
+        query: "*:last-child",
+        results: ["<span></span>"],
+    },
+    {
+        html: "<div><span /><span></span></div>",
+        query: "span:last-of-type",
+        results: ["<span></span>"]
+    },
+    {
+        html: "<div><p /><span /><span /></div><div><p /><p /></div>",
+        query: "p:only-of-type",
+        results: ["<p />"],
+    },
+    {
+        html: "<div><p /></div><div><p /><p /></div>",
+        query: "p:only-child",
+        results: ["<p />"],
+    },
+    {
+        html: "<input required /><input />",
+        query: "input:optional",
+        results: ["<input />"],
+    },
+    {
+        html: "<input min='1' max='2' value='3' /><input min='1' value='2' /><input min='1' max='5' value='4' /><input max='6' value='5' />",
+        query: "input:out-of-range",
+        results: ["<input min='1' max='2' value='3' />"],
+    },
+    {
+        html: "<input min='2020-01-01' max='2020-12-31' value='2021-01-01' /><input min='2020-01-01' max='2020-12-31' value='2020-05-01' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-01-01' max='2020-12-31' value='2021-01-01' />"],
+    },
+    {
+        html: "<input min='2020-01-01' max='2020-12-31' value='2021-01-01' /><input min='2020-01-01' max='2020-12-31' value='2020-05-01' step='2' /><input min='2020-01-01' max='2020-12-31' value='2020-05-02' step='2' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-01-01' max='2020-12-31' value='2021-01-01' />", "<input min='2020-01-01' max='2020-12-31' value='2020-05-01' step='2' />"],
+    },
+    {
+        html: "<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T22:00' /><input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:00' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T22:00' />"],
+    },
+    {
+        html: "<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T22:00' /><input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:01' step='2' /><input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:00' step='2' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T22:00' />", "<input min='2020-01-01T20:00' max='2020-12-31T21:00' value='2020-12-31T19:01' step='2' />"],
+    },
+    {
+        html: "<input min='2020-W10' max='2020-W20' value='2020-W21' /><input min='2020-W10' max='2020-W20' value='2021-W11' /><input min='2020-W10' max='2020-W20' value='2020-W12' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-W10' max='2020-W20' value='2020-W21' />", "<input min='2020-W10' max='2020-W20' value='2021-W11' />"],
+    },
+    {
+        html: "<input min='2020-W10' max='2020-W20' value='2020-W21' /><input min='2020-W10' max='2020-W20' value='2021-W11' /><input min='2020-W10' max='2020-W20' value='2020-W12' step='5' /><input min='2020-W10' max='2020-W20' value='2020-W12' step='6' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-W10' max='2020-W20' value='2020-W21' />", "<input min='2020-W10' max='2020-W20' value='2021-W11' />", "<input min='2020-W10' max='2020-W20' value='2020-W12' step='5' />"],
+    },
+    {
+        html: "<input min='10:00' max='11:00' value='12:00' /><input min='10:00' max='11:00' value='11:01' /><input min='10:00' max='11:00' value='09:01' /><input min='05:00' max='06:00' value='05:50' />",
+        query: "input:out-of-range",
+        results: ["<input min='10:00' max='11:00' value='12:00' />", "<input min='10:00' max='11:00' value='11:01' />", "<input min='10:00' max='11:00' value='09:01' />"],
+    },
+    {
+        html: "<input min='2020-01' max='2020-12' value='2021-01' /><input min='2020-01' max='2020-12' value='2020-05' />",
+        query: "input:out-of-range",
+        results: ["<input min='2020-01' max='2020-12' value='2021-01' />"],
+    },
+    {
+        html: "<input readonly /><input />",
+        query: "input:readonly",
+        results: ["<input readonly />"],
+    },
+    {
+        html: "<input readonly /><input />",
+        query: "input:read-write",
+        results: ["<input />"],
+    },
+    {
+        html: "<input required /><input />",
+        query: "input:required",
+        results: ["<input required />"],
+    },
+    {
+        html: "<body><div /></body>",
+        query: ":root",
+        results: ["<body><div /></body>"],
+    },
+    {
+        html: "<input value='Hello' pattern='Wo?rld' /><input value='Wrld' pattern='Wo?rld' />",
+        query: "input:valid",
+        results: ["<input value='Wrld' pattern='Wo?rld' />"],
+    },
+    {
+        html: "<input value='Hello' required /><input value='' required /><input value required /><input required />",
+        query: "input:valid",
+        results: ["<input value='Hello' required />"],
+    },
+    {
+        html: "<input min='1' max='2' value='3' /><input min='1' value='2' /><input min='1' max='5' value='4' /><input max='6' value='5' />",
+        query: "input:valid",
+        results: ["<input min='1' value='2' />", "<input min='1' max='5' value='4' />", "<input max='6' value='5' />"],
+    },
+    {
+        html: "<input min='1' value='2' step='3' /><input min='1' max='5' value='4' step='2' /><input max='6' value='5' step='1' />",
+        query: "input:valid",
+        results: ["<input min='1' max='5' value='4' step='2' />", "<input max='6' value='5' step='1' />"],
+    },
+    {
+        html: "<input minlength='3' maxlength='5' value='aaaa' /><input minlength='3' value='aaaa' /><input maxlength='5' value='aaaa' /><input minlength='3' maxlength='5' value='aaaaaa' />",
+        query: "input:valid",
+        results: ["<input minlength='3' maxlength='5' value='aaaa' />", "<input minlength='3' value='aaaa' />", "<input maxlength='5' value='aaaa' />"],
+    },
+    {
+        html: "<div><h1 /><h2 /><h3 /><h4 /><h5 /><h6 /><p></p></div>",
+        query: ":header",
+        results: ["<h1 />", "<h2 />", "<h3 />", "<h4 />", "<h5 />", "<h6 />"],
+    },
+    {
+        html: "<div><input type='image' /><p /></div>",
+        query: ":image",
+        results: ["<input type='image' />"],
+    },
+    {
+        html: "<div><input /><button></button><textarea></textarea><select><option value='1'>selected</option></select><p /></div>",
+        query: ":input",
+        results: ["<input />", "<button></button>", "<textarea></textarea>", "<select><option value='1'>selected</option></select>"],
+    },
+    {
+        html: "<input type='password' /><input />",
+        query: "input:password",
+        results: ["<input type='password' />"],
+    },
+    {
+        html: "<input type='radio' /><input />",
+        query: "input:radio",
+        results: ["<input type='radio' />"],
+    },
+    {
+        html: "<button type='reset' /><button />",
+        query: "button:reset",
+        results: ["<button type='reset' />"],
+    },
+    {
+        html: "<button type='submit' /><button type='reset' />",
+        query: "button:submit",
+        results: ["<button type='submit' />"],
+    },
+    {
+        html: "<input type='text' /><input />",
+        query: "input:text",
+        results: ["<input type='text' />"],
     },
 ];
 
