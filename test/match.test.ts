@@ -388,6 +388,154 @@ const matches: {
         query: "input:text",
         results: ["<input type='text' />"],
     },
+    {
+        html: "<div /><p />",
+        query: ":not(div)",
+        results: ["<p />"],
+    },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: "div:not([id='1'])",
+        results: ["<div id='2' />"],
+    },
+    {
+        html: "<input readonly /><input />",
+        query: ":not(input:read-write)",
+        results: ["<input readonly />"],
+    },
+    {
+        html: "<div id='3' /><div id='1' /><div id='2' />",
+        query: "div:not([id='1'])",
+        results: ["<div id='3' />", "<div id='2' />"],
+    },
+    {
+        html: "<div id='3' /><div id='id1' /><div id='2' />",
+        query: "div:not(#id1)",
+        results: ["<div id='3' />", "<div id='2' />"],
+    },
+    {
+        html: "<div class='hello' /><div class='world' />",
+        query: "div:not(.world)",
+        results: ["<div class='hello' />"],
+    },
+    {
+        html: `<a href="#">Not this</a><svg width="250px" viewBox="0 0 250 20" xmlns="http://www.w3.org/2000/svg"><a href="#" /></svg>`,
+        query: ":not(svg|a)",
+        results: [`<a href="#">Not this</a>`],
+        namespaces: {
+            svg: "http://www.w3.org/2000/svg",
+        },
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: ":nth-child(2)",
+        results: ["<li>2</li>"],
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: ":nth-child(even)",
+        results: ["<li>2</li>", "<li>4</li>", "<li>6</li>"],
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: ":nth-child(odd)",
+        results: ["<li>1</li>", "<li>3</li>", "<li>5</li>", "<li>7</li>"],
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(-n + 3)",
+        results: ["<li>1</li>", "<li>2</li>", "<li>3</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(2n)",
+        results: ["<li>2</li>", "<li>4</li>", "<li>6</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(2n + 1)",
+        results: ["<li>1</li>", "<li>3</li>", "<li>5</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li class='important'>3</li><li>4</li><li>5</li><li class='important'>6</li><li>7</li></ul>",
+        query: "li:nth-child(2n + 1 of li.important)",
+        results: ["<li class='important'>3</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(n + 5)",
+        results: ["<li>5</li>", "<li>6</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(n)",
+        results: ["<li>1</li>", "<li>2</li>", "<li>3</li>", "<li>4</li>", "<li>5</li>", "<li>6</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(n + 1):nth-child(-n + 3)",
+        results: ["<li>2</li>", "<li>3</li>", "<li>4</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
+        query: "li:nth-of-type(2n + 1)",
+        results: ["<li>1</li>", "<li>3</li>", "<li>5</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
+        query: "li:nth-of-type(-n + 3)",
+        results: ["<li>1</li>", "<li>2</li>", "<li>3</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
+        query: "div:nth-of-type(-n + 3)",
+        results: ["<div />", "<div />"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-last-child(-n + 3)",
+        results: ["<li>5</li>", "<li>6</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-last-child(even)",
+        results: ["<li>1</li>", "<li>3</li>", "<li>5</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
+        query: "li:nth-last-of-type(-n + 3)",
+        results: ["<li>5</li>", "<li>6</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li lang='en-US'>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:lang(en)",
+        results: ["<li lang='en-US'>1</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
+        query: "li:eq(0)",
+        results: ["<li>1</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
+        query: "li:eq(-1)",
+        results: ["<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><li>67</li><p /><li>7<p>6</p></li></ul>",
+        query: "li:contains(6)",
+        results: ["<li>6</li>", "<li>67</li>", "<li>7<p>6</p></li>"]
+    },
+    {
+        html: "<p><article /></p><div><article /></div><p><span /></p><div><span /></div><p><ul /></p><div><ul /></div><quote><article /></quote><h1><span id='1' /></h1>",
+        query: ":is(p, div) :is(article, span)",
+        results: ["<article />", "<article />", "<span />", "<span />"],
+    },
+    {
+        html: "<p><article /></p><div><article /></div><p><span /></p><div><span /></div><p><ul /></p><div><ul /></div><quote><article /></quote><h1><span id='1' /></h1>",
+        query: ":where(p, div) :where(article, span)",
+        results: ["<article />", "<article />", "<span />", "<span />"],
+    },
 ];
 
 describe("Can successfully match query to DOM", () => {
