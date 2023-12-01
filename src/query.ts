@@ -246,11 +246,17 @@ class QueryInstance {
         }
         return this;
     };
-    addBack = (selector: string | undefined) => {
-        if (selector === undefined) {
-            return this.previous;
-        }
-        return this.previous.find(selector);
+    addBack = (selector?: string, namespaces: Record<string, string> = {}) => {
+        const query = selector && tryQueryParser(selector);
+        const matched = this.matched.concat(this.previous.matched);
+        return createQuery(
+            this.document,
+            query
+                ? query.match(matched, this.document.descendants(), namespaces)
+                : matched,
+            this.virtualDoms,
+            this
+        );
     };
     addClass = (
         classNames:
@@ -318,8 +324,19 @@ class QueryInstance {
             ...content
         );
     };
-    appendTo = (query: QueryInstance) => {
-        query.matched.forEach((element) => {
+    appendTo = (
+        query: QueryInstance | string,
+        namespaces: Record<string, string> = {}
+    ) => {
+        const parsedQuery =
+            typeof query === "string"
+                ? tryQueryParser(query)?.match(
+                    this.document.descendants(),
+                    this.document.descendants(),
+                    namespaces
+                )
+                : query.matched;
+        parsedQuery?.forEach((element) => {
             this.matched.forEach((nextChild) => {
                 element.content().addChild(nextChild);
                 nextChild.parent.removeChild(nextChild);
@@ -1073,7 +1090,15 @@ class QueryInstance {
             this
         );
     };
-    print = () => this.matched.map(parserItemToString).concat(this.virtualDoms.map(parserItemToString)).join("");
+    print = (ignoreWhitespace?: boolean) => {
+        const printed = this.matched
+            .map(parserItemToString)
+            .concat(this.virtualDoms.map(parserItemToString))
+            .join("");
+        return ignoreWhitespace
+            ? printed.replace(/\r|\n|\t/gimu, "").replace(/\s+/gimu, "")
+            : printed;
+    };
     /**
      * Using this instead of prop()
      */

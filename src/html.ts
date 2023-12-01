@@ -856,6 +856,7 @@ export class HtmlContent implements ParserItem {
                 }
             }
         }
+        this.parent.convertWithChildren();
         return this;
     };
 
