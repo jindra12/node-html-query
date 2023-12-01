@@ -155,7 +155,12 @@ class QueryInstance {
         previous: QueryInstance | undefined
     ) {
         this.document = document;
-        this.matched = matched;
+        this.matched = Object.values(
+            matched.reduce((matched: Record<string, HtmlElement>, element) => {
+                matched[element.identifier] = element;
+                return matched;
+            }, {})
+        );
         this.virtualDoms = virtualDoms;
         this.previous = previous || this;
     }
@@ -1068,6 +1073,7 @@ class QueryInstance {
             this
         );
     };
+    print = () => this.matched.map(parserItemToString).concat(this.virtualDoms.map(parserItemToString)).join("");
     /**
      * Using this instead of prop()
      */
@@ -1559,13 +1565,16 @@ const createQuery = (
 export const Query = (htmlInput: string) => {
     const html = htmlParser(htmlInput);
     return (
-        queryInput: string | ((event: Event) => void),
+        queryInput?: string | ((event: Event) => void),
         namespaces: Record<string, string> = {}
     ) => {
         const allHtmLElements = html.descendants();
         if (typeof queryInput === "function") {
             const query = createQuery(html, [], [], undefined);
             return query.ready(queryInput);
+        }
+        if (!queryInput) {
+            return createQuery(html, [], [], undefined);
         }
         const query = tryQueryParser(queryInput);
         if (query) {

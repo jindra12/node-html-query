@@ -1,8 +1,31 @@
 import { Query } from "../src/query";
 
-const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<() => void>> = {
-    add: [],
-    addBack: [],
+const query = () => Query(
+`
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Title</title>
+    </head>
+    <body>
+        <div id='1' />
+        <div id='2' />
+        <p>
+            <div class='one' />
+        </p>
+    </body>
+</html> 
+`);
+
+const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<($: ReturnType<typeof Query>) => void>> = {
+    add: [($) => {
+        expect($("[id='1']").add("[id='2']").add("[id='1']").print()).toEqual("<div id='1' /><div id='2' />");
+        expect($().add("div:first-child").add("<div />").add("<p />").print()).toEqual("<div id='1' /><div /><p />");
+        expect($().add("div:first-child", $("p"))).toEqual("<div class='one' />");
+    }],
+    addBack: [
+        
+    ],
     addClass: [],
     after: [],
     append: [],
@@ -69,6 +92,7 @@ const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<() => 
     prev: [],
     prevAll: [],
     prevUntil: [],
+    print: [],
     pushStack: [],
     ready: [],
     reduce: [],
@@ -99,7 +123,7 @@ const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<() => 
 describe("Methods of Query work as expected", () => {
     Object.entries(testCases).forEach(([method, tests]) => {
         tests.forEach((test, index) => {
-            it(`Method ${method}, test n.${index} working as expected`, test);
+            it(`Method ${method}, test n.${index} working as expected`, () => test(query()));
         })
     });
 });
