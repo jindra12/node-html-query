@@ -60,6 +60,50 @@ export class HtmlDocument implements ParserItem {
         this.identifier = uniqueId("html_document");
     }
 
+    addComment = (text: string, after?: HtmlElement | number) => {
+        if (this.consumed()) {
+            if (!after) {
+                this.htmlElements.push(new HtmlElements(this));
+                const misc = this.htmlElements[this.htmlElements.length - 1].htmlMisc1;
+                misc.push(new HtmlMisc());
+                misc[misc.length - 1].htmlComment.htmlComment.value = text;
+            } else {
+                const index = typeof after === "number" ? after : this.getIndex(after);
+                if (index >= this.htmlElements.length) {
+                    this.addComment(text);
+                    return this;
+                }
+                if (index !== -1) {
+                    this.htmlElements[index].htmlMisc1.push(new HtmlMisc());
+                    this.htmlElements[index].htmlMisc1[0].htmlComment.htmlComment.value = text;
+                }
+            }
+        }
+        return this;
+    };
+
+    addConditionalComment = (text: string, after?: HtmlElement | number) => {
+        if (this.consumed()) {
+            if (!after) {
+                this.htmlElements.push(new HtmlElements(this));
+                const misc = this.htmlElements[this.htmlElements.length - 1].htmlMisc1;
+                misc.push(new HtmlMisc());
+                misc[misc.length - 1].htmlComment.htmlConditionalComment.value = text;
+            } else {
+                const index = typeof after === "number" ? after : this.getIndex(after);
+                if (index >= this.htmlElements.length) {
+                    this.addConditionalComment(text);
+                    return this;
+                }
+                if (index !== -1) {
+                    this.htmlElements[index].htmlMisc1.push(new HtmlMisc());
+                    this.htmlElements[index].htmlMisc1[0].htmlComment.htmlConditionalComment.value = text;
+                }
+            }
+        }
+        return this;
+    };
+
     descendants = () => {
         if (!this.consumed()) {
             return [];
@@ -463,12 +507,26 @@ export class HtmlElement implements ParserItem {
             return this;
         }
         this.content().htmlCharData.htmlText.value = "";
-        this.content().content.forEach(({ charData }) => {
+        this.content().content.forEach(({ charData, inner: { cData, htmlComment } }) => {
             charData.htmlText.value = "";
+            charData.htmlText.value = "";
+            htmlComment.htmlComment.value = "";
+            htmlComment.htmlConditionalComment.value = "";
+            cData.value = "";
         });
         this.children().forEach((child) => {
             child.emptyText();
         });
+        return this;
+    };
+
+    addComment = (text: string, after?: HtmlElement | number) => {
+        this.content().addComment(text, after);
+        return this;
+    };
+
+    addConditionalComment = (text: string, after?: HtmlElement | number) => {
+        this.content().addConditionalComment(text, after);
         return this;
     };
 
@@ -860,6 +918,60 @@ export class HtmlContent implements ParserItem {
         return this;
     };
 
+    addComment = (text: string, after?: HtmlElement | number) => {
+        if (this.consumed()) {
+            if (!after) {
+                this.content.push({
+                    inner: {
+                        cData: new LexerItem("CDATA"),
+                        htmlComment: new HtmlComment(),
+                        htmlElement: new HtmlElement(this.parent),
+                    },
+                    charData: new HtmlChardata(),
+                })
+                this.content[this.content.length - 1].inner.htmlComment.htmlComment.value += text;
+            } else {
+                const index = typeof after === "number" ? after : this.getIndex(after);
+                if (index >= this.content.length) {
+                    this.addComment(text);
+                    return this;
+                }
+                if (index !== -1) {
+                    this.content[index].inner.htmlComment.htmlComment.value += text;
+                }
+            }
+        }
+        this.parent.convertWithChildren();
+        return this;
+    };
+
+    addConditionalComment = (text: string, after?: HtmlElement | number) => {
+        if (this.consumed()) {
+            if (!after) {
+                this.content.push({
+                    inner: {
+                        cData: new LexerItem("CDATA"),
+                        htmlComment: new HtmlComment(),
+                        htmlElement: new HtmlElement(this.parent),
+                    },
+                    charData: new HtmlChardata(),
+                })
+                this.content[this.content.length - 1].inner.htmlComment.htmlConditionalComment.value += text;
+            } else {
+                const index = typeof after === "number" ? after : this.getIndex(after);
+                if (index >= this.content.length) {
+                    this.addConditionalComment(text);
+                    return this;
+                }
+                if (index !== -1) {
+                    this.content[index].inner.htmlComment.htmlConditionalComment.value += text;
+                }
+            }
+        }
+        this.parent.convertWithChildren();
+        return this;
+    };
+
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
         if (this.consumed()) {
             this.cache.children.invalid = true;
@@ -1232,7 +1344,7 @@ export class HtmlMisc implements ParserItem {
     | HTML_CONDITIONAL_COMMENT
     ;
  */
-class HtmlComment implements ParserItem {
+export class HtmlComment implements ParserItem {
     htmlComment = new LexerItem("HTML_COMMENT");
     htmlConditionalComment = new LexerItem("HTML_CONDITIONAL_COMMENT");
     search = (searcher: Searcher) => {

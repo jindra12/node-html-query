@@ -39,8 +39,8 @@ const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<($: Re
         ($) => {
             expect($("[id='2']").addClass("two").print()).toEqual("<div id='2' class='two' />");
             expect($(".one").addClass((index, className) => `${className}-${index}`).print()).toEqual("<div class='one-0' />");
-            expect($("[id]").addClass((_, index) => `next-${index}`).print()).toEqual("<div id='1' class='next-0' /><div id='2' class='next-1' />");
-            expect($("[id]").addClass("two").print()).toEqual("<div id='1' class='two' /><div id='2' class='two' />");
+            expect($("body > div[id]").addClass((_, index) => `next-${index}`).print()).toEqual("<div id='1' class='next-0' /><div id='2' class='next-1' />");
+            expect($("body > div[id]").addClass("two").print()).toEqual("<div id='1' class='two' /><div id='2' class='two' />");
         },
     ],
     after: [
@@ -163,14 +163,46 @@ const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<($: Re
     ],
     data: [
         ($) => {
-            
+            expect($("article").data({ one: "one", two: "three" }).data()).toEqual({ one: "one", two: "three" });
+            expect($("article").data("two")).toEqual("three");
+            expect($("article").data("two", "four").data("two")).toEqual("four");
         }
     ],
-    dblclick: [],
-    each: [],
-    empty: [],
-    end: [],
-    eq: [],
+    dblclick: [
+        ($) => {
+            expect($(".one").dblclick((event) => event.preventDefault()).print()).toEqual(`<div class='one' ondblclick="((event) => event.preventDefault())(this)" />`);
+        },
+        ($) => {
+            expect($(".one").dblclick((event) => event.preventDefault()).dblclick(() => alert('this')).print()).toEqual(`<div class='one' ondblclick="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`);
+        },
+        ($) => {
+            expect($(".one").dblclick("this.preventDefault()").print()).toEqual(`<div class='one' ondblclick="this.preventDefault()" />`);
+        },
+    ],
+    each: [
+        ($) => {
+            let counter = 0;
+            $("body > div").each((index, query) => {
+                expect(index).toEqual(counter);
+                expect(query.tagName()).toEqual("div");
+                counter++;
+            });
+            expect(counter).toEqual(2);
+        }
+    ],
+    empty: [
+        ($) => {
+            expect($("article").empty().print()).toEqual("<article></article>");
+        }
+    ],
+    end: [($) => {
+        expect($("p").find(".one").end().print(true)).toEqual("<p><div class='one' /></p>");
+    }],
+    eq: [($) => {
+        expect($("div").eq(0).attr("id")).toEqual("1");
+        expect($("div").eq(1).attr("id")).toEqual("2");
+        expect($("div").eq(-1).attr("id")).toEqual("1");
+    }],
     even: [],
     filter: [],
     find: [],

@@ -7,7 +7,7 @@ export const consumeCache = (consumeFn: () => boolean) => {
 };
 
 const searchProducer = (
-    reducer: (item: ParserItem | LexerItem<LexerType>) => boolean
+    reducer: (item: ParserItem | LexerItem<LexerType>) => void
 ): Searcher => {
     const searcher: Searcher = {
         feedLexerItem: (lexer) => {
@@ -28,6 +28,17 @@ const searchProducer = (
     };
     return searcher;
 };
+
+export const getItems = <T extends ParserItem>(document: ParserItem, validator: (item: ParserItem | LexerItem<any>) => item is T) => {
+    const items: T[] = [];
+    const searcher = searchProducer((item) => {
+        if (validator(item)) {
+            items.push(item);
+        }
+    });
+    document.search(searcher);
+    return items;
+}
 
 export const parserItemToString = (document: ParserItem) => {
     let aggregate = "";

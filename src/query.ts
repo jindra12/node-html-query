@@ -1,11 +1,12 @@
-import { HtmlContent, HtmlDocument, HtmlElement } from "./html";
+import { HtmlComment, HtmlContent, HtmlDocument, HtmlElement } from "./html";
 import {
     htmlParser,
     queryParser,
     tryHtmlParser,
     tryQueryParser,
 } from "./parser";
-import { flatten, parserItemToString, uniqueId } from "./utils";
+import { LexerItem, ParserItem } from "./types";
+import { flatten, getItems, parserItemToString, uniqueId } from "./utils";
 
 interface TypeCombiner {
     attr(name: string): string | undefined;
@@ -299,6 +300,22 @@ class QueryInstance {
                     tryFirstArgHtml.descendants().forEach((descentant) => {
                         matched.parent.addChild(descentant, index + 1);
                     });
+                    const comments = getItems<HtmlComment>(
+                        tryFirstArgHtml,
+                        (item: ParserItem | LexerItem<any>): item is HtmlComment =>
+                            item instanceof HtmlComment
+                    );
+                    comments.forEach((comment) => {
+                        if (comment.htmlComment.value) {
+                            matched.parent.addComment(comment.htmlComment.value, index + 1);
+                        }
+                        if (comment.htmlConditionalComment.value) {
+                            matched.parent.addConditionalComment(
+                                comment.htmlConditionalComment.value,
+                                index + 1
+                            );
+                        }
+                    });
                 }
             },
             firstArg,
@@ -317,6 +334,21 @@ class QueryInstance {
                 } else {
                     tryFirstArgHtml.descendants().forEach((descentant) => {
                         matched.content().addChild(descentant);
+                    });
+                    const comments = getItems<HtmlComment>(
+                        tryFirstArgHtml,
+                        (item: ParserItem | LexerItem<any>): item is HtmlComment =>
+                            item instanceof HtmlComment
+                    );
+                    comments.forEach((comment) => {
+                        if (comment.htmlComment.value) {
+                            matched.parent.addComment(comment.htmlComment.value);
+                        }
+                        if (comment.htmlConditionalComment.value) {
+                            matched.parent.addConditionalComment(
+                                comment.htmlConditionalComment.value
+                            );
+                        }
                     });
                 }
             },
@@ -344,6 +376,23 @@ class QueryInstance {
             this.virtualDoms.forEach((document) => {
                 document.children().forEach((child) => {
                     element.content().addChild(child);
+                });
+                const comments = getItems<HtmlComment>(
+                    document,
+                    (item: ParserItem | LexerItem<any>): item is HtmlComment =>
+                        item instanceof HtmlComment
+                );
+                comments.forEach((comment) => {
+                    if (comment.htmlComment.value) {
+                        element.content().parent.addComment(comment.htmlComment.value);
+                    }
+                    if (comment.htmlConditionalComment.value) {
+                        element
+                            .content()
+                            .parent.addConditionalComment(
+                                comment.htmlConditionalComment.value
+                            );
+                    }
                 });
             });
         });
@@ -391,6 +440,22 @@ class QueryInstance {
                     const index = matched.parent.getIndex(matched);
                     tryFirstArgHtml.descendants().forEach((descentant) => {
                         matched.parent.addChild(descentant, index);
+                    });
+                    const comments = getItems<HtmlComment>(
+                        tryFirstArgHtml,
+                        (item: ParserItem | LexerItem<any>): item is HtmlComment =>
+                            item instanceof HtmlComment
+                    );
+                    comments.forEach((comment) => {
+                        if (comment.htmlComment.value) {
+                            matched.parent.addComment(comment.htmlComment.value, index);
+                        }
+                        if (comment.htmlConditionalComment.value) {
+                            matched.parent.addConditionalComment(
+                                comment.htmlConditionalComment.value,
+                                index
+                            );
+                        }
                     });
                 }
             },
@@ -465,10 +530,14 @@ class QueryInstance {
     };
     contents = () => {
         const children = this.matched.map(
-            (m) => parserItemToString(m.tagClose.close1.closingGroup.htmlContent) || parserItemToString(m.script) || m.scriptlet.value || parserItemToString(m.style)
+            (m) =>
+                parserItemToString(m.tagClose.close1.closingGroup.htmlContent) ||
+                parserItemToString(m.script) ||
+                m.scriptlet.value ||
+                parserItemToString(m.style)
         );
         return children.join("");
-    }
+    };
     contextmenu = (handler: string | ((event: Event) => void)) =>
         this.on("contextmenu", handler);
     css: CssType = (...args: any[]): any => {
