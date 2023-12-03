@@ -463,6 +463,12 @@ class QueryInstance {
         );
         return createQuery(this.document, ancestors, this.virtualDoms, this);
     };
+    contents = () => {
+        const children = this.matched.map(
+            (m) => parserItemToString(m.tagClose.close1.closingGroup.htmlContent) || parserItemToString(m.script) || m.scriptlet.value || parserItemToString(m.style)
+        );
+        return children.join("");
+    }
     contextmenu = (handler: string | ((event: Event) => void)) =>
         this.on("contextmenu", handler);
     css: CssType = (...args: any[]): any => {

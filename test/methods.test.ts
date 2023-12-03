@@ -13,6 +13,12 @@ const query = () => Query(
         <p>
             <div class='one' />
         </p>
+        <ul>
+            <li>item</li>
+            <li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>
+        </ul>
+        <article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>
+        <h1 style='position: fixed'>Hello</h1>
     </body>
 </html> 
 `);
@@ -79,15 +85,87 @@ const testCases: Record<keyof ReturnType<ReturnType<typeof Query>>, Array<($: Re
             expect($(".one").attr("id", (index, currentId) => `next_${index}_${parseInt(currentId) + 1}` ).attr("id")).toEqual("next_0_4");
         },
     ],
-    before: [],
-    blur: [],
-    change: [],
-    children: [],
-    clone: [],
-    closest: [],
-    contextmenu: [],
-    css: [],
-    data: [],
+    before: [
+        ($) => {
+            $(".one").before("<p />", "<span />");
+            expect($("body > p").print(true)).toEqual("<p><p /><span /><div class='one' /></p>");
+        },
+        ($) => {
+            $(".one").before((index, html) => `<div class="hit_${index}">${html}</div>`);
+            expect($(".hit_0").print()).toEqual(`<div class="hit_0"><div class='one' /></div>`);
+        },
+        ($) => {
+            $(".one").before((index) => `<div class="hit_${index}">Random text</div>`);
+            expect($(".hit_0").print()).toEqual(`<div class="hit_0">Random text</div>`);
+        },
+    ],
+    blur: [
+        ($) => {
+            expect($(".one").blur((event) => event.preventDefault()).print()).toEqual(`<div class='one' onblur="((event) => event.preventDefault())(this)" />`);
+        },
+        ($) => {
+            expect($(".one").blur((event) => event.preventDefault()).blur(() => alert('this')).print()).toEqual(`<div class='one' onblur="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`);
+        },
+        ($) => {
+            expect($(".one").blur("this.preventDefault()").print()).toEqual(`<div class='one' onblur="this.preventDefault()" />`);
+        },
+    ],
+    change: [
+        ($) => {
+            expect($(".one").change((event) => event.preventDefault()).print()).toEqual(`<div class='one' onchange="((event) => event.preventDefault())(this)" />`);
+        },
+        ($) => {
+            expect($(".one").change((event) => event.preventDefault()).change(() => alert('this')).print()).toEqual(`<div class='one' onchange="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`);
+        },
+        ($) => {
+            expect($(".one").change("this.preventDefault()").print()).toEqual(`<div class='one' onchange="this.preventDefault()" />`);
+        },
+    ],
+    children: [
+        ($) => {
+            expect($("body").children().print(true)).toEqual("<div id='1' /><div id='2' /><p><div class='one' /></p>")
+        },
+    ],
+    clone: [($) => {
+        $(".one").clone().appendTo("p");
+        expect($(".one").print()).toEqual("<div class='one' /><div class='one' />");
+    }],
+    closest: [($) => {
+        expect($("#deep").closest("ol").attr("id")).toEqual("shallow");
+        expect($("li").closest("ul", $("ol")).length).toEqual(1);
+        expect($("li").closest("ul", $("body")).length).toEqual(3);
+        
+    }],
+    contents: [
+        ($) => {
+            expect($("article").contents()).toEqual("Lorem ipsum <span> <img /> </span> <!-- this is a comment -->");
+        },
+    ],
+    contextmenu: [
+        ($) => {
+            expect($(".one").contextmenu((event) => event.preventDefault()).print()).toEqual(`<div class='one' oncontextmenu="((event) => event.preventDefault())(this)" />`);
+        },
+        ($) => {
+            expect($(".one").contextmenu((event) => event.preventDefault()).contextmenu(() => alert('this')).print()).toEqual(`<div class='one' oncontextmenu="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`);
+        },
+        ($) => {
+            expect($(".one").contextmenu("this.preventDefault()").print()).toEqual(`<div class='one' oncontextmenu="this.preventDefault()" />`);
+        },
+    ],
+    css: [
+        ($) => {
+            expect($("h1").css("position")).toEqual("fixed");
+            expect($("h1").css("position", "absolute").css("position")).toEqual("absolute");
+            expect($("h1").css("position", (_, position) => position === "relative" ? "inherit" : "absolute").css("position")).toEqual("inherit");
+            expect($("h1").css({ color: "white", width: "100%" }).css("color")).toEqual("white");
+            expect($("h1").css("width")).toEqual("100%");
+        }
+    ],
+    data: [
+        ($) => {
+            
+        }
+    ],
     dblclick: [],
     each: [],
     empty: [],
