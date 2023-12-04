@@ -1,7 +1,6 @@
 import { HtmlComment, HtmlContent, HtmlDocument, HtmlElement } from "./html";
 import {
     htmlParser,
-    queryParser,
     tryHtmlParser,
     tryQueryParser,
 } from "./parser";
@@ -44,6 +43,10 @@ interface TypeCombiner {
         parent: (index: number, child: QueryInstance) => QueryInstance | string
     ): QueryInstance;
     wrap(parent: string): QueryInstance;
+    height(): string;
+    height(value: string): QueryInstance;
+    width(): string;
+    width(value: string): QueryInstance;
 }
 
 type ValueType = TypeCombiner["val"];
@@ -54,6 +57,8 @@ type DataType = TypeCombiner["data"];
 type CssType = TypeCombiner["css"];
 type AttrType = TypeCombiner["attr"];
 type WrapType = TypeCombiner["wrap"];
+type HeightType = TypeCombiner["height"];
+type WidthType = TypeCombiner["width"];
 
 class QueryInstance {
     private document: HtmlDocument;
@@ -168,18 +173,35 @@ class QueryInstance {
 
     *[Symbol.iterator]() {
         for (let i = 0; i < this.matched.length; i++) {
-            yield this.get(i);
+            yield this.eq(i);
         }
     }
 
-    find = (queryInput: string, namespaces: Record<string, string> = {}) => {
-        const query = queryParser(queryInput);
-        return createQuery(
-            this.document,
-            query.match(this.matched, this.document.descendants(), namespaces),
-            this.virtualDoms,
-            this
-        );
+    find = (queryInput: string | QueryInstance, namespaces: Record<string, string> = {}) => {
+        if (typeof queryInput === "string") {
+            const query = tryQueryParser(queryInput);
+            if (query) {
+                return createQuery(
+                    this.document,
+                    query.match(this.matched, this.document.descendants(), namespaces),
+                    this.virtualDoms,
+                    this
+                );
+            }
+            
+        } else {
+            const elementMap = queryInput.matched.reduce((map: Record<string, true>, element) => {
+                map[element.identifier] = true;
+                return map;
+            }, {});
+            return createQuery(
+                this.document,
+                this.matched.filter(m => elementMap[m.identifier]),
+                this.virtualDoms,
+                this
+            );
+        }
+        return this;
     };
     add = (
         toAdd: QueryInstance | string,
@@ -660,7 +682,7 @@ class QueryInstance {
     };
     each = (callback: (index: number, query: QueryInstance) => void) => {
         for (let i = 0; i < this.matched.length; i++) {
-            callback(i, this.get(i));
+            callback(i, this.eq(i));
         }
         return this;
     };
@@ -672,7 +694,7 @@ class QueryInstance {
             this
         );
     };
-    first = () => this.get(0);
+    first = () => this.eq(0);
     focus = (handler: string | ((event: Event) => void)) =>
         this.on("focus", handler);
     focusin = (handler: string | ((event: Event) => void)) =>
@@ -728,17 +750,7 @@ class QueryInstance {
                 .some((cls) => cls === className)
         );
     };
-    get = (index: number = 0) => {
-        return createQuery(
-            this.document,
-            [this.matched[index >= 0 ? index : this.matched.length - 1 + index]],
-            this.virtualDoms,
-            this
-        );
-    };
-    height: (() => string | undefined) | ((value: number) => QueryInstance) = (
-        height?: string
-    ): any => {
+    height: HeightType = (height?: any): any => {
         if (height) {
             this.matched.forEach((m) => {
                 m.modifyAttribute("height", () => height);
@@ -758,7 +770,7 @@ class QueryInstance {
     html: HtmlType = (...args: any[]): any => {
         if (args.length === 0 || args[0] === undefined) {
             if (this.matched.length > 0) {
-                return parserItemToString(this.matched[0]);
+                return parserItemToString(this.matched[0].content()).replace(/(^\s+|\s+$)/gmui, "");
             } else {
                 return undefined;
             }
@@ -767,7 +779,7 @@ class QueryInstance {
                 const resolveArg =
                     typeof args[0] === "string"
                         ? args[0]
-                        : args[0](index, parserItemToString(m));
+                        : args[0](index, parserItemToString(m.content()));
                 const nextDom = tryHtmlParser(resolveArg);
                 if (nextDom) {
                     m.emptyText();
@@ -901,7 +913,7 @@ class QueryInstance {
         );
         return this.matched.some((m) => map[m.identifier]);
     };
-    last = () => this.get(this.matched.length - 1);
+    last = () => this.eq(this.matched.length - 1);
     get length(): number {
         return this.matched.length;
     }
@@ -1219,7 +1231,7 @@ class QueryInstance {
         initialValue: TAccumulator
     ) => {
         for (let i = 0; i < this.matched.length; i++) {
-            initialValue = reducer(initialValue, this.get(i), i, this);
+            initialValue = reducer(initialValue, this.eq(i), i, this);
         }
         return initialValue;
     };
@@ -1547,6 +1559,15 @@ class QueryInstance {
         this.attr("value");
         return this.attr("value", args[0]);
     };
+    width: WidthType = (width?: any): any => {
+        if (width) {
+            this.matched.forEach((m) => {
+                m.modifyAttribute("height", () => width);
+            });
+            return this;
+        }
+        return this.matched[0]?.attributes()["height"];
+    };
     wrap: WrapType = (...args: any[]): any => {
         this.matched.forEach((m, index) => {
             const resolved: string | QueryInstance =
@@ -1566,13 +1587,13 @@ class QueryInstance {
             return this;
         }
         const [parent, appendTo] = this.getParentAssigner(
-            typeof args[0] === "function" ? args[0](0, this.get(0)) : args[0],
+            typeof args[0] === "function" ? args[0](0, this.eq(0)) : args[0],
             args[1] || {}
         );
         if (!parent || !appendTo) {
             return this;
         }
-        const parents = this.matched.map((_, i) => this.get(i).parents().matched);
+        const parents = this.matched.map((_, i) => this.eq(i).parents().matched);
         const parentsWithCount = parents.reduce(
             (
                 parentsWithCount: Record<
@@ -1652,7 +1673,7 @@ const createQuery = (
         get(target: QueryInstance, propertyKey, receiver) {
             const tryParseKey = parseInt(propertyKey.toString());
             if (!isNaN(tryParseKey)) {
-                return target.get(tryParseKey);
+                return target.eq(tryParseKey);
             }
             return Reflect.get(target, propertyKey, receiver);
         },
