@@ -559,19 +559,281 @@ const testCases: Record<
             expect($("div").is($("ul"))).toEqual(false);
         }
     ],
-    keydown: [],
-    keypress: [],
-    keyup: [],
-    last: [],
-    length: [],
-    map: [],
-    mousedown: [],
-    mouseenter: [],
-    mouseleave: [],
-    mousemove: [],
-    mouseout: [],
-    mouseover: [],
-    mouseup: [],
+    keydown: [
+        ($) => {
+            expect(
+                $(".one")
+                    .keydown((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onkeydown="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .keydown((event) => event.preventDefault())
+                    .keydown(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onkeydown="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").keydown("this.preventDefault()").print()).toEqual(
+                `<div class='one' onkeydown="this.preventDefault()" />`
+            );
+        },
+    ],
+    keypress: [
+        ($) => {
+            expect(
+                $(".one")
+                    .keypress((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onkeypress="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .keypress((event) => event.preventDefault())
+                    .keypress(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onkeypress="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").keypress("this.preventDefault()").print()).toEqual(
+                `<div class='one' onkeypress="this.preventDefault()" />`
+            );
+        },
+    ],
+    keyup: [
+        ($) => {
+            expect(
+                $(".one")
+                    .keyup((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onkeyup="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .keyup((event) => event.preventDefault())
+                    .keyup(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onkeyup="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").keyup("this.preventDefault()").print()).toEqual(
+                `<div class='one' onkeyup="this.preventDefault()" />`
+            );
+        },    
+    ],
+    last: [
+        ($) => {
+            expect($("li").last().find("div").attr("id")).toEqual("deep");
+        }
+    ],
+    length: [
+        ($) => {
+            expect($("li").length).toEqual(3);
+        }
+    ],
+    map: [
+        ($) => {
+            expect($(":header").map((_, header) => header.contents())).toEqual(["Hello", "Hello", "<div id='three' />"])
+        }
+    ],
+    mousedown: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mousedown((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmousedown="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mousedown((event) => event.preventDefault())
+                    .mousedown(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmousedown="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mousedown("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmousedown="this.preventDefault()" />`
+            );
+        }, 
+    ],
+    mouseenter: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseenter((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseenter="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseenter((event) => event.preventDefault())
+                    .mouseenter(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseenter="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mouseenter("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmouseenter="this.preventDefault()" />`
+            );
+        }, 
+    ],
+    mouseleave: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseleave((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseleave="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseleave((event) => event.preventDefault())
+                    .mouseleave(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseleave="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mouseleave("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmouseleave="this.preventDefault()" />`
+            );
+        }, 
+    ],
+    mousemove: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mousemove((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmousemove="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mousemove((event) => event.preventDefault())
+                    .mousemove(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmousemove="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mousemove("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmousemove="this.preventDefault()" />`
+            );
+        }, 
+    ],
+    mouseout: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseout((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseout="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseout((event) => event.preventDefault())
+                    .mouseout(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseout="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mouseout("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmouseout="this.preventDefault()" />`
+            );
+        }, 
+    ],
+    mouseover: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseover((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseover="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseover((event) => event.preventDefault())
+                    .mouseover(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseover="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mouseover("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmouseover="this.preventDefault()" />`
+            );
+        }, 
+    ],
+    mouseup: [
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseup((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseup="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .mouseup((event) => event.preventDefault())
+                    .mouseup(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onmouseup="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").mouseup("this.preventDefault()").print()).toEqual(
+                `<div class='one' onmouseup="this.preventDefault()" />`
+            );
+        }, 
+    ],
     next: [],
     nextAll: [],
     nextUntil: [],
