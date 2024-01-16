@@ -250,7 +250,12 @@ const testCases: Record<
             );
         },
         ($) => {
-            expect($(".one").click("this.preventDefault()").click((event) => event.preventDefault()).print()).toEqual(
+            expect(
+                $(".one")
+                    .click("this.preventDefault()")
+                    .click((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
                 `<div class='one' onclick="this.preventDefault();((event) => event.preventDefault())(this)" />`
             );
         },
@@ -566,21 +571,29 @@ const testCases: Record<
             ).toEqual("<div class='two'>0 <div class='one' /></div>");
         },
     ],
-    index: [($) => {
-        expect($("body > *").index("h1")).toEqual(5);
-        expect($("body > *").index($("h2"))).toEqual(6);
-    }],
+    index: [
+        ($) => {
+            expect($("body > *").index("h1")).toEqual(5);
+            expect($("body > *").index($("h2"))).toEqual(6);
+        },
+    ],
     insertAfter: [
         ($) => {
             $(".one").add("<div class='two'><span /></div>").insertAfter("div#three");
-            expect($("h3").print()).toEqual("<h3><div id='three' /><div class='one' /><div class='two'><span /></div></h3>");
+            expect($("h3").print()).toEqual(
+                "<h3><div id='three' /><div class='one' /><div class='two'><span /></div></h3>"
+            );
         },
     ],
     insertBefore: [
         ($) => {
-            $(".one").add("<div class='two'><span /></div>").insertBefore("div#three");
-            expect($("h3").print()).toEqual("<h3><div class='one' /><div class='two'><span /></div><div id='three' /></h3>");
-        }
+            $(".one")
+                .add("<div class='two'><span /></div>")
+                .insertBefore("div#three");
+            expect($("h3").print()).toEqual(
+                "<h3><div class='one' /><div class='two'><span /></div><div id='three' /></h3>"
+            );
+        },
     ],
     is: [
         ($) => {
@@ -588,7 +601,7 @@ const testCases: Record<
             expect($("div").is(".two")).toEqual(false);
             expect($("p").is($("body > *"))).toEqual(true);
             expect($("div").is($("ul"))).toEqual(false);
-        }
+        },
     ],
     keydown: [
         ($) => {
@@ -666,22 +679,26 @@ const testCases: Record<
             expect($(".one").keyup("this.preventDefault()").print()).toEqual(
                 `<div class='one' onkeyup="this.preventDefault()" />`
             );
-        },    
+        },
     ],
     last: [
         ($) => {
             expect($("li").last().find("div").attr("id")).toEqual("deep");
-        }
+        },
     ],
     length: [
         ($) => {
             expect($("li").length).toEqual(3);
-        }
+        },
     ],
     map: [
         ($) => {
-            expect($(":header").map((_, header) => header.contents())).toEqual(["Hello", "Hello", "<div id='three' />"])
-        }
+            expect($(":header").map((_, header) => header.contents())).toEqual([
+                "Hello",
+                "Hello",
+                "<div id='three' />",
+            ]);
+        },
     ],
     mousedown: [
         ($) => {
@@ -707,7 +724,7 @@ const testCases: Record<
             expect($(".one").mousedown("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmousedown="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     mouseenter: [
         ($) => {
@@ -733,7 +750,7 @@ const testCases: Record<
             expect($(".one").mouseenter("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmouseenter="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     mouseleave: [
         ($) => {
@@ -759,7 +776,7 @@ const testCases: Record<
             expect($(".one").mouseleave("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmouseleave="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     mousemove: [
         ($) => {
@@ -785,7 +802,7 @@ const testCases: Record<
             expect($(".one").mousemove("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmousemove="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     mouseout: [
         ($) => {
@@ -811,7 +828,7 @@ const testCases: Record<
             expect($(".one").mouseout("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmouseout="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     mouseover: [
         ($) => {
@@ -837,7 +854,7 @@ const testCases: Record<
             expect($(".one").mouseover("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmouseover="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     mouseup: [
         ($) => {
@@ -863,36 +880,58 @@ const testCases: Record<
             expect($(".one").mouseup("this.preventDefault()").print()).toEqual(
                 `<div class='one' onmouseup="this.preventDefault()" />`
             );
-        }, 
+        },
     ],
     next: [
         ($) => {
-            expect($("#1").next().print()).toEqual("<div id='2' />");
-            expect($("#1").next("#3").print()).toEqual("");
-            expect($("#1").next("#2").print()).toEqual("<div id='2' />");
+            expect($("[id='1']").next().print()).toEqual("<div id='2' />");
+            expect($("[id='1']").next("[id='3']").print()).toEqual("");
+            expect($("[id='1']").next("[id='2']").print()).toEqual("<div id='2' />");
         },
     ],
     nextAll: [
         ($) => {
             expect($("div").nextAll("div").print()).toEqual("<div id='2' />");
             expect($("div").nextAll($("[id=2]")).print()).toEqual("<div id='2' />");
-            expect($("div").nextAll(":header").print()).toEqual("<h1 style='position: fixed'>Hello</h1><h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>");
-        }
+            expect($("div").nextAll(":header").print()).toEqual(
+                "<h1 style='position: fixed'>Hello</h1><h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>"
+            );
+        },
     ],
     nextUntil: [
         ($) => {
-            expect($("h1").nextUntil("h3").print()).toEqual("<h2 style='height: 50%'>Hello</h2>");
-            expect($("h1").nextUntil($("h3")).print()).toEqual("<h2 style='height: 50%'>Hello</h2>");
-            expect($("h1").nextUntil($("h3"), "h2").print()).toEqual("<h2 style='height: 50%'>Hello</h2>");
-            expect($("h1").nextUntil($("h3"), $("h2")).print()).toEqual("<h2 style='height: 50%'>Hello</h2>");
-        }
+            expect($("h1").nextUntil("h3").print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2>"
+            );
+            expect($("h1").nextUntil($("h3")).print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2>"
+            );
+            expect($("h1").nextUntil($("h3"), "h2").print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2>"
+            );
+            expect($("h1").nextUntil($("h3"), $("h2")).print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2>"
+            );
+        },
     ],
     not: [
         ($) => {
-            expect($(":header").not("h1").print()).toEqual("<h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>");
-            expect($(":header").not($("h1")).print()).toEqual("<h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>");
-            expect($(":header").not($("h1,h2")).print()).toEqual("<h3><div id='three' /></h3>");
-            expect($(":header").not((_, element) => element.tagName() === "h1").print()).toEqual("<h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>");
+            expect($(":header").not("h1").print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>"
+            );
+            expect($(":header").not($("h1")).print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>"
+            );
+            expect($(":header").not($("h1,h2")).print()).toEqual(
+                "<h3><div id='three' /></h3>"
+            );
+            expect(
+                $(":header")
+                    .not((_, element) => element.tagName() === "h1")
+                    .print()
+            ).toEqual(
+                "<h2 style='height: 50%'>Hello</h2><h3><div id='three' /></h3>"
+            );
         },
     ],
     odd: [
@@ -914,14 +953,10 @@ const testCases: Record<
             ).toEqual(
                 `<div class='one' onmouseup="((event) => event.preventDefault())(this);" onclick="(() => alert('this'))(this)" />`
             );
-            expect(
-                $(".one")
-                    .off("click mouseup")
-                    .print()
-            ).toEqual(
+            expect($(".one").off("click mouseup").print()).toEqual(
                 `<div class='one' />`
             );
-        }
+        },
     ],
     on: [
         ($) => {
@@ -940,54 +975,352 @@ const testCases: Record<
                 $(".one")
                     .on("click mouseup", (event) => event.preventDefault())
                     .attr("onclick")
-            ).toMatch(/\(\(event\) => \{ if \(window\['[a-z0-9]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9]+'\] = true; return result; \}\)\(this\)/gmui);
-            expect($(".one").attr("onmouseup")).toMatch(/\(\(event\) => \{ if \(window\['[a-z0-9]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9]+'\] = true; return result; \}\)\(this\)/gmui);
+            ).toMatch(
+                /\(\(event\) => \{ if \(window\['[a-z0-9]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9]+'\] = true; return result; \}\)\(this\)/gimu
+            );
+            expect($(".one").attr("onmouseup")).toMatch(
+                /\(\(event\) => \{ if \(window\['[a-z0-9]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9]+'\] = true; return result; \}\)\(this\)/gimu
+            );
         },
     ],
     parent: [
         ($) => {
-            expect($(".one").parent().print(true)).toEqual("<p><div class='one' /></p>");
+            expect($(".one").parent().print(true)).toEqual(
+                "<p><div class='one' /></p>"
+            );
             expect($("li").parent("ul")[0].tagName()).toEqual("ul");
             expect($("li").parent($("ol"))[0].tagName()).toEqual("ol");
         },
     ],
     parents: [
         ($) => {
-            expect($(".one").parents().map((_, q) => q.tagName())).toEqual(["body", "html"]);
-            expect($(":header").parents().map((_, q) => q.tagName())).toEqual(["body", "html"]);
-            expect($(":header").parents("body").map((_, q) => q.tagName())).toEqual(["body"]);
-            expect($(":header").parents($("body")).map((_, q) => q.tagName())).toEqual(["body"]);
-        }
+            expect(
+                $(".one")
+                    .parents()
+                    .map((_, q) => q.tagName())
+            ).toEqual(["body", "html"]);
+            expect(
+                $(":header")
+                    .parents()
+                    .map((_, q) => q.tagName())
+            ).toEqual(["body", "html"]);
+            expect(
+                $(":header")
+                    .parents("body")
+                    .map((_, q) => q.tagName())
+            ).toEqual(["body"]);
+            expect(
+                $(":header")
+                    .parents($("body"))
+                    .map((_, q) => q.tagName())
+            ).toEqual(["body"]);
+        },
     ],
     parentsUntil: [
-        
+        ($) => {
+            expect($("#three").parentsUntil("body").length).toEqual(1);
+            expect($("#three").parentsUntil("body").tagName()).toEqual("h3");
+            expect(
+                $("#deep")
+                    .parentsUntil($("ul"))
+                    .map((_, item) => item.tagName())
+            ).toEqual(["li", "ol", "li"]);
+        },
     ],
-    prepend: [],
-    prependTo: [],
-    prev: [],
-    prevAll: [],
-    prevUntil: [],
-    print: [],
-    pushStack: [],
-    ready: [],
-    reduce: [],
-    remove: [],
-    removeAttr: [],
-    removeClass: [],
-    removeData: [],
-    replaceAll: [],
-    replaceWith: [],
-    select: [],
-    siblings: [],
-    slice: [],
-    submit: [],
-    tagName: [],
-    text: [],
-    toggle: [],
-    toggleClass: [],
-    uniqueSort: [],
-    unload: [],
-    unwrap: [],
+    prepend: [
+        ($) => {
+            $("#deep").prepend("<p>Hello</p>");
+            expect($("#deep").print()).toEqual(
+                "<div id='deep'><p>Hello</p>item</div>"
+            );
+        },
+        ($) => {
+            $("#deep").prepend((_, deep) => `<p>Hello ${deep}</p>`);
+            expect($("#deep").print()).toEqual(
+                "<div id='deep'><p>Hello <div id='deep'>item</deep></p>item</div>"
+            );
+        },
+    ],
+    prependTo: [
+        ($) => {
+            $("<p>Hello</p>").prependTo("#deep");
+            expect($("#deep").print()).toEqual(
+                "<div id='deep'><p>Hello</p>item</div>"
+            );
+        },
+        ($) => {
+            $("<p>Hello</p>").prependTo($("#deep"));
+            expect($("#deep").print()).toEqual(
+                "<div id='deep'><p>Hello</p>item</div>"
+            );
+        },
+    ],
+    prev: [
+        ($) => {
+            expect($("[id='2']").prev().print()).toEqual("<div id='1' />");
+            expect($(":header").prev("article")).toEqual(
+                "<article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>"
+            );
+            expect($(":header").prev($("article"))).toEqual(
+                "<article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>"
+            );
+        },
+    ],
+    prevAll: [
+        ($) => {
+            expect($("h3").prevAll().length).toEqual(7);
+            expect($("h3").prevAll(":header").print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2><h1 style='position: fixed'>Hello</h1>"
+            );
+            expect($("h3").prevAll($(":header")).print()).toEqual(
+                "<h2 style='height: 50%'>Hello</h2><h1 style='position: fixed'>Hello</h1>"
+            );
+        },
+    ],
+    prevUntil: [
+        ($) => {
+            expect($("h3").prevUntil("h1").length).toEqual(1);
+            expect($("h3").prevUntil($("h1")).length).toEqual(1);
+            expect($("article").prevUntil($("[id='1']"), "p").tagName()).toEqual("p");
+            expect($("article").prevUntil($("[id='1']"), $("p")).tagName()).toEqual(
+                "p"
+            );
+        },
+    ],
+    print: [], // testing method, no tests here
+    pushStack: [
+        ($) => {
+            expect($("[id='1']").pushStack($("[id='2']")).print()).toEqual(
+                "<div id='1' /><div id='2' />"
+            );
+        },
+    ],
+    ready: [
+        ($) => {
+            $((event) => {
+                event.preventDefault();
+            });
+            expect($("body").print()).toContain(
+                '<script>document.addEventListener("load", (event) => { event.preventDefault(); })</script>'
+            );
+        },
+        ($) => {
+            $().ready((event) => {
+                event.preventDefault();
+            });
+            expect($("body").print()).toContain(
+                '<script>document.addEventListener("load", (event) => { event.preventDefault(); })</script>'
+            );
+        },
+        ($) => {
+            $("article").ready((event) => {
+                event.preventDefault();
+            });
+            expect($("article").attr("onload")).toContain(
+                "((event) => { event.preventDefault(); })(this)"
+            );
+        },
+    ],
+    reduce: [
+        ($) => {
+            const accumulator = $("div[id]").reduce(
+                (accumulator: Record<string, string>, value) => {
+                    accumulator[value.attr("id") || ""] = "id";
+                    return accumulator;
+                },
+                {}
+            );
+            expect(accumulator).toEqual({
+                1: "id",
+                2: "id",
+                3: "id",
+                one: "id",
+                deep: "id",
+            });
+        },
+    ],
+    remove: [
+        ($) => {
+            expect($("article").remove("img").print()).not.toContain("<img />");
+        },
+    ],
+    removeAttr: [
+        ($) => {
+            expect($("[id='1']").length).toEqual(1);
+            $("[id='1']").removeAttr("id");
+            expect($("[id='1']").length).toEqual(0);
+        },
+    ],
+    removeClass: [
+        ($) => {
+            expect($(".one").length).toEqual(1);
+            $(".one").removeClass("one").addClass("two three").removeClass("three");
+            expect($(".two").length).toEqual(1);
+        },
+    ],
+    removeData: [
+        ($) => {
+            $(".one")
+                .data("key", "value")
+                .data("key1", "value1")
+                .data("key2", "value2");
+            $(".one").removeData("key1");
+            expect($(".one").data()).toEqual({
+                key: "value",
+                key2: "value2",
+            });
+        },
+    ],
+    replaceAll: [
+        ($) => {
+            $("<h4>Hello</h4>").replaceAll(":heading");
+            expect($("h4").print()).toEqual(
+                "<h4>Hello</h4><h4>Hello</h4><h4>Hello</h4>"
+            );
+        },
+    ],
+    replaceWith: [
+        ($) => {
+            $(":heading").replaceAll("<h4>Hello</h4>");
+            expect($("h4").print()).toEqual(
+                "<h4>Hello</h4><h4>Hello</h4><h4>Hello</h4>"
+            );
+        },
+    ],
+    select: [
+        ($) => {
+            expect(
+                $(".one")
+                    .select((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onselect="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .select((event) => event.preventDefault())
+                    .select(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onselect="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").select("this.preventDefault()").print()).toEqual(
+                `<div class='one' onselect="this.preventDefault()" />`
+            );
+        },
+    ],
+    siblings: [
+        ($) => {
+            expect($("h1").siblings(":heading").length).toEqual(2);
+            expect($("li:first-child").siblings().print()).toEqual(
+                "<li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>"
+            );
+        },
+    ],
+    slice: [
+        ($) => {
+            expect($("div").slice(1, 3).print()).toEqual(
+                "<div id='2' /><div id='deep'>item</div>"
+            );
+        },
+    ],
+    submit: [
+        ($) => {
+            expect(
+                $(".one")
+                    .submit((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onsubmit="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .submit((event) => event.preventDefault())
+                    .submit(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onsubmit="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").submit("this.preventDefault()").print()).toEqual(
+                `<div class='one' onsubmit="this.preventDefault()" />`
+            );
+        },
+    ],
+    tagName: [
+        ($) => {
+            expect($(".one").tagName()).toEqual("div");
+            expect($(".one").tagName("span")).toEqual("<span class='one' />");
+            expect($("#deep").tagName("span")).toEqual("<span id='deep'>item</span>");
+        },
+    ],
+    text: [
+        ($) => {
+            expect($("article").text()).toEqual("Lorem ipsum");
+            expect($("article,h2").text()).toEqual("Lorem ipsum Hello");
+            expect($("article").text("Value").text()).toEqual("Value");
+            expect(
+                $("article,h2")
+                    .text((index, value) => `${value}, ${index}`)
+                    .print()
+            ).toEqual(
+                "<article>Value, 0<span> <img /> </span> <!-- this is a comment --><h2 style='height: 50%'>Hello 1</h2></article>"
+            );
+        },
+    ],
+    toggleClass: [
+        ($) => {
+            expect($(".one").toggleClass("one").attr("class")).toEqual("");
+            expect($(".one").toggleClass("one", false).attr("class")).toEqual("");
+            expect($(".one").toggleClass("two").attr("class")).toEqual("one two");
+            expect($(".one").toggleClass("two", true).attr("class")).toEqual("one two");
+            expect($(".one").toggleClass("two", false).attr("class")).toEqual("one");
+            expect($(".one").toggleClass((index, classes) => [classes, `class__${index}`]).print()).toEqual("<div class='one class__0' />");
+        },
+    ],
+    uniqueSort: [
+        ($) => {
+            expect($("h3").add(".one").add(".one").add("[id='1']").uniqueSort().print()).toEqual("<div id='1' /><div class='one' /><h3><div id='three' /></h3>");
+        },
+    ],
+    unload: [
+        ($) => {
+            expect(
+                $(".one")
+                    .unload((event) => event.preventDefault())
+                    .print()
+            ).toEqual(
+                `<div class='one' onunload="((event) => event.preventDefault())(this)" />`
+            );
+        },
+        ($) => {
+            expect(
+                $(".one")
+                    .unload((event) => event.preventDefault())
+                    .unload(() => alert("this"))
+                    .print()
+            ).toEqual(
+                `<div class='one' onunload="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+            );
+        },
+        ($) => {
+            expect($(".one").unload("this.preventDefault()").print()).toEqual(
+                `<div class='one' onunload="this.preventDefault()" />`
+            );
+        },
+    ],
+    unwrap: [
+        ($) => {
+            
+        },
+    ],
     val: [],
     width: [],
     wrap: [],

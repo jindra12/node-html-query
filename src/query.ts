@@ -1,5 +1,5 @@
 import { HtmlComment, HtmlContent, HtmlDocument, HtmlElement } from "./html";
-import { htmlParser, tryHtmlParser, tryQueryParser } from "./parser";
+import { htmlParser, queryParser, tryHtmlParser, tryQueryParser } from "./parser";
 import { LexerItem, ParserItem } from "./types";
 import { flatten, getItems, parserItemToString, uniqueId } from "./utils";
 
@@ -1162,8 +1162,19 @@ class QueryInstance implements Record<number, QueryInstance> {
             ...content
         );
     };
-    prependTo = (query: QueryInstance) => {
-        query.matched.forEach((element) => {
+    prependTo = (
+        query: string | QueryInstance,
+        namespaces: Record<string, string> = {}
+    ) => {
+        const matched =
+            typeof query === "string"
+                ? tryQueryParser(query)?.match(
+                    this.document.descendants(),
+                    this.document.descendants(),
+                    namespaces
+                )
+                : query.matched;
+        matched?.forEach((element) => {
             this.matched.forEach((nextChild) => {
                 element.content().addChild(nextChild, 0);
                 nextChild.parent.removeChild(nextChild);
@@ -1202,6 +1213,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     };
     prevUntil = (
         selector: string | QueryInstance,
+        filter?: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
         const matchPrevAll = this.prevAll(undefined, namespaces);
@@ -1212,12 +1224,37 @@ class QueryInstance implements Record<number, QueryInstance> {
             },
             {}
         );
-        return createQuery(
-            this.document,
-            matchPrevAll.matched.filter((m) => !unmatchPrevAll[m.identifier]),
-            this.virtualDoms,
-            this
-        );
+
+        const bySelector = matchPrevAll.matched.filter((m) => !unmatchPrevAll[m.identifier]);
+
+        if (typeof filter === "string") {
+            const query = tryQueryParser(filter);
+            return createQuery(
+                this.document,
+                query?.match(bySelector, this.document.descendants(), namespaces) ||
+                bySelector,
+                this.virtualDoms,
+                this
+            );
+        }
+
+        if (filter) {
+            const filterMap = filter.matched.reduce(
+                (map: Record<string, true>, element) => {
+                    map[element.identifier] = true;
+                    return map;
+                },
+                {}
+            );
+            return createQuery(
+                this.document,
+                bySelector.filter((element) => filterMap[element.identifier]),
+                this.virtualDoms,
+                this
+            );
+        }
+
+        return createQuery(this.document, bySelector, this.virtualDoms, this);
     };
     print = (ignoreWhitespace?: boolean) => {
         const printed = this.matched
@@ -1253,13 +1290,20 @@ class QueryInstance implements Record<number, QueryInstance> {
             this
         );
     ready = (handler: string | ((event: Event) => void)) => {
-        const resolveHandler =
-            typeof handler === "string" ? handler : handler.toString();
-        const wrapHandler = `document.addEventListener("load", ${resolveHandler})`;
-        const script = htmlParser(
-            `<script>${wrapHandler}</script>`
-        ).descendants()[0];
-        this.document.addChild(script);
+        if (this.matched.length) {
+            return this.on("load", handler);
+        } else {
+            const resolveHandler = typeof handler === "string" ? handler : handler.toString();
+            const wrapHandler = `document.addEventListener("load", ${resolveHandler})`;
+            const script = htmlParser(
+                `<script>${wrapHandler}</script>`
+            ).descendants()[0];
+            const query = queryParser("body");
+            const body = query.match(this.document.descendants(), this.document.descendants(), {})[0];
+            if (body) {
+                body.addChild(script);
+            }
+        }
         this.document.cache.descendants.invalid = true;
         return this;
     };
@@ -1436,29 +1480,19 @@ class QueryInstance implements Record<number, QueryInstance> {
         this.on("submit", handler);
     text: TextType = (...args: any[]): any => {
         if (args.length === 0 || args[0] === undefined) {
-            return this.matched[0]?.texts().join("");
+            return this.matched[0]?.texts().join(" ");
         }
         if (args.length === 1 || args[1] === undefined) {
             this.matched.forEach((m, index) => {
                 const value = (
                     typeof args[0] === "function"
-                        ? args[0](index, m.texts().join(""))
+                        ? args[0](index, m.texts().join(" "))
                         : args[0]
                 ).toString();
                 m.content().addText(value);
             });
         }
         return this;
-    };
-    toggle = (...args: (string | ((event: Event) => void))[]) => {
-        const propName = uniqueId("handler");
-        const stringified = args.map((arg) =>
-            typeof arg === "function" ? arg.toString() : arg
-        );
-        const finalHandler = `((event) => { window.${propName} = window.${propName} ? window.${propName} : 0; const handlers = [${stringified.join(
-            ","
-        )}]; const result = handlers[window.${propName}](event); if (window.${propName} === result.length) { window.${propName} = 0; } else { window.${propName}++; } })(this)`;
-        return this.on("click", finalHandler);
     };
     toggleClass = (
         classNames:
