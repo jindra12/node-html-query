@@ -22,6 +22,7 @@ const query = () =>
         <h1 style='position: fixed'>Hello</h1>
         <h2 style='height: 50%'>Hello</h2>
         <h3><div id='three' /></h3>
+        <input type='text' style='width: 100px' />
     </body>
 </html> 
 `
@@ -1318,15 +1319,71 @@ const testCases: Record<
     ],
     unwrap: [
         ($) => {
-            
+            $("#three").unwrap();
+            expect($("h3").length).toEqual(0);
+        },
+        ($) => {
+            $("#three").unwrap("h3");
+            expect($("h3").length).toEqual(0);
+        },
+        ($) => {
+            $("#three").unwrap("h4");
+            expect($("h3").length).toEqual(1);
+        },
+        ($) => {
+            $("div").unwrap($("h3"));
+            expect($("h3").length).toEqual(0);
+            expect($("li > #deep").length).toEqual(1);
         },
     ],
-    val: [],
-    width: [],
-    wrap: [],
-    wrapAll: [],
-    wrapInner: [],
-    [Symbol.iterator]: [],
+    val: [
+        ($) => {
+            expect($("input[type='text']").val("Value").val()).toEqual("Value");
+            expect($("input[type='text']").val((index, value) => `${value}__${index + 1}`).val()).toEqual("Value__1");
+        },
+    ],
+    width: [
+        ($) => {
+            expect($("input").width()).toEqual("100px");
+            expect($("input").width("92").width()).toEqual("92");
+        }
+    ],
+    wrap: [
+        ($) => {
+            $("[id='1']").wrap("<div class='eleven' />");
+            expect($(".eleven").print()).toEqual("<div class='eleven'><div id='1' /></div>");
+            $(":heading").wrap((index) => `<div style='width: ${index}px' class='twelve'></div>`);
+            expect($(".twelve").length).toEqual(3);
+            expect($(".twelve").map((_, item) => item.css("width")).join("")).toEqual("0px1px2px");
+        }
+    ],
+    wrapAll: [
+        ($) => {
+            $("[id='1'],[id='2']").wrapAll("<h4 />");
+            expect($("h4").print()).toEqual("<h4><div id='1' /><div id='2' /></h4>");
+            $("#one,#shallow").wrapAll("<h5></h5>");
+            expect($("h5 > p").length).toEqual(1);
+            expect($("h5 > ul").length).toEqual(1);
+        }
+    ],
+    wrapInner: [
+        ($) => {
+            $("article").wrapInner("<p />");
+            expect($("article").print()).toEqual("<article><p>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></p></article>");
+        },
+    ],
+    [Symbol.iterator]: [
+        ($) => {
+            let count = 0;
+            for (const div of $("div")) {
+                expect(div.tagName()).toEqual("div");
+                count++;
+            }
+            expect(count).toEqual(5);
+            expect($("div")[1].attr("id")).toEqual("2");
+            expect(Array.from($("div")).length).toEqual(5);
+        }
+    ],
 };
 
 describe("Methods of Query work as expected", () => {
