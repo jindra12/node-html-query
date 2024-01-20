@@ -41,8 +41,8 @@ export const htmlLexerAtoms = {
     DTD: /<![^>]*>/gmu,
     SCRIPTLET: /(<\?[^\?]*\?>)|(<%[^%]*%>)/gmu,
     SEA_WS: /(\s|\t|\r|\n)+/gmu,
-    SCRIPT_OPEN: { value: /script/gmu, mode: "TAG", pushMode: ["SCRIPT"] },
-    STYLE_OPEN: { value: /style/gmu, mode: "TAG", pushMode: ["STYLE"] },
+    SCRIPT_OPEN: { value: /script/gmu, mode: "TAG", popMode: true, pushMode: ["SCRIPT", "TAG"] },
+    STYLE_OPEN: { value: /style/gmu, mode: "TAG", popMode: true, pushMode: ["STYLE", "TAG"] },
     TAG_OPEN: { value: /</gmu, pushMode: ["TAG"] },
     HTML_TEXT: { value: /[^<]+/gmu },
     TAG_CLOSE: { value: />/gmu, popMode: true, mode: "TAG" },
@@ -58,10 +58,10 @@ export const htmlLexerAtoms = {
         mode: "TAG",
     },
     TAG_WHITESPACE: { value: /[ \t\r\n]+/gmu, mode: "TAG" },
-    SCRIPT_BODY: { value: /.*<\/script/gmu, popMode: true, mode: "SCRIPT" },
-    SCRIPT_SHORT_BODY: { value: /.*<\//gmu, popMode: true, mode: "SCRIPT" },
-    STYLE_BODY: { value: /.*<\/style/gmu, popMode: true, mode: "STYLE" },
-    STYLE_SHORT_BODY: { value: /.*<\//gmu, popMode: true, mode: "STYLE" },
+    SCRIPT_BODY: { value: /(.|\n)*<\/script/gmu, popMode: true, mode: "SCRIPT" },
+    SCRIPT_SHORT_BODY: { value: /(.|\n)*<\//gmu, popMode: true, mode: "SCRIPT" },
+    STYLE_BODY: { value: /(.|\n)*<\/style/gmu, popMode: true, mode: "STYLE" },
+    STYLE_SHORT_BODY: { value: /(.|\n)*<\//gmu, popMode: true, mode: "STYLE" },
     ATTVALUE_VALUE: {
         // DOUBLE_QUOTE_STRING | SINGLE_QUOTE_STRING | ATTCHARS | HEXCHARS | DECCHARS
         value: new RegExp(

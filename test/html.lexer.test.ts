@@ -83,7 +83,7 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     }],
     SCRIPT_OPEN: [{
         value: "script",
-        nextModes: ["TAG", "SCRIPT"],
+        nextModes: ["SCRIPT", "TAG"],
         modes: ["TAG"],
     }, {
         value: "scripts",
@@ -127,7 +127,7 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     STYLE_OPEN: [{
         value: "style",
         modes: ["TAG"],
-        nextModes: ["TAG", "STYLE"],
+        nextModes: ["STYLE", "TAG"],
     }],
     STYLE_SHORT_BODY: [{
         value: "</",
@@ -216,12 +216,12 @@ const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue;
 const complexHtmlStructures: Record<string, string[]> = {
     "<div />": ["<", "div", " ", "/>", ""],
     "<div></div>": ["<", "div", ">", "<", "/", "div", ">", ""],
-    "<div><br /></div>": ["<", "div", ">", "<", "br", " ", "/", ">", "<", "/", "div", ">", ""],
-    [`<div class="identifier" />`]: ["<", "div", "class", "=", `"identifier"`, " ", "/", ">", ""],
-    [`<div class='identifier' />`]: ["<", "div", "class", "=", `'identifier'`, " ", "/", ">", ""],
-    "<body><div class='identifier' /></body>": ["<", "body", ">", "<", "div", "class", "=", `'identifier'`, " ", "/", ">", "<", "/", "body", ">", ""],
-    "<script id='1'>function() { return 'this is javascript </>'; }</script>": ["<", "script", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script", ">", ""],
-    [`<style>.class #id > div { content: "</>" }</style>`]: ["<", "style>", `.class #id > div { content: "</>" }</style`, ">", ""],
+    "<div><br /></div>": ["<", "div", ">", "<", "br", " ", "/>", "<", "/", "div", ">", ""],
+    [`<div class="identifier" />`]: ["<", "div", " ", "class", "=", `"identifier"`, " ", "/>", ""],
+    [`<div class='identifier' />`]: ["<", "div", " ", "class", "=", `'identifier'`, " ", "/>", ""],
+    "<body><div class='identifier' /></body>": ["<", "body", ">", "<", "div", " ", "class", "=", `'identifier'`, " ", "/>", "<", "/", "body", ">", ""],
+    "<script id='1'>function() { return 'this is javascript </>'; }</script>": ["<", "script", " ", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script", ">", ""],
+    [`<style>.class #id > div { content: "</>" }</style>`]: ["<", "style", ">", `.class #id > div { content: "</>" }</style`, ">", ""],
 };
 
 describe("Match HTML lexer items correctly", () => {
