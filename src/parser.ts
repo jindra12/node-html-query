@@ -10,15 +10,15 @@ export const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer
 
     let parsedIndex = 0;
     const mode: string[] = initialMode;
-    
-    while (parsedIndex < input.length) {
+
+    do {
         let matchedValue = "";
         const matchedLexer = lexers.findIndex((lexer) => {
-            const matchesMode = mode.length === 0 || lexer.mode === mode[mode.length - 1];
+            const matchesMode = (!lexer.mode && mode.length === 0) || lexer.mode === mode[mode.length - 1];
             if (!matchesMode) {
                 return false;
             }
-            const matchesRegex = new RegExp(`^.{${parsedIndex}}(${lexer.value})`, "gmu").exec(input);
+            const matchesRegex = new RegExp(`^.{${parsedIndex}}(${lexer.value.source})`, "gmu").exec(input);
             if (typeof matchesRegex?.[1] !== "string") {
                 return false;
             }
@@ -40,7 +40,7 @@ export const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer
             type: lexerKeys[matchedLexer],
             value: matchedValue,
         });
-    }
+    } while (parsedIndex < input.length)
     acc.push({ type: "EOF", value: "" });
     return { queue: acc, mode: mode };
 };

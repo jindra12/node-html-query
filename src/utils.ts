@@ -56,15 +56,17 @@ export const desanitizeAttribute = (attributeValue: string) => {
     const hasDoubleQuote = attributeValue.includes('"');
     const hasSingleQuote = attributeValue.includes("'");
     const hasBothTypesOfQuote = hasSingleQuote && hasDoubleQuote;
+    const hasNoQuotes = !hasSingleQuote && !hasDoubleQuote;
 
     if (hasBothTypesOfQuote) {
         return `'${attributeValue.replace(/"/gmu, "&quot;")}'`;
     } else if (hasDoubleQuote) {
         return `'${attributeValue}'`;
+    } else if (!hasNoQuotes) {
+        return attributeValue;
     } else {
-        return `"${attributeValue}"`
+        return `"${attributeValue}"`;
     }
-
 };
 
 export const sanitizeAttribute = (attribute: string | undefined) => {

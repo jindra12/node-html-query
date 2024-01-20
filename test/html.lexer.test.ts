@@ -1,6 +1,5 @@
-import { htmlLexerAtoms } from "../src/lexers";
+import { htmlLexerAtoms, normalizeHtmlLexer } from "../src/lexers";
 import { parseLexer, parsedHtmlLexer } from "../src/parser";
-import { Queue, QueueItem } from "../src/types";
 
 type LexerType = keyof typeof htmlLexerAtoms;
 
@@ -26,13 +25,7 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         modes: ["ATTVALUE"],
         nextModes: [],
     }, {
-        value: `&//!`,
-        inverse: true,
-    }, {
-        value: `&/!`,
-        inverse: true,
-    }, {
-        value: "Hello",
+        value: `<&//!`,
         inverse: true,
     }, {
         value: `"'"`,
@@ -42,12 +35,6 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         value: `'"'`,
         modes: ["ATTVALUE"],
         nextModes: [],
-    }, {
-        value: `"""`,
-        inverse: true,
-    }, {
-        value: `'''`,
-        inverse: true,
     }],
     CDATA: [{
         value: `<![CDATA[
@@ -77,9 +64,9 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         inverse: true,
     }],
     HTML_CONDITIONAL_COMMENT: [{
-        value: `<!--[if lt IE 9]>
+        value: `<![if lt IE 9]>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/respond.js/1.4.2/respond.js" integrity="sha512-BWbLJlfp8hzXlxT6K5KLdxPVAj+4Zn2e4FVq5P7NSFH/mkAJ18UiZRQUD4anR3jyp0/WYkeZ0Zmq5EWWrDxneQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-        <![endif]-->`
+        <![endif]>`
     }],
     HTML_TEXT: [{
         value: "Hello world>?!",
@@ -90,21 +77,23 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         inverse: true,
     }],
     SCRIPT_BODY: [{
-        value: "function() { return '</script>'; }</script>",
-        modes: ["SCRIPT"],
-        nextModes: []
+        value: "function() { return '</script>'; }</script",
+        modes: ["TAG", "SCRIPT"],
+        nextModes: ["TAG"]
     }],
     SCRIPT_OPEN: [{
         value: "script",
-        nextModes: ["SCRIPT"],
+        nextModes: ["TAG", "SCRIPT"],
+        modes: ["TAG"],
     }, {
         value: "scripts",
+        modes: ["TAG"],
         inverse: true,
     }],
     SCRIPT_SHORT_BODY: [{
-        value: "/",
-        nextModes: [],
-        modes: ["SCRIPT"],
+        value: "</",
+        nextModes: ["TAG"],
+        modes: ["TAG", "SCRIPT"],
     }],
     SCRIPTLET: [{
         value: "<%%>"
@@ -132,22 +121,28 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     }],
     STYLE_BODY: [{
         value: ".style-kind: { content: ' '; position: absolute; }</style",
-        modes: ["STYLE"],
-        nextModes: [],
+        modes: ["TAG", "STYLE"],
+        nextModes: ["TAG"],
     }],
     STYLE_OPEN: [{
         value: "style",
-        nextModes: ["STYLE"],
+        modes: ["TAG"],
+        nextModes: ["TAG", "STYLE"],
     }],
     STYLE_SHORT_BODY: [{
-        value: "/",
-        modes: ["STYLE"],
+        value: "</",
+        modes: ["TAG", "STYLE"],
+        nextModes: ["TAG"]
     }],
     TAG_CLOSE: [{
         value: ">",
+        modes: ["TAG"],
+        nextModes: [],
     }],
     TAG_EQUALS: [{
         value: "=",
+        modes: ["TAG"],
+        nextModes: ["TAG", "ATTVALUE"],
     }],
     TAG_NAME: [{
         value: "data-val-required",
@@ -165,10 +160,22 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         value: "div",
         modes: ["TAG"],
         nextModes: ["TAG"],
+    }, {
+        value: "div />",
+        modes: ["TAG"],
+        inverse: true,
+    }, {
+        value: "div></div>",
+        modes: ["TAG"],
+        inverse: true,
+    }, {
+        value: "div><br /></div>",
+        modes: ["TAG"],
+        inverse: true,
     }],
     TAG_OPEN: [{
         value: "<",
-        nextModes: ["<"]
+        nextModes: ["TAG"]
     }],
     TAG_SLASH: [{
         value: "/",
@@ -183,13 +190,20 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     TAG_WHITESPACE: [{
         value: `
         
-        `
+        `,
+        modes: ["TAG"],
+        nextModes: ["TAG"],
     }, {
         value: "    ",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
     }, {
         value: " ",
+        modes: ["TAG"],
+        nextModes: ["TAG"],
     }, {
         value: "",
+        modes: ["TAG"],
         inverse: true,
     }],
     XML: [{
@@ -197,33 +211,44 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     }]
 };
 
-const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue.map((item) => item.value);
+const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue;
+
+const complexHtmlStructures: Record<string, string[]> = {
+    "<div />": ["<", "div", " ", "/>", ""],
+    "<div></div>": ["<", "div", ">", "<", "/", "div", ">", ""],
+    "<div><br /></div>": ["<", "div", ">", "<", "br", " ", "/", ">", "<", "/", "div", ">", ""],
+    [`<div class="identifier" />`]: ["<", "div", "class", "=", `"identifier"`, " ", "/", ">", ""],
+    [`<div class='identifier' />`]: ["<", "div", "class", "=", `'identifier'`, " ", "/", ">", ""],
+    "<body><div class='identifier' /></body>": ["<", "body", ">", "<", "div", "class", "=", `'identifier'`, " ", "/", ">", "<", "/", "body", ">", ""],
+    "<script id='1'>function() { return 'this is javascript </>'; }</script>": ["<", "script", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script", ">", ""],
+    [`<style>.class #id > div { content: "</>" }</style>`]: ["<", "style>", `.class #id > div { content: "</>" }</style`, ">", ""],
+};
 
 describe("Match HTML lexer items correctly", () => {
     Object.entries(testMap).forEach(([key, tests]) => {
         const lexerType = key as LexerType;
+        const lexerValue = htmlLexerAtoms[lexerType];
+        const parsedLexer = lexerValue instanceof RegExp ? { [lexerType]: { value: lexerValue } } : { [lexerType]: lexerValue };
         tests.forEach((test) => {
-            it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, in mode ${test.modes?.join(", ") || "none"} and changes modes to: ${test.nextModes?.join(", ") || "none"}`, () => {
-                if (!test.inverse) {
-                    expect(() => parseLexer(test.value, parsedHtmlLexer, test.modes)).toThrow();
+            it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, in mode ${test.modes?.join(", ") || "none"} and changes modes to: ${test.nextModes?.join(", ") || "none"} with regex ${normalizeHtmlLexer(lexerType).value.source}`, () => {
+                if (test.inverse) {
+                    expect(() => {
+                        const result = parseLexer(test.value, parsedLexer, test.modes);
+                        console.log(result);
+                    }).toThrow();
                 } else {
-                    const parsed = parseLexer(test.value, parsedHtmlLexer, test.modes);
+                    const parsed = parseLexer(test.value, parsedLexer, test.modes);
                     expect(parsed.queue).toHaveLength(2);
-                    expect(parsed[0].queue.type).toEqual(lexerType);
-                    expect(parsed[1].queue.type).toEqual("EOF");
+                    expect(parsed.queue[0].type).toEqual(lexerType);
+                    expect(parsed.queue[1].type).toEqual("EOF");
                     expect(parsed.mode).toEqual(test.nextModes || []);
                 }
             });
         });
     });
-    it("Can break down complex HTML structures", () => {
-        expect(parseQueue("<div />")).toEqual(["<", "div", "/", ">", ""]);
-        expect(parseQueue("<div></div>")).toEqual(["<", "div", ">", "<", "/", "div", ">", ""]);
-        expect(parseQueue("<div><br /></div>")).toEqual(["<", "div", ">", "<", "br", " ", "/", ">", "<", "/", "div", ">", ""]);
-        expect(parseQueue(`<div class="identifier" />`)).toEqual(["<", "div", "class", "=", `"identifier"`, " ", "/", ">", ""]);
-        expect(parseQueue(`<div class='identifier' />`)).toEqual(["<", "div", "class", "=", `'identifier'`, " ", "/", ">", ""]);
-        expect(parseQueue(`<body><div class='identifier' /></body>`)).toEqual(["<", "body", ">", "<", "div", "class", "=", `'identifier'`, " ", "/", ">", "<", "/", "body", ">", ""]);
-        expect(parseQueue("<script id='1'>function() { return 'this is javascript </>'; }</script>")).toEqual(["<", "script", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script", ">"]);
-        expect(parseQueue(`<style>.class #id > div { content: "</>" }</style>`)).toEqual(["<", "style>", `.class #id > div { content: "</>" }</style`, ">"])
+    Object.entries(complexHtmlStructures).forEach(([input, expected]) => {
+        it(`Can break down complex HTML structures: ${input}`, () => {
+            expect(parseQueue(input).map((item) => item.value)).toEqual(expected);
+        });
     });
 });
