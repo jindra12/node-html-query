@@ -1,7 +1,7 @@
 // Source and inspiration for this AST: https://github.com/antlr/grammars-v4/blob/master/html/HTMLLexer.g4, https://github.com/antlr/grammars-v4/blob/master/html/HTMLParser.g4
 
 import { ParserItem, LexerItem, Searcher, Queue } from "./types";
-import { consumeCache, desanitizeAttribute, sanitizeAttribute, uniqueId } from "./utils";
+import { desanitizeAttribute, sanitizeAttribute, uniqueId } from "./utils";
 
 /**
  [The "BSD licence"]
@@ -242,7 +242,7 @@ export class HtmlDocument implements ParserItem {
         searcher.feedParserItems(this.htmlElements);
     };
 
-    consumed = consumeCache(() => true);
+    consumed = () => true;
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (!this.XML.value) {
@@ -301,9 +301,9 @@ export class ScriptletOrSeaWs implements ParserItem {
         searcher.feedLexerItem(this.scriptlet);
         searcher.feedLexerItem(this.seaWs);
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         return Boolean(this.scriptlet.value || this.seaWs.value);
-    });
+    };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -338,9 +338,9 @@ export class HtmlElements implements ParserItem {
         searcher.feedParserItems(this.htmlMisc2);
     };
 
-    consumed = consumeCache(() => {
+    consumed = () => {
         return this.htmlElement.consumed();
-    });
+    };
 
     process = (queue: Queue): Queue => {
         if (!this.htmlElement.consumed()) {
@@ -717,11 +717,11 @@ export class HtmlElement implements ParserItem {
         ));
     };
 
-    endTagConsumed = consumeCache(() => {
+    endTagConsumed = () => {
         return Boolean(
             this.tagClose.close1.tag.value || this.tagClose.close2.tagSlashClose.value
         );
-    });
+    };
 
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.tagOpen);
@@ -738,7 +738,7 @@ export class HtmlElement implements ParserItem {
         searcher.feedParserItem(this.style);
     };
 
-    consumed = consumeCache(() => {
+    consumed = () => {
         if (this.tagOpen.value && this.tagName.value && this.endTagConsumed()) {
             return true;
         }
@@ -752,7 +752,7 @@ export class HtmlElement implements ParserItem {
             return true;
         }
         return false;
-    });
+    };
 
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
@@ -1099,9 +1099,11 @@ export class HtmlContent implements ParserItem {
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (this.content.length === 0) {
-            const tryCharData = this.htmlCharData.process(queue);
-            if (this.htmlCharData.consumed()) {
-                return this.process(tryCharData);
+            if (!this.htmlCharData.consumed()) {
+                const tryCharData = this.htmlCharData.process(queue);
+                if (this.htmlCharData.consumed()) {
+                    return this.process(tryCharData);
+                }
             }
         } else {
             const htmlElement = new HtmlElement(this.parent);
@@ -1188,15 +1190,15 @@ export class HtmlContent implements ParserItem {
         }
         return queue;
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         return (
-            this.content.length === 0 ||
+            this.content.length !== 0 &&
             this.content.every(
                 ({ inner: { cData, htmlComment, htmlElement } }) =>
                     cData.value || htmlComment.consumed() || htmlElement.consumed()
             )
         );
-    });
+    };
     clone = () => {
         const content = new HtmlContent(this.parent);
         content.htmlCharData = this.htmlCharData.clone();
@@ -1233,12 +1235,12 @@ export class HtmlAttribute implements ParserItem {
         searcher.feedLexerItem(this.attribute.tagEquals);
         searcher.feedLexerItem(this.attribute.value);
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         const attributeConsumed =
             (this.attribute.tagEquals.value && this.attribute.value.value) ||
             (!this.attribute.tagEquals.value && !this.attribute.value.value);
-        return Boolean(this.tagName && attributeConsumed);
-    });
+        return Boolean(this.tagName.value && attributeConsumed);
+    };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -1284,9 +1286,9 @@ export class HtmlChardata implements ParserItem {
         searcher.feedLexerItem(this.seaWs);
     };
 
-    consumed = consumeCache(() => {
+    consumed = () => {
         return Boolean(this.htmlText.value || this.seaWs.value);
-    });
+    };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -1321,9 +1323,9 @@ export class HtmlMisc implements ParserItem {
         searcher.feedParserItem(this.htmlComment);
         searcher.feedLexerItem(this.seaWs);
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         return Boolean(this.seaWs.value || this.htmlComment.consumed());
-    });
+    };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         const tryProcess = this.htmlComment.process(queue);
@@ -1351,9 +1353,9 @@ export class HtmlComment implements ParserItem {
         searcher.feedLexerItem(this.htmlComment);
         searcher.feedLexerItem(this.htmlConditionalComment);
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         return Boolean(this.htmlComment.value || this.htmlConditionalComment.value);
-    });
+    };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         switch (current.type) {
@@ -1392,7 +1394,7 @@ export class Script implements ParserItem {
         searcher.feedLexerItem(this.scriptShortBody);
         searcher.feedParserItems(this.attributes);
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         return Boolean(
             this.tagOpen.value &&
             this.scriptOpen.value &&
@@ -1400,7 +1402,7 @@ export class Script implements ParserItem {
                 this.attributes.every((attribute) => attribute.consumed())) &&
             (this.scriptBody.value || this.scriptShortBody.value) && this.tagClose.value
         );
-    });
+    };
     process = (queue: Queue): Queue => {
         if (this.scriptOpen.value) {
             const attribute = new HtmlAttribute();
@@ -1470,7 +1472,7 @@ export class Style implements ParserItem {
         searcher.feedLexerItem(this.styleShortBody);
         searcher.feedParserItems(this.attributes);
     };
-    consumed = consumeCache(() => {
+    consumed = () => {
         return Boolean(
             this.tagOpen.value &&
             this.styleOpen.value &&
@@ -1478,7 +1480,7 @@ export class Style implements ParserItem {
                 this.attributes.every((attribute) => attribute.consumed())) &&
             (this.styleBody.value || this.styleShortBody.value) && this.tagClose.value
         );
-    });
+    };
     process = (queue: Queue): Queue => {
         if (this.styleOpen.value) {
             const attribute = new HtmlAttribute();

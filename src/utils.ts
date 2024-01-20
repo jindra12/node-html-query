@@ -1,11 +1,6 @@
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Searcher } from "./types";
 
-export const consumeCache = (consumeFn: () => boolean) => {
-    let resolved: boolean | undefined;
-    return () => resolved ||= consumeFn();
-};
-
 const searchProducer = (
     reducer: (item: ParserItem | LexerItem<LexerType>) => void
 ): Searcher => {
