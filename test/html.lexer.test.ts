@@ -232,10 +232,7 @@ describe("Match HTML lexer items correctly", () => {
         tests.forEach((test) => {
             it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, in mode ${test.modes?.join(", ") || "none"} and changes modes to: ${test.nextModes?.join(", ") || "none"} with regex ${normalizeHtmlLexer(lexerType).value.source}`, () => {
                 if (test.inverse) {
-                    expect(() => {
-                        const result = parseLexer(test.value, parsedLexer, test.modes);
-                        console.log(result);
-                    }).toThrow();
+                    expect(() => parseLexer(test.value, parsedLexer, test.modes)).toThrow();
                 } else {
                     const parsed = parseLexer(test.value, parsedLexer, test.modes);
                     expect(parsed.queue).toHaveLength(2);

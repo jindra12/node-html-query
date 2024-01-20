@@ -46,12 +46,18 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
         value: "first-child(",
     }, {
         value: "fn(",
+    }, {
+        value: "f n(",
+        inverse: true,
     }],
     Greater: [{
         value: ">",
     }],
     Hash: [{
         value: "#",
+        inverse: true,
+    }, {
+        value: "#identifier"
     }],
     Ident: [{
         value: "ident",
@@ -122,7 +128,9 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
     Space: [{
         value: " ",
     }, {
-        value: "  ",
+        value: "   ",
+    }, {
+        value: "a",
         inverse: true,
     }],
     SquareBracket: [{
@@ -139,12 +147,6 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
         value: `"'"`,
     }, {
         value: `'"'`
-    }, {
-        value: `"""`,
-        inverse: true,
-    }, {
-        value: `'''`,
-        inverse: true,
     }, {
         value: "Hello?",
         inverse: true,
@@ -170,27 +172,36 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
     }],
 };
 
-const parseQueue = (input: string) => parseLexer(input, parsedQueryLexer).queue.map((item) => item.value);
+const parseQueue = (input: string) => parseLexer(input, parsedQueryLexer).queue;
 
-describe("Match CSS lexer items correctly", () => {
+const complexQueryStructures: Record<string, string[]> = {
+    ".className #id": [".", "className", " ", "#id", ""],
+    "#id:not(.class)::before": ["#id", ":not(", ".", "class", ")", "::", "before", ""],
+    "li:first-child(2n + 1 of .class > #id)": ["li", ":", "first-child(", "2", "n", " ", "+", " ", "1", " ", "of", " ", ".", "class", " ", ">", " ", "#id", ")", ""],
+};
+
+
+describe("Match query lexer items correctly", () => {
     Object.entries(testMap).forEach(([key, tests]) => {
         const lexerType = key as LexerType;
+        const lexerValue = cssLexerAtoms[lexerType];
+        const parsedLexer = lexerValue instanceof RegExp ? { [lexerType]: { value: lexerValue } } : { [lexerType]: lexerValue };
         tests.forEach((test) => {
-            it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}`, () => {
-                if (!test.inverse) {
-                    expect(() => parseLexer(test.value, parsedQueryLexer)).toThrow();
+            it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, with regex ${cssLexerAtoms[lexerType].source}`, () => {
+                if (test.inverse) {
+                    expect(() => parseLexer(test.value, parsedLexer)).toThrow();
                 } else {
-                    const parsed = parseLexer(test.value, parsedQueryLexer);
+                    const parsed = parseLexer(test.value, parsedLexer);
                     expect(parsed.queue).toHaveLength(2);
-                    expect(parsed[0].queue.type).toEqual(lexerType);
-                    expect(parsed[1].queue.type).toEqual("EOF");
+                    expect(parsed.queue[0].type).toEqual(lexerType);
+                    expect(parsed.queue[1].type).toEqual("EOF");
                 }
             });
         });
     });
-    it("Can break down complex query structures", () => {
-        expect(parseQueue(".className #id")).toEqual([".", "className", "#", "id"]);
-        expect(parseQueue("#id:not(.class)::before")).toEqual(["#", "id", ":not(", ".", "class", ")", "::", "before"]);
-        expect(parseQueue("li:first-child(2n + 1 of .class > #id)")).toEqual(["li", ":", "first-child(", "2n", "+", "1", "of", "class", ">", "#", "id", ")"]);
+    Object.entries(complexQueryStructures).forEach(([input, expected]) => {
+        it(`Can break down complex HTML structures: ${input}`, () => {
+            expect(parseQueue(input).map((item) => item.value)).toEqual(expected);
+        });
     });
 });

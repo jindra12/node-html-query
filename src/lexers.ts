@@ -79,16 +79,15 @@ export const cssFragments = {
     NewlineOrSpace: () => /\r\n|[ \t\r\n\f]/gmu,
     Unicode: () =>
         new RegExp(
-            `\\\\${cssFragments.Hex().source}{1,6}${cssFragments.NewlineOrSpace().source
-            }`,
+            `\\\\${cssFragments.Hex().source}{1,6}`,
             "gmu"
         ),
     Escape: () =>
-        new RegExp(`${cssFragments.Unicode().source}|\\\\[^\r\n\f0-9a-fA-F]`, "gmu"),
-    Nonascii: () => /[^\u0000-\u007f]/gmu,
+        new RegExp(`${cssFragments.Unicode().source}|[^\(\) :#\.\\r\\n\\f0-9a-fA-F]`, "gmu"),
+    Nonascii: () => /[^ \(\):#\.\u0000-\u007f]/gmu,
     Nmchar: () =>
         new RegExp(
-            `[_a-zA-Z0-9\-]|${cssFragments.Nonascii().source}|${cssFragments.Escape().source
+            `[_a-zA-Z0-9\\-]|${cssFragments.Nonascii().source}|${cssFragments.Escape().source
             }`,
             "gmu"
         ),
@@ -108,11 +107,11 @@ export const cssLexerAtoms = {
     Comma: /,/gmu,
     Tilde: /~/gmu,
     Dot: /\./gmu,
-    PseudoGeneral: /::?/gmu,
     PseudoNot: /:not\(/gmu,
+    PseudoGeneral: /::?/gmu,
     Namespace: /\|/gmu,
     Universal: /\*/gmu,
-    Number: /[0-9]+|([0-9]*\.[0-9]+)/gmu,
+    Number: /([0-9]*\.[0-9]+|[0-9]+)/gmu,
     Equals: /=/gmu,
     SquareBracket: /\[/gmu,
     SquareBracketEnd: /\]/gmu,
@@ -120,8 +119,8 @@ export const cssLexerAtoms = {
     Includes: /~=/gmu,
     Space: /[ \t\r\n\f]+/gmu,
     String_: new RegExp(
-        `"([^\\n\\r\\f"]|\\\\${cssFragments.Newline().source}|${cssFragments.Nonascii().source
-        }|${cssFragments.Escape().source})*"|'([^\\n\\r\\f"]|\\\\${cssFragments.Newline().source
+        `"([^\\n\\r\\f"]|${cssFragments.Newline().source}|${cssFragments.Nonascii().source
+        }|${cssFragments.Escape().source})*"|'([^\\n\\r\\f"]|${cssFragments.Newline().source
         }|${cssFragments.Nonascii().source}|${cssFragments.Escape().source})*'`,
         "gmu"
     ),
@@ -132,12 +131,12 @@ export const cssLexerAtoms = {
     Odd: /odd/gmu,
     Even: /even/gmu,
     Function_: new RegExp(
-        `-?${cssFragments.Nmstart().source}${cssFragments.Nmchar().source}*\\(`,
+        `(-?${cssFragments.Nmstart().source})(${cssFragments.Nmchar().source})*\\(`,
         "gmu"
     ),
-    Hash: new RegExp(`#${cssFragments.Name().source}`, "gmu"),
+    Hash: new RegExp(`#(${cssFragments.Name().source})+`, "gmu"),
     Ident: new RegExp(
-        `-?${cssFragments.Nmstart().source}${cssFragments.Nmchar().source}*`,
+        `(-?${cssFragments.Nmstart().source})(${cssFragments.Nmchar().source})*`,
         "gmu"
     ),
     BackBrace: /\)/gmu,
