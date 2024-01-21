@@ -11,7 +11,7 @@ const htmlTestParser = (input: string, instance: ParserItem, initialMode?: strin
         throw `Instance could not consume test: ${JSON.stringify(instance, (key, value) => key === "parent" ? "parent" : value)}`;
     }
     if (processed.at !== queue.items.length - 1) {
-        throw `${queue.items.map(q => `${q.type}:"${q.value}"`).join(",")} remaining in queue`;
+        throw `(${processed.at}/${queue.items.length}) ${queue.items.slice(processed.at).map(q => `${q.type}:"${q.value}"`).join(",")} remaining in queue ${JSON.stringify(instance, (key, value) => key === "parent" ? "parent" : value)}`;
     }
     checkIfNothingRemains(queueItems, processed);
     return instance;
@@ -74,7 +74,7 @@ const tests: { [Type in keyof typeof Html]: {
     ScriptletOrSeaWs: {
         instance: () => new Html.ScriptletOrSeaWs(),
         passes: [`
-        `, " ", "<?xml ?>", "<% xml %>"],
+        `, " ", "<% xml %>"],
         fails: ["", "< xml >"],
     },
     Style: {

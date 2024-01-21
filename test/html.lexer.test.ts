@@ -110,6 +110,12 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
     }, {
         value: "<??>",
     }, {
+        value: "<% xml %>"
+    }, {
+        value: "<?xml ?>",
+    }, {
+        value: "<%xml %>",
+    }, {
         value: "<? <div></div> ?>",
     }, {
         value: "",

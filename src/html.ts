@@ -382,7 +382,7 @@ export class HtmlElement implements ParserItem {
     htmlAttributes: HtmlAttribute[] = [];
     tagClose = {
         close1: {
-            tag: new LexerItem("TAG_CLOSE"),
+            tagClose: new LexerItem("TAG_CLOSE"),
             closingGroup: {
                 htmlContent: new HtmlContent(this),
                 tagOpen: new LexerItem("TAG_OPEN"),
@@ -434,7 +434,7 @@ export class HtmlElement implements ParserItem {
             throw `Cannot add children to <script>, <style> or scriptlet`;
         }
         this.tagClose.close2.tagSlashClose.value = "";
-        this.tagClose.close1.tag.value = ">";
+        this.tagClose.close1.tagClose.value = ">";
         this.tagClose.close1.closingGroup.tagOpen.value = "<";
         this.tagClose.close1.closingGroup.tagSlash.value = "/";
         this.tagClose.close1.closingGroup.tagName.value = this.tagName.value;
@@ -726,7 +726,7 @@ export class HtmlElement implements ParserItem {
 
     endTagConsumed = () => {
         return Boolean(
-            this.tagClose.close1.tag.value || this.tagClose.close2.tagSlashClose.value
+            this.tagClose.close1.tagClose.value || this.tagClose.close2.tagSlashClose.value
         );
     };
 
@@ -736,7 +736,7 @@ export class HtmlElement implements ParserItem {
         searcher.feedLexerItem(this.tagName);
         searcher.feedLexerItem(this.tagWhiteSpace2);
         searcher.feedParserItems(this.htmlAttributes);
-        searcher.feedLexerItem(this.tagClose.close1.tag);
+        searcher.feedLexerItem(this.tagClose.close1.tagClose);
         searcher.feedParserItem(this.tagClose.close1.closingGroup.htmlContent);
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagOpen);
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagSlash);
@@ -768,29 +768,31 @@ export class HtmlElement implements ParserItem {
 
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "SCRIPTLET") {
-            this.scriptlet.value = current.value;
-            return queue.next();
-        }
-        const tryProcessScript = this.script.process(queue);
-        if (this.script.consumed()) {
-            return tryProcessScript;
-        }
-        const tryProcessStyle = this.style.process(queue);
-        if (this.style.consumed()) {
-            return tryProcessStyle;
-        }
-        if (
-            this.tagClose.close1.tag.value &&
-            !this.tagClose.close1.closingGroup.tagOpen.value
-        ) {
-            const tryHtmlContent =
-                this.tagClose.close1.closingGroup.htmlContent.process(queue);
-            if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
-                return this.process(tryHtmlContent);
+        if (!this.tagOpen.value) {
+            if (current.type === "SCRIPTLET") {
+                this.scriptlet.value = current.value;
+                return queue.next();
+            }
+            const tryProcessScript = this.script.process(queue);
+            if (this.script.consumed()) {
+                return tryProcessScript;
+            }
+            const tryProcessStyle = this.style.process(queue);
+            if (this.style.consumed()) {
+                return tryProcessStyle;
             }
         }
-        if (this.tagClose.close1.tag.value) {
+        if (this.tagClose.close1.tagClose.value) {
+            if (
+                !this.tagClose.close1.closingGroup.tagOpen.value &&
+                !this.tagClose.close1.closingGroup.htmlContent.consumed()
+            ) {
+                const tryHtmlContent =
+                    this.tagClose.close1.closingGroup.htmlContent.process(queue);
+                if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+                    return this.process(tryHtmlContent);
+                }
+            }
             if (current.type === "TAG_OPEN") {
                 this.tagClose.close1.closingGroup.tagOpen.value = current.value;
                 return this.process(queue.next());
@@ -825,36 +827,36 @@ export class HtmlElement implements ParserItem {
                 this.tagClose.close1.closingGroup.tagClose.value = current.value;
                 return queue.next();
             }
-        }
-        if (current.type === "TAG_OPEN") {
-            this.tagOpen.value = current.value;
-            return this.process(queue.next());
-        }
-        if (this.tagOpen.value && current.type === "TAG_WHITESPACE") {
-            if (!this.tagOpen.value) {
-                this.tagWhiteSpace1.value = current.value;
-            } else {
-                this.tagWhiteSpace2.value = current.value;
-            }
-            return this.process(queue.next());
-        }
-        if (current.type === "TAG_NAME" && this.tagOpen.value) {
-            this.tagName.value = current.value;
-            return this.process(queue.next());
-        }
-        if (this.tagName.value && !this.endTagConsumed()) {
-            const htmlAttribute = new HtmlAttribute();
-            const tryProcessAttribute = htmlAttribute.process(queue);
-            if (htmlAttribute.consumed()) {
-                this.htmlAttributes.push(htmlAttribute);
-                return this.process(tryProcessAttribute);
-            }
-            if (current.type === "TAG_CLOSE") {
-                this.tagClose.close1.tag.value = current.value;
+        } else {
+            if (current.type === "TAG_OPEN") {
+                this.tagOpen.value = current.value;
                 return this.process(queue.next());
             }
-            if (current.type === "TAG_SLASH_CLOSE") {
-                this.tagClose.close2.tagSlashClose.value = current.value;
+            if (this.tagOpen.value && current.type === "TAG_WHITESPACE") {
+                if (!this.tagName.value) {
+                    this.tagWhiteSpace1.value = current.value;
+                } else {
+                    this.tagWhiteSpace2.value = current.value;
+                }
+                return this.process(queue.next());
+            }
+            if (this.tagName.value) {
+                if (current.type === "TAG_CLOSE") {
+                    this.tagClose.close1.tagClose.value = current.value;
+                    return this.process(queue.next());
+                }
+                if (current.type === "TAG_SLASH_CLOSE") {
+                    this.tagClose.close2.tagSlashClose.value = current.value;
+                    return queue.next();
+                }
+                const htmlAttribute = new HtmlAttribute();
+                const tryProcessAttribute = htmlAttribute.process(queue);
+                if (htmlAttribute.consumed()) {
+                    this.htmlAttributes.push(htmlAttribute);
+                    return this.process(tryProcessAttribute);
+                }
+            } else if (current.type === "TAG_NAME" && this.tagOpen.value) {
+                this.tagName.value = current.value;
                 return this.process(queue.next());
             }
         }
@@ -868,7 +870,7 @@ export class HtmlElement implements ParserItem {
         element.tagName.value = this.tagName.value;
         element.tagWhiteSpace2.value = this.tagWhiteSpace2.value;
         element.htmlAttributes = this.htmlAttributes.map((a) => a.clone());
-        element.tagClose.close1.tag.value = this.tagClose.close1.tag.value;
+        element.tagClose.close1.tagClose.value = this.tagClose.close1.tagClose.value;
         element.tagClose.close1.closingGroup.htmlContent = this.content().clone();
         element.tagClose.close1.closingGroup.tagClose.value =
             this.tagClose.close1.closingGroup.tagClose.value;
@@ -1132,101 +1134,98 @@ export class HtmlContent implements ParserItem {
 
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (this.content.length === 0) {
-            if (!this.htmlCharData.consumed()) {
-                const tryCharData = this.htmlCharData.process(queue);
-                if (this.htmlCharData.consumed()) {
-                    return this.process(tryCharData);
-                }
+        if (this.content.length === 0 && !this.htmlCharData.consumed()) {
+            const tryCharData = this.htmlCharData.process(queue);
+            if (this.htmlCharData.consumed()) {
+                return this.process(tryCharData);
             }
-        } else {
-            const htmlElement = new HtmlElement(this.parent);
-            const tryHtmlElement = htmlElement.process(queue);
-            const cData = new LexerItem("CDATA");
-            const htmlComment = new HtmlComment();
-            const tryHtmlComment = htmlComment.process(queue);
-            if (htmlElement.consumed()) {
-                const htmlCharData = new HtmlChardata();
-                const tryProcessCharData = htmlCharData.process(tryHtmlElement);
-                if (htmlCharData.consumed()) {
-                    this.content.push({
-                        charData: htmlCharData,
-                        inner: {
-                            cData: new LexerItem("CDATA"),
-                            htmlComment: new HtmlComment(),
-                            htmlElement: htmlElement,
-                        },
-                    });
-                    return this.process(tryProcessCharData);
-                } else {
-                    this.content.push({
-                        charData: new HtmlChardata(),
-                        inner: {
-                            cData: new LexerItem("CDATA"),
-                            htmlComment: new HtmlComment(),
-                            htmlElement: htmlElement,
-                        },
-                    });
-                    return this.process(tryHtmlElement);
-                }
+        }
+        const htmlElement = new HtmlElement(this.parent);
+        const tryHtmlElement = htmlElement.process(queue);
+        const cData = new LexerItem("CDATA");
+        const htmlComment = new HtmlComment();
+        const tryHtmlComment = htmlComment.process(queue);
+        if (htmlElement.consumed()) {
+            const htmlCharData = new HtmlChardata();
+            const tryProcessCharData = htmlCharData.process(tryHtmlElement);
+            if (htmlCharData.consumed()) {
+                this.content.push({
+                    charData: htmlCharData,
+                    inner: {
+                        cData: new LexerItem("CDATA"),
+                        htmlComment: new HtmlComment(),
+                        htmlElement: htmlElement,
+                    },
+                });
+                return this.process(tryProcessCharData);
+            } else {
+                this.content.push({
+                    charData: new HtmlChardata(),
+                    inner: {
+                        cData: new LexerItem("CDATA"),
+                        htmlComment: new HtmlComment(),
+                        htmlElement: htmlElement,
+                    },
+                });
+                return this.process(tryHtmlElement);
             }
-            if (current.type === "CDATA") {
-                cData.value = current.value;
-                const htmlCharData = new HtmlChardata();
-                const tryProcessCharData = htmlCharData.process(queue.next());
-                if (htmlCharData.consumed()) {
-                    this.content.push({
-                        charData: htmlCharData,
-                        inner: {
-                            cData: new LexerItem("CDATA"),
-                            htmlComment: new HtmlComment(),
-                            htmlElement: htmlElement,
-                        },
-                    });
-                    return this.process(tryProcessCharData);
-                } else {
-                    this.content.push({
-                        charData: new HtmlChardata(),
-                        inner: {
-                            cData: cData,
-                            htmlComment: new HtmlComment(),
-                            htmlElement: htmlElement,
-                        },
-                    });
-                    return this.process(queue.next());
-                }
+        }
+        if (current.type === "CDATA") {
+            cData.value = current.value;
+            const htmlCharData = new HtmlChardata();
+            const tryProcessCharData = htmlCharData.process(queue.next());
+            if (htmlCharData.consumed()) {
+                this.content.push({
+                    charData: htmlCharData,
+                    inner: {
+                        cData: cData,
+                        htmlComment: new HtmlComment(),
+                        htmlElement: new HtmlElement(this.parent),
+                    },
+                });
+                return this.process(tryProcessCharData);
+            } else {
+                this.content.push({
+                    charData: new HtmlChardata(),
+                    inner: {
+                        cData: cData,
+                        htmlComment: new HtmlComment(),
+                        htmlElement: new HtmlElement(this.parent),
+                    },
+                });
+                return this.process(queue.next());
             }
-            if (htmlComment.consumed()) {
-                const htmlCharData = new HtmlChardata();
-                const tryProcessCharData = htmlCharData.process(tryHtmlComment);
-                if (htmlCharData.consumed()) {
-                    this.content.push({
-                        charData: htmlCharData,
-                        inner: {
-                            cData: new LexerItem("CDATA"),
-                            htmlComment: htmlComment,
-                            htmlElement: new HtmlElement(this.parent),
-                        },
-                    });
-                    return this.process(tryProcessCharData);
-                } else {
-                    this.content.push({
-                        charData: new HtmlChardata(),
-                        inner: {
-                            cData: new LexerItem("CDATA"),
-                            htmlComment: htmlComment,
-                            htmlElement: new HtmlElement(this.parent),
-                        },
-                    });
-                    return this.process(tryHtmlComment);
-                }
+        }
+        if (htmlComment.consumed()) {
+            const htmlCharData = new HtmlChardata();
+            const tryProcessCharData = htmlCharData.process(tryHtmlComment);
+            if (htmlCharData.consumed()) {
+                this.content.push({
+                    charData: htmlCharData,
+                    inner: {
+                        cData: new LexerItem("CDATA"),
+                        htmlComment: htmlComment,
+                        htmlElement: new HtmlElement(this.parent),
+                    },
+                });
+                return this.process(tryProcessCharData);
+            } else {
+                this.content.push({
+                    charData: new HtmlChardata(),
+                    inner: {
+                        cData: new LexerItem("CDATA"),
+                        htmlComment: htmlComment,
+                        htmlElement: new HtmlElement(this.parent),
+                    },
+                });
+                return this.process(tryHtmlComment);
             }
         }
         return queue;
     };
     consumed = () => {
         return (
-            this.content.length !== 0 &&
+            (this.htmlCharData.consumed() || this.content.length !== 0) &&
             this.content.every(
                 ({ inner: { cData, htmlComment, htmlElement } }) =>
                     cData.value || htmlComment.consumed() || htmlElement.consumed()
@@ -1292,7 +1291,7 @@ export class HtmlAttribute implements ParserItem {
             case "ATTVALUE_VALUE":
                 if (this.attribute.tagEquals.value) {
                     this.attribute.value.value = current.value;
-                    return queue.next();
+                    return this.process(queue.next());
                 }
                 break;
             case "TAG_WHITESPACE":
