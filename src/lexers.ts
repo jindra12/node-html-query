@@ -26,8 +26,8 @@ export const htmlFragments = {
     TAG_NameStartChar: () =>
         /[:a-zA-Z\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/gmu,
     ATTCHARS: () => new RegExp(`${htmlFragments.ATTCHAR().source}+ ?`, "gmu"),
-    ATTCHAR: () => /[\-_\.\/\+,\?=:;#0-9a-zA-Z]/gmu,
-    HEXCHARS: () => /#[0-9a-fA-F]/gmu,
+    ATTCHAR: () => /[\-_\.\/\+,\?:;#0-9a-zA-Z]/gmu,
+    HEXCHARS: () => /#[0-9a-fA-F]+/gmu,
     DECCHARS: () => /[0-9]+%?/gmu,
     DOUBLE_QUOTE_STRING: () => /"[^"<]*"/gmu,
     SINGLE_QUOTE_STRING: () => /'[^'<]*'/gmu,
@@ -58,10 +58,10 @@ export const htmlLexerAtoms = {
         mode: "TAG",
     },
     TAG_WHITESPACE: { value: /[ \t\r\n]+/gmu, mode: "TAG" },
-    SCRIPT_BODY: { value: /(.|\n)*<\/script/gmu, popMode: true, mode: "SCRIPT" },
-    SCRIPT_SHORT_BODY: { value: /(.|\n)*<\//gmu, popMode: true, mode: "SCRIPT" },
-    STYLE_BODY: { value: /(.|\n)*<\/style/gmu, popMode: true, mode: "STYLE" },
-    STYLE_SHORT_BODY: { value: /(.|\n)*<\//gmu, popMode: true, mode: "STYLE" },
+    SCRIPT_BODY: { value: /(.|\n)*<\/\s*script\s*>/gmu, popMode: true, mode: "SCRIPT" },
+    SCRIPT_SHORT_BODY: { value: /(.|\n)*<\/>/gmu, popMode: true, mode: "SCRIPT" },
+    STYLE_BODY: { value: /(.|\n)*<\/\s*style\s*>/gmu, popMode: true, mode: "STYLE" },
+    STYLE_SHORT_BODY: { value: /(.|\n)*<\/>/gmu, popMode: true, mode: "STYLE" },
     ATTVALUE_VALUE: {
         // DOUBLE_QUOTE_STRING | SINGLE_QUOTE_STRING | ATTCHARS | HEXCHARS | DECCHARS
         value: new RegExp(

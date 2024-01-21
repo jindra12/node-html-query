@@ -3,82 +3,87 @@ import * as Html from "../src/html";
 import { ParserItem } from "../src/types";
 import { parserItemToString } from "../src/utils";
 
-const htmlTestParser = (input: string, instance: ParserItem) => {
-    const queueItems = parseLexer(input, parsedHtmlLexer).queue;
+const htmlTestParser = (input: string, instance: ParserItem, initialMode?: string[]) => {
+    const queueItems = parseLexer(input, parsedHtmlLexer, initialMode).queue;
     const queue = createQueueFromItems(queueItems);
     const processed = instance.process(queue);
-    checkIfNothingRemains(queueItems, processed);
     if (!instance.consumed()) {
-        throw `Instance could not consume test`;
+        throw `Instance could not consume test: ${JSON.stringify(instance, (key, value) => key === "parent" ? "parent" : value)}`;
     }
+    if (processed.at !== queue.items.length - 1) {
+        throw `${queue.items.map(q => `${q.type}:"${q.value}"`).join(",")} remaining in queue`;
+    }
+    checkIfNothingRemains(queueItems, processed);
     return instance;
 };
 
-const testParseToString = (input: string, instance: ParserItem) => parserItemToString(htmlTestParser(input, instance));
+const testParseToString = (input: string, instance: ParserItem, initialMode?: string[]) => parserItemToString(htmlTestParser(input, instance, initialMode));
 
 const testDocument = new Html.HtmlDocument();
 const testElement = new Html.HtmlElement(testDocument);
 
 const tests: { [Type in keyof typeof Html]: {
-    instance: InstanceType<(typeof Html)[Type]>,
+    instance: () => InstanceType<(typeof Html)[Type]>,
     passes: string[],
     fails?: string[],
+    mode?: string[],
 }} = {
     HtmlAttribute: {
-        instance: new Html.HtmlAttribute(),
+        instance: () => new Html.HtmlAttribute(),
         passes: ["data-checked", "data-checked='value'", `checked="che'cked"`],
         fails: ["data=", "=data"],
+        mode: ["TAG"],
     },
     HtmlChardata: {
-        instance: new Html.HtmlChardata(),
-        passes: ["", " ", `
+        instance: () => new Html.HtmlChardata(),
+        passes: [" ", `
         `, "Literally any text that contains anything except for html characters ě+ěřščřčžščž"],
         fails: ["<", ""],
     },
     HtmlContent: {
-        instance: new Html.HtmlContent(testElement),
+        instance: () => new Html.HtmlContent(testElement),
         passes: ["This be a text, <div>This be an element</div>, this is a text again <!-- this is a comment -->, <span />"],
         fails: [],
     },
     HtmlDocument: {
-        instance: new Html.HtmlDocument(),
+        instance: () => new Html.HtmlDocument(),
         passes: [`<!DOCTYPE html><html><head><title>Title of the document</title></head><body>The content of the document......</body></html>`, "<?xml version=\"1.0\">", "<div class='class' />"],
         fails: ["<div<"],
     },
     HtmlElement: {
-        instance: new Html.HtmlElement(testElement),
+        instance: () => new Html.HtmlElement(testElement),
         passes: ["<br />", "<div></div>", "<div><br /></div>", "<div class='lol'></div>", "<script>function() {return 1}</script>", "<style>.className { border: solid 1px black }</style>"],
         fails: ["><", "<div", "div>"],
     },
     HtmlElements: {
-        instance: new Html.HtmlElements(testDocument),
+        instance: () => new Html.HtmlElements(testDocument),
         passes: ["<div />", "<!--comment--><div></div>"],
         fails: ["<--not a comment-->"],
     },
     HtmlMisc: {
-        instance: new Html.HtmlMisc(),
+        instance: () => new Html.HtmlMisc(),
         passes: ["<!--comment-->", `
         `],
         fails: ["Random text"],
     },
     Script: {
-        instance: new Html.Script(),
+        instance: () => new Html.Script(),
         passes: ["<script>function() {return 1}</script>"],
         fails: ["script>function() {return 1}</script>", "<script>function() {return 1}</script", "<scrip>function() {return 1}</scrip>"],
     },
     ScriptletOrSeaWs: {
-        instance: new Html.ScriptletOrSeaWs(),
+        instance: () => new Html.ScriptletOrSeaWs(),
         passes: [`
         `, " ", "<?xml ?>", "<% xml %>"],
         fails: ["", "< xml >"],
     },
     Style: {
-        instance: new Html.Style(),
+        instance: () => new Html.Style(),
         passes: ["<style>.className { border: solid 1px black }</style>"],
         fails: ["<style>.className { border: solid 1px black }</style", "style>.className { border: solid 1px black }</style>", "<styl>.className { border: solid 1px black }</styl>"],
     },
     HtmlComment: {
-        instance: new Html.HtmlComment,
+        instance: () => new Html.HtmlComment,
         passes: [
             "<!--This is a comment. Comments are not displayed in the browser-->",
             `<!--[if lt IE 9]>
@@ -96,11 +101,13 @@ describe("Can parse HTML items", () => {
     Object.entries(tests).forEach(([name, test]) => {
         test.passes.forEach((passes) => {
             it(`${name} parse ${passes.slice(0, 10)} contents and return exactly the same string`, () => {
-                expect(testParseToString(passes, test.instance)).toBe(passes);
+                expect(testParseToString(passes, test.instance(), test.mode)).toBe(passes);
             });
         });
         test.fails?.forEach((fails) => {
-            expect(() => testParseToString(fails, test.instance)).toThrow();
+            it(`${name} parse ${fails.slice(0, 10)} contents and throws an exception`, () => {
+                expect(() => testParseToString(fails, test.instance(), test.mode)).toThrow();
+            });
         });
     })
 });

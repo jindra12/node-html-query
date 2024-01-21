@@ -375,8 +375,10 @@ export class HtmlElements implements ParserItem {
         ;
  */
 export class HtmlElement implements ParserItem {
-    tagOpen: LexerItem<"TAG_OPEN"> = new LexerItem("TAG_OPEN");
-    tagName: LexerItem<"TAG_NAME"> = new LexerItem("TAG_NAME");
+    tagOpen = new LexerItem("TAG_OPEN");
+    tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE");
+    tagName = new LexerItem("TAG_NAME");
+    tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE");
     htmlAttributes: HtmlAttribute[] = [];
     tagClose = {
         close1: {
@@ -385,7 +387,9 @@ export class HtmlElement implements ParserItem {
                 htmlContent: new HtmlContent(this),
                 tagOpen: new LexerItem("TAG_OPEN"),
                 tagSlash: new LexerItem("TAG_SLASH"),
+                tagWhiteSpace1: new LexerItem("TAG_WHITESPACE"),
                 tagName: new LexerItem("TAG_NAME"),
+                tagWhiteSpace2: new LexerItem("TAG_WHITESPACE"),
                 tagClose: new LexerItem("TAG_CLOSE"),
             },
         },
@@ -426,6 +430,9 @@ export class HtmlElement implements ParserItem {
     }
 
     convertWithChildren = () => {
+        if (this.script.consumed() || this.style.consumed() || this.scriptlet.value) {
+            throw `Cannot add children to <script>, <style> or scriptlet`;
+        }
         this.tagClose.close2.tagSlashClose.value = "";
         this.tagClose.close1.tag.value = ">";
         this.tagClose.close1.closingGroup.tagOpen.value = "<";
@@ -725,14 +732,19 @@ export class HtmlElement implements ParserItem {
 
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.tagOpen);
+        searcher.feedLexerItem(this.tagWhiteSpace1);
         searcher.feedLexerItem(this.tagName);
+        searcher.feedLexerItem(this.tagWhiteSpace2);
         searcher.feedParserItems(this.htmlAttributes);
         searcher.feedLexerItem(this.tagClose.close1.tag);
         searcher.feedParserItem(this.tagClose.close1.closingGroup.htmlContent);
-        searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagClose);
-        searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagName);
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagOpen);
         searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagSlash);
+        searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagWhiteSpace1);
+        searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagName);
+        searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagWhiteSpace2);
+        searcher.feedLexerItem(this.tagClose.close1.closingGroup.tagClose);
+        searcher.feedLexerItem(this.tagClose.close2.tagSlashClose);
         searcher.feedLexerItem(this.scriptlet);
         searcher.feedParserItem(this.script);
         searcher.feedParserItem(this.style);
@@ -756,6 +768,18 @@ export class HtmlElement implements ParserItem {
 
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
+        if (current.type === "SCRIPTLET") {
+            this.scriptlet.value = current.value;
+            return queue.next();
+        }
+        const tryProcessScript = this.script.process(queue);
+        if (this.script.consumed()) {
+            return tryProcessScript;
+        }
+        const tryProcessStyle = this.style.process(queue);
+        if (this.style.consumed()) {
+            return tryProcessStyle;
+        }
         if (
             this.tagClose.close1.tag.value &&
             !this.tagClose.close1.closingGroup.tagOpen.value
@@ -778,6 +802,14 @@ export class HtmlElement implements ParserItem {
                 this.tagClose.close1.closingGroup.tagSlash.value = current.value;
                 return this.process(queue.next());
             }
+            if (current.type === "TAG_WHITESPACE") {
+                if (!this.tagClose.close1.closingGroup.tagName.value) {
+                    this.tagClose.close1.closingGroup.tagWhiteSpace1.value = current.value;
+                } else {
+                    this.tagClose.close1.closingGroup.tagWhiteSpace2.value = current.value;
+                }
+                return this.process(queue.next());
+            }
             if (
                 this.tagClose.close1.closingGroup.tagSlash.value &&
                 current.type === "TAG_NAME" &&
@@ -796,6 +828,14 @@ export class HtmlElement implements ParserItem {
         }
         if (current.type === "TAG_OPEN") {
             this.tagOpen.value = current.value;
+            return this.process(queue.next());
+        }
+        if (this.tagOpen.value && current.type === "TAG_WHITESPACE") {
+            if (!this.tagOpen.value) {
+                this.tagWhiteSpace1.value = current.value;
+            } else {
+                this.tagWhiteSpace2.value = current.value;
+            }
             return this.process(queue.next());
         }
         if (current.type === "TAG_NAME" && this.tagOpen.value) {
@@ -818,32 +858,26 @@ export class HtmlElement implements ParserItem {
                 return this.process(queue.next());
             }
         }
-        if (current.type === "SCRIPTLET") {
-            this.scriptlet.value = current.value;
-            return queue.next();
-        }
-        const tryProcessScript = this.script.process(queue);
-        if (this.script.consumed()) {
-            return tryProcessScript;
-        }
-        const tryProcessStyle = this.style.process(queue);
-        if (this.style.consumed()) {
-            return tryProcessStyle;
-        }
         return queue;
     };
 
     clone = () => {
         const element = new HtmlElement(this.parent);
         element.tagOpen.value = this.tagOpen.value;
+        element.tagWhiteSpace1.value = this.tagWhiteSpace1.value;
         element.tagName.value = this.tagName.value;
+        element.tagWhiteSpace2.value = this.tagWhiteSpace2.value;
         element.htmlAttributes = this.htmlAttributes.map((a) => a.clone());
         element.tagClose.close1.tag.value = this.tagClose.close1.tag.value;
         element.tagClose.close1.closingGroup.htmlContent = this.content().clone();
         element.tagClose.close1.closingGroup.tagClose.value =
             this.tagClose.close1.closingGroup.tagClose.value;
+        element.tagClose.close1.closingGroup.tagWhiteSpace1.value =
+            this.tagClose.close1.closingGroup.tagWhiteSpace1.value;
         element.tagClose.close1.closingGroup.tagName.value =
             this.tagClose.close1.closingGroup.tagName.value;
+        element.tagClose.close1.closingGroup.tagWhiteSpace2.value =
+            this.tagClose.close1.closingGroup.tagWhiteSpace2.value;
         element.tagClose.close1.closingGroup.tagOpen.value =
             this.tagClose.close1.closingGroup.tagOpen.value;
         element.tagClose.close1.closingGroup.tagSlash.value =
@@ -940,8 +974,8 @@ export class HtmlContent implements ParserItem {
                     this.content[index].inner.htmlComment.htmlComment.value += text;
                 }
             }
+            this.parent.convertWithChildren();
         }
-        this.parent.convertWithChildren();
         return this;
     };
 
@@ -967,8 +1001,8 @@ export class HtmlContent implements ParserItem {
                     this.content[index].inner.htmlComment.htmlConditionalComment.value += text;
                 }
             }
+            this.parent.convertWithChildren();
         }
-        this.parent.convertWithChildren();
         return this;
     };
 
@@ -1228,12 +1262,14 @@ export class HtmlAttribute implements ParserItem {
     attribute = {
         tagEquals: new LexerItem("TAG_EQUALS"),
         value: new LexerItem("ATTVALUE_VALUE"),
+        ws: new LexerItem("TAG_WHITESPACE"),
     };
 
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.tagName);
         searcher.feedLexerItem(this.attribute.tagEquals);
         searcher.feedLexerItem(this.attribute.value);
+        searcher.feedLexerItem(this.attribute.ws);
     };
     consumed = () => {
         const attributeConsumed =
@@ -1259,6 +1295,11 @@ export class HtmlAttribute implements ParserItem {
                     return queue.next();
                 }
                 break;
+            case "TAG_WHITESPACE":
+                if (this.tagName.value) {
+                    this.attribute.ws.value = current.value;
+                    return queue.next();
+                }
         }
         return queue;
     };
@@ -1267,6 +1308,7 @@ export class HtmlAttribute implements ParserItem {
         attribute.tagName.value = this.tagName.value;
         attribute.attribute.tagEquals.value = this.attribute.tagEquals.value;
         attribute.attribute.value.value = this.attribute.value.value;
+        attribute.attribute.ws.value = this.attribute.ws.value;
         return attribute;
     };
 }
@@ -1378,33 +1420,40 @@ export class HtmlComment implements ParserItem {
 
 /**
   script
-    : SCRIPT_OPEN htmlAttribute* (SCRIPT_BODY | SCRIPT_SHORT_BODY)
+    : TAG_OPEN SCRIPT_OPEN htmlAttribute* TAG_CLOSE (SCRIPT_BODY | SCRIPT_SHORT_BODY)
     ;
  */
 export class Script implements ParserItem {
     tagOpen = new LexerItem("TAG_OPEN");
+    tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE");
     scriptOpen = new LexerItem("SCRIPT_OPEN");
+    tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE");
     scriptBody = new LexerItem("SCRIPT_BODY");
     scriptShortBody = new LexerItem("SCRIPT_SHORT_BODY");
     tagClose = new LexerItem("TAG_CLOSE");
     attributes: HtmlAttribute[] = [];
     search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.tagOpen);
+        searcher.feedLexerItem(this.tagWhiteSpace1);
         searcher.feedLexerItem(this.scriptOpen);
+        searcher.feedLexerItem(this.tagWhiteSpace2);
+        searcher.feedParserItems(this.attributes);
+        searcher.feedLexerItem(this.tagClose);
         searcher.feedLexerItem(this.scriptBody);
         searcher.feedLexerItem(this.scriptShortBody);
-        searcher.feedParserItems(this.attributes);
     };
     consumed = () => {
         return Boolean(
             this.tagOpen.value &&
             this.scriptOpen.value &&
+            this.tagClose.value &&
             (this.attributes.length === 0 ||
                 this.attributes.every((attribute) => attribute.consumed())) &&
             (this.scriptBody.value || this.scriptShortBody.value) && this.tagClose.value
         );
     };
     process = (queue: Queue): Queue => {
-        if (this.scriptOpen.value) {
+        if (this.scriptOpen.value && !this.tagClose.value) {
             const attribute = new HtmlAttribute();
             const tryParseAttribute = attribute.process(queue);
             if (attribute.consumed()) {
@@ -1423,21 +1472,31 @@ export class Script implements ParserItem {
                     return this.process(queue.next());
                 }
                 break;
+            case "TAG_CLOSE":
+                if (this.scriptOpen.value) {
+                    this.tagClose.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
+            case "TAG_WHITESPACE":
+                if (this.tagOpen.value) {
+                    if (!this.scriptOpen.value) {
+                        this.tagWhiteSpace1.value = current.value;
+                    } else {
+                        this.tagWhiteSpace2.value = current.value;
+                    }
+                    return this.process(queue.next());
+                }
+                break;
             case "SCRIPT_BODY":
                 if (this.scriptOpen.value) {
                     this.scriptBody.value = current.value;
-                    return this.process(queue.next());
+                    return queue.next();
                 }
                 break;
             case "SCRIPT_SHORT_BODY":
                 if (this.scriptOpen.value) {
                     this.scriptShortBody.value = current.value;
-                    return this.process(queue.next());
-                }
-                break;
-            case "TAG_CLOSE":
-                if (this.scriptBody.value || this.scriptShortBody.value) {
-                    this.tagClose.value = current.value;
                     return queue.next();
                 }
                 break;
@@ -1446,7 +1505,10 @@ export class Script implements ParserItem {
     };
     clone = () => {
         const script = new Script();
+        script.tagWhiteSpace1.value = this.tagWhiteSpace1.value;
         script.scriptOpen.value = this.scriptOpen.value;
+        script.tagWhiteSpace2.value = this.tagWhiteSpace2.value;
+        script.tagClose.value = this.tagClose.value;
         script.scriptBody.value = this.scriptBody.value;
         script.scriptShortBody.value = this.scriptShortBody.value;
         script.attributes = this.attributes.map((a) => a.clone());
@@ -1456,26 +1518,33 @@ export class Script implements ParserItem {
 
 /**
    style
-    : STYLE_OPEN htmlAttribute* (STYLE_BODY | STYLE_SHORT_BODY)
+    : TAG_OPEN STYLE_OPEN htmlAttribute* TAG_CLOSE (STYLE_BODY | STYLE_SHORT_BODY)
     ;
  */
 export class Style implements ParserItem {
     tagOpen = new LexerItem("TAG_OPEN");
+    tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE");
     styleOpen = new LexerItem("STYLE_OPEN");
+    tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE");
     styleBody = new LexerItem("STYLE_BODY");
     styleShortBody = new LexerItem("STYLE_SHORT_BODY");
     tagClose = new LexerItem("TAG_CLOSE");
     attributes: HtmlAttribute[] = [];
     search = (searcher: Searcher) => {
+        searcher.feedLexerItem(this.tagOpen);
+        searcher.feedLexerItem(this.tagWhiteSpace1);
         searcher.feedLexerItem(this.styleOpen);
+        searcher.feedLexerItem(this.tagWhiteSpace2);
+        searcher.feedParserItems(this.attributes);
+        searcher.feedLexerItem(this.tagClose);
         searcher.feedLexerItem(this.styleBody);
         searcher.feedLexerItem(this.styleShortBody);
-        searcher.feedParserItems(this.attributes);
     };
     consumed = () => {
         return Boolean(
             this.tagOpen.value &&
             this.styleOpen.value &&
+            this.tagClose.value &&
             (this.attributes.length === 0 ||
                 this.attributes.every((attribute) => attribute.consumed())) &&
             (this.styleBody.value || this.styleShortBody.value) && this.tagClose.value
@@ -1501,32 +1570,46 @@ export class Style implements ParserItem {
                     return this.process(queue.next());
                 }
                 break;
+            case "TAG_WHITESPACE":
+                if (this.tagOpen.value) {
+                    if (!this.styleOpen.value) {
+                        this.tagWhiteSpace1.value = current.value;
+                    } else {
+                        this.tagWhiteSpace2.value = current.value;
+                    }
+                    return this.process(queue.next());
+                }
+                break;
+            case "TAG_CLOSE":
+                if (this.styleOpen.value) {
+                    this.tagClose.value = current.value;
+                    return this.process(queue.next());
+                }
+                break;
             case "STYLE_BODY":
                 if (this.styleOpen.value) {
                     this.styleBody.value = current.value;
-                    return this.process(queue.next());
+                    return queue.next();
                 }
                 break;
             case "STYLE_SHORT_BODY":
                 if (this.styleOpen.value) {
                     this.styleShortBody.value = current.value;
-                    return this.process(queue.next());
-                }
-                break;
-            case "TAG_CLOSE":
-                if (this.styleBody.value || this.styleShortBody.value) {
-                    this.tagClose.value = current.value;
                     return queue.next();
                 }
+                break;
         }
         return queue;
     };
     clone = () => {
         const style = new Style();
+        style.tagWhiteSpace1.value = this.tagWhiteSpace1.value;
         style.styleOpen.value = this.styleOpen.value;
-        style.styleBody.value = this.styleOpen.value;
+        style.tagWhiteSpace2.value = this.tagWhiteSpace2.value;
+        style.styleBody.value = this.styleBody.value;
         style.styleShortBody.value = this.styleShortBody.value;
         style.attributes = this.attributes.map((a) => a.clone());
+        style.tagClose.value = this.tagClose.value;
         return style;
     };
 }

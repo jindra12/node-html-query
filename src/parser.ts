@@ -79,7 +79,7 @@ export const createQueueFromItems = (lexerAtoms: QueueItem[]) => {
 export const checkIfNothingRemains = (lexerAtoms: QueueItem[], endQueue: Queue) => {
     const remainingLexerAtoms = lexerAtoms.slice(endQueue.at).filter((atom) => atom.type !== "EOF");
     if (remainingLexerAtoms.length > 0) {
-        throw `Error in parsing encountered at: ${remainingLexerAtoms.slice(0, 5).map(({ type }) => type).join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 100)}...`
+        throw `Error in parsing encountered at: ${remainingLexerAtoms.slice(0, 5).map(({ type, value }) => `${type}: "${value}"`).join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 10)}...`
     }
 }
 
