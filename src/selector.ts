@@ -723,13 +723,17 @@ export class TypeSelector implements Matcher {
         return Boolean(this.elementName.consumed());
     };
     process = (queue: Queue): Queue => {
-        const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
-        if (this.typeNamespacePrefix.consumed()) {
-            return this.process(tryProcessNamespace);
+        if (!this.typeNamespacePrefix.consumed()) {
+            const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
+            if (this.typeNamespacePrefix.consumed()) {
+                return this.process(tryProcessNamespace);
+            }
         }
-        const tryProcessElementName = this.elementName.process(queue);
-        if (this.elementName.consumed()) {
-            return tryProcessElementName;
+        if (!this.elementName.consumed()) {
+            const tryProcessElementName = this.elementName.process(queue);
+            if (this.elementName.consumed()) {
+                return tryProcessElementName;
+            }
         }
         return queue;
     };
@@ -798,9 +802,11 @@ export class Universal implements Matcher {
         return Boolean(this.universal.value);
     };
     process = (queue: Queue): Queue => {
-        const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
-        if (this.typeNamespacePrefix.consumed()) {
-            return this.process(tryProcessNamespace);
+        if (!this.typeNamespacePrefix.consumed()) {
+            const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
+            if (this.typeNamespacePrefix.consumed()) {
+                return this.process(tryProcessNamespace);
+            }
         }
         const current = queue.items[queue.at];
         if (current.type === "Universal") {
@@ -913,9 +919,11 @@ export class Attrib implements Matcher {
             const tryWs = this.ws1.process(queue.next());
             return this.process(tryWs);
         }
-        const tryTypeNameSpace = this.typeNamespacePrefix.process(queue);
-        if (this.typeNamespacePrefix.consumed()) {
-            return this.process(tryTypeNameSpace);
+        if (!this.typeNamespacePrefix.consumed()) {
+            const tryTypeNameSpace = this.typeNamespacePrefix.process(queue);
+            if (this.typeNamespacePrefix.consumed()) {
+                return this.process(tryTypeNameSpace);
+            }
         }
         if (current.type === "Ident" && !this.ident1.value) {
             this.ident1.value = current.value;
@@ -1029,10 +1037,12 @@ export class Negation implements Matcher {
             const tryWs = this.ws1.process(queue.next());
             return this.process(tryWs);
         }
-        const tryNegation = this.negationArg.process(queue);
-        if (this.negationArg.consumed()) {
-            const tryWs = this.ws2.process(tryNegation);
-            return this.process(tryWs);
+        if (!this.negationArg.consumed()) {
+            const tryNegation = this.negationArg.process(queue);
+            if (this.negationArg.consumed()) {
+                const tryWs = this.ws2.process(tryNegation);
+                return this.process(tryWs);
+            }
         }
         if (current.type === "BackBrace") {
             this.backBrace.value = current.value;
@@ -1091,29 +1101,39 @@ export class NegationArg implements Matcher {
         );
     };
     process = (queue: Queue): Queue => {
-        const tryProcessSelector = this.typeSelector.process(queue);
-        if (this.typeSelector.consumed()) {
-            return tryProcessSelector;
+        if (!this.typeSelector.consumed()) {
+            const tryProcessSelector = this.typeSelector.process(queue);
+            if (this.typeSelector.consumed()) {
+                return tryProcessSelector;
+            }
         }
-        const tryUniversal = this.universal.process(queue);
-        if (this.universal.consumed()) {
-            return tryUniversal;
+        if (!this.universal.consumed()) {
+            const tryUniversal = this.universal.process(queue);
+            if (this.universal.consumed()) {
+                return tryUniversal;
+            }
         }
         if (queue.items[queue.at].type === "Hash") {
             this.hash.value = queue.items[queue.at].value;
             return queue.next();
         }
-        const tryClassName = this.className.process(queue);
-        if (this.className.consumed()) {
-            return tryClassName;
+        if (!this.className.consumed()) {
+            const tryClassName = this.className.process(queue);
+            if (this.className.consumed()) {
+                return tryClassName;
+            }
         }
-        const tryAttrib = this.attrib.process(queue);
-        if (this.attrib.consumed()) {
-            return tryAttrib;
+        if (!this.attrib.consumed()) {
+            const tryAttrib = this.attrib.process(queue);
+            if (this.attrib.consumed()) {
+                return tryAttrib;
+            }
         }
-        const tryPseudo = this.pseudo.process(queue);
-        if (this.pseudo.consumed()) {
-            return tryPseudo;
+        if (!this.pseudo.consumed()) {
+            const tryPseudo = this.pseudo.process(queue);
+            if (this.pseudo.consumed()) {
+                return tryPseudo;
+            }
         }
         return queue;
     };
