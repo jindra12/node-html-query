@@ -1,13 +1,18 @@
 import { HtmlDocument, HtmlElement } from "./html";
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Queue, Searcher } from "./types";
-import { flatten, inputValidation, matchAttribute, rangeComparator } from "./utils";
+import {
+    flatten,
+    inputValidation,
+    matchAttribute,
+    rangeComparator,
+} from "./utils";
 
 export interface Matcher extends ParserItem {
     match: (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ) => HtmlElement[];
 }
 
@@ -57,7 +62,7 @@ export class SelectorGroup implements Matcher {
                 });
                 return this.process(tryProcessWs);
             }
-            if (lastArrayItem.comma.value && !lastArrayItem.selector.consumed()) {
+            if (lastArrayItem?.comma.value && !lastArrayItem.selector.consumed()) {
                 const selector = new Selector();
                 const tryProcessSelector = selector.process(queue);
                 if (selector.consumed()) {
@@ -79,7 +84,7 @@ export class SelectorGroup implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
@@ -117,13 +122,10 @@ export class Selector implements Matcher {
         return (
             this.simpleSelectorSequence.consumed() &&
             this.ws.consumed() &&
-            (this.sequences.length === 0 ||
-                this.sequences.every(
-                    ({ combinator, simpleSelectorSequence, ws }) =>
-                        combinator.consumed() &&
-                        simpleSelectorSequence.consumed() &&
-                        ws.consumed()
-                ))
+            this.sequences.every(
+                ({ combinator, simpleSelectorSequence }) =>
+                    combinator.consumed() && simpleSelectorSequence.consumed()
+            )
         );
     };
     process = (queue: Queue): Queue => {
@@ -170,7 +172,7 @@ export class Selector implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
@@ -182,7 +184,11 @@ export class Selector implements Matcher {
         );
         return this.sequences.reduce(
             (filtered, { combinator, simpleSelectorSequence }) => {
-                const applyCombinator = combinator.match(filtered, allHtmlElements, namespaces);
+                const applyCombinator = combinator.match(
+                    filtered,
+                    allHtmlElements,
+                    namespaces
+                );
                 const applySequence = simpleSelectorSequence.match(
                     applyCombinator,
                     allHtmlElements,
@@ -246,7 +252,11 @@ export class Combinator implements Matcher {
         searcher.feedLexerItem(this.space);
         searcher.feedParserItem(this.ws);
     };
-    match = (htmlElements: HtmlElement[], _: HtmlElement[], __: Record<string, string>): HtmlElement[] => {
+    match = (
+        htmlElements: HtmlElement[],
+        _: HtmlElement[],
+        __: Record<string, string>
+    ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
@@ -268,18 +278,24 @@ export class Combinator implements Matcher {
                 }, []);
         }
         if (this.tilde.value) {
-            return flatten(htmlElements.map((element) => {
-                const index = element.parent.getIndex(element);
-                return element.parent.children().filter(child => child.parent.getIndex(child) > index); 
-            }));
+            return flatten(
+                htmlElements.map((element) => {
+                    const index = element.parent.getIndex(element);
+                    return element.parent
+                        .children()
+                        .filter((child) => child.parent.getIndex(child) > index);
+                })
+            );
         }
         if (this.space.value) {
-            return htmlElements.map((element) => element.descendants()).reduce((manyElements, elements) => {
-                elements.forEach((element) => {
-                    manyElements.push(element);
-                });
-                return manyElements;
-            }, []);
+            return htmlElements
+                .map((element) => element.descendants())
+                .reduce((manyElements, elements) => {
+                    elements.forEach((element) => {
+                        manyElements.push(element);
+                    });
+                    return manyElements;
+                }, []);
         }
         return htmlElements;
     };
@@ -398,20 +414,32 @@ export class SimpleSelectorSequence implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
-        const typeMatched = this.typeSelector.match(htmlElements, allHtmlElements, namespaces);
-        const universalMatched = this.universal.match(typeMatched, allHtmlElements, namespaces);
+        const typeMatched = this.typeSelector.match(
+            htmlElements,
+            allHtmlElements,
+            namespaces
+        );
+        const universalMatched = this.universal.match(
+            typeMatched,
+            allHtmlElements,
+            namespaces
+        );
 
         return this.modifiers.reduce((htmlElements, modifier) => {
             if (modifier.attrib.consumed()) {
                 return modifier.attrib.match(htmlElements, allHtmlElements, namespaces);
             }
             if (modifier.className.consumed()) {
-                return modifier.className.match(htmlElements, allHtmlElements, namespaces);
+                return modifier.className.match(
+                    htmlElements,
+                    allHtmlElements,
+                    namespaces
+                );
             }
             if (modifier.hash.value) {
                 const hashValue = modifier.hash.value.replace(/^#/, "");
@@ -420,7 +448,11 @@ export class SimpleSelectorSequence implements Matcher {
                 );
             }
             if (modifier.negation.consumed()) {
-                return modifier.negation.match(htmlElements, allHtmlElements, namespaces);
+                return modifier.negation.match(
+                    htmlElements,
+                    allHtmlElements,
+                    namespaces
+                );
             }
             if (modifier.pseudo.consumed()) {
                 return modifier.pseudo.match(htmlElements, allHtmlElements, namespaces);
@@ -469,13 +501,17 @@ export class Pseudo implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
         if (this.functionalPseudo.consumed()) {
-            return this.functionalPseudo.match(htmlElements, allHtmlElements, namespaces);
+            return this.functionalPseudo.match(
+                htmlElements,
+                allHtmlElements,
+                namespaces
+            );
         }
 
         let indexesByParent:
@@ -519,7 +555,12 @@ export class Pseudo implements Matcher {
             const children = element.children();
             switch (this.ident.value) {
                 case "checkbox":
-                    return matchAttribute(element.attributes(), "type", "checkbox", "[attr=value]"); 
+                    return matchAttribute(
+                        element.attributes(),
+                        "type",
+                        "checkbox",
+                        "[attr=value]"
+                    );
                 case "checked":
                     return matchAttribute(element.attributes(), "checked", "", "[attr]");
                 case "disabled":
@@ -593,17 +634,28 @@ export class Pseudo implements Matcher {
                 case "image":
                     return element.attributes()["type"] === "image";
                 case "input":
-                    return ["input", "button", "textarea", "select"].includes(element.tagName.value);
+                    return ["input", "button", "textarea", "select"].includes(
+                        element.tagName.value
+                    );
                 case "password":
-                    return element.tagName.value === "input" && element.attributes()["type"] === "password";
+                    return (
+                        element.tagName.value === "input" &&
+                        element.attributes()["type"] === "password"
+                    );
                 case "radio":
-                    return element.tagName.value === "input" && element.attributes()["type"] === "radio";
+                    return (
+                        element.tagName.value === "input" &&
+                        element.attributes()["type"] === "radio"
+                    );
                 case "reset":
                     return element.attributes()["type"] === "reset";
                 case "submit":
                     return element.attributes()["type"] === "submit";
                 case "text":
-                    return element.tagName.value === "input" && element.attributes()["type"] === "text";
+                    return (
+                        element.tagName.value === "input" &&
+                        element.attributes()["type"] === "text"
+                    );
                 default:
                     return false;
             }
@@ -628,18 +680,22 @@ export class FunctionalPseudo implements Matcher {
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "Function_") {
+        if (current.type === "Function_" && !this.funct.value) {
             this.funct.value = current.value;
             const tryWs = this.ws.process(queue.next());
             return this.process(tryWs);
         }
-        if (this.funct.value) {
+        if (this.funct.value && !this.expression.consumed()) {
             const tryExpression = this.expression.process(queue);
             if (this.expression.consumed()) {
                 return this.process(tryExpression);
             }
         }
-        if (this.expression.consumed() && current.type === "BackBrace") {
+        if (
+            this.expression.consumed() &&
+            !this.backBrace.value &&
+            current.type === "BackBrace"
+        ) {
             this.backBrace.value = current.value;
             return queue.next();
         }
@@ -654,7 +710,7 @@ export class FunctionalPseudo implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
@@ -673,21 +729,29 @@ export class TypeNamespacePrefix implements Matcher {
     namespace = new LexerItem("Namespace");
     universal = new LexerItem("Universal");
     consumed = () => {
-        return Boolean(this.universal.value);
+        return Boolean(this.namespace.value);
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "Ident" && !this.universal.value) {
+        if (
+            current.type === "Ident" &&
+            !this.universal.value &&
+            !this.ident.value
+        ) {
             this.ident.value = current.value;
             return this.process(queue.next());
         }
-        if (current.type === "Namespace") {
+        if (current.type === "Namespace" && !this.namespace.value) {
             this.namespace.value = current.value;
             return queue.next();
         }
-        if (current.type === "Universal" && !this.ident.value) {
+        if (
+            current.type === "Universal" &&
+            !this.universal.value &&
+            !this.ident.value
+        ) {
             this.universal.value = current.value;
-            return queue.next();
+            return this.process(queue.next());
         }
         return queue;
     };
@@ -696,17 +760,27 @@ export class TypeNamespacePrefix implements Matcher {
         searcher.feedLexerItem(this.universal);
         searcher.feedLexerItem(this.namespace);
     };
-    match = (htmlElements: HtmlElement[], _: HtmlElement[], namespaces: Record<string, string>): HtmlElement[] => {
-        if (!this.consumed() || this.universal.value) {
+    match = (
+        htmlElements: HtmlElement[],
+        _: HtmlElement[],
+        namespaces: Record<string, string>
+    ): HtmlElement[] => {
+        if (!this.consumed()) {
             return htmlElements;
         }
         if (this.universal.value || !this.ident.value) {
-            return flatten(htmlElements.map((htmlElement) => htmlElement.descendants()));
+            return flatten(
+                htmlElements.map((htmlElement) => htmlElement.descendants())
+            );
         }
-        return flatten(htmlElements.filter((htmlElement) => {
-            const attributes = htmlElement.attributes();
-            return attributes["xmlns"] === namespaces[this.ident.value];
-        }).map((htmlElement) => htmlElement.descendants()));
+        return flatten(
+            htmlElements
+                .filter((htmlElement) => {
+                    const attributes = htmlElement.attributes();
+                    return attributes["xmlns"] === namespaces[this.ident.value];
+                })
+                .map((htmlElement) => htmlElement.descendants())
+        );
     };
 }
 
@@ -744,7 +818,7 @@ export class TypeSelector implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
@@ -752,7 +826,7 @@ export class TypeSelector implements Matcher {
         const typeMatched = this.typeNamespacePrefix.match(
             htmlElements,
             allHtmlElements,
-            namespaces,
+            namespaces
         );
         return this.elementName.match(typeMatched, allHtmlElements, namespaces);
     };
@@ -779,7 +853,11 @@ export class ElementName implements Matcher {
     search = (searcher: Searcher) => {
         searcher.feedLexerItem(this.ident);
     };
-    match = (htmlElements: HtmlElement[], _: HtmlElement[], __: Record<string, string>): HtmlElement[] => {
+    match = (
+        htmlElements: HtmlElement[],
+        _: HtmlElement[],
+        __: Record<string, string>
+    ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
@@ -809,7 +887,7 @@ export class Universal implements Matcher {
             }
         }
         const current = queue.items[queue.at];
-        if (current.type === "Universal") {
+        if (current.type === "Universal" && !this.universal.value) {
             this.universal.value = current.value;
             return queue.next();
         }
@@ -822,12 +900,16 @@ export class Universal implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
-        return this.typeNamespacePrefix.match(htmlElements, allHtmlElements, namespaces);
+        return this.typeNamespacePrefix.match(
+            htmlElements,
+            allHtmlElements,
+            namespaces
+        );
     };
 }
 
@@ -858,7 +940,11 @@ export class ClassName implements Matcher {
         searcher.feedLexerItem(this.dot);
         searcher.feedLexerItem(this.ident);
     };
-    match = (htmlElements: HtmlElement[], _: HtmlElement[], __: Record<string, string>): HtmlElement[] => {
+    match = (
+        htmlElements: HtmlElement[],
+        _: HtmlElement[],
+        __: Record<string, string>
+    ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
@@ -893,6 +979,7 @@ export class Attrib implements Matcher {
     ws3 = new Ws();
     ident2 = new LexerItem("Ident");
     stringIdent = new LexerItem("String_");
+    numIdent = new LexerItem("Number");
     ws4 = new Ws();
     squareBracketEnd = new LexerItem("SquareBracketEnd");
     consumed = () => {
@@ -903,7 +990,12 @@ export class Attrib implements Matcher {
             this.equals.value ||
             this.includes.value ||
             this.dashMatch.value;
-        if (hasComparator && !this.ident2.value && !this.stringIdent.value) {
+        if (
+            hasComparator &&
+            !this.ident2.value &&
+            !this.stringIdent.value &&
+            !this.numIdent.value
+        ) {
             return false;
         }
         return Boolean(
@@ -944,10 +1036,27 @@ export class Attrib implements Matcher {
             const tryWs = this.ws3.process(queue.next());
             return this.process(tryWs);
         }
-        if (current.type === "Ident" && this.ident1.value) {
-            this.ident2.value = current.value;
-            const tryWs = this.ws4.process(queue.next());
-            return this.process(tryWs);
+        if (
+            this.ident1.value &&
+            !this.ident2.value &&
+            !this.stringIdent.value &&
+            !this.numIdent.value
+        ) {
+            if (current.type === "Ident") {
+                this.ident2.value = current.value;
+                const tryWs = this.ws4.process(queue.next());
+                return this.process(tryWs);
+            }
+            if (current.type === "String_") {
+                this.stringIdent.value = current.value;
+                const tryWs = this.ws4.process(queue.next());
+                return this.process(tryWs);
+            }
+            if (current.type === "Number") {
+                this.numIdent.value = current.value;
+                const tryWs = this.ws4.process(queue.next());
+                return this.process(tryWs);
+            }
         }
         if (current.type === "SquareBracketEnd") {
             this.squareBracketEnd.value = current.value;
@@ -970,10 +1079,15 @@ export class Attrib implements Matcher {
         searcher.feedParserItem(this.ws3);
         searcher.feedLexerItem(this.ident2);
         searcher.feedLexerItem(this.stringIdent);
+        searcher.feedLexerItem(this.numIdent);
         searcher.feedParserItem(this.ws4);
         searcher.feedLexerItem(this.squareBracketEnd);
     };
-    match = (htmlElements: HtmlElement[], _: HtmlElement[], __: Record<string, string>): HtmlElement[] => {
+    match = (
+        htmlElements: HtmlElement[],
+        _: HtmlElement[],
+        __: Record<string, string>
+    ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
@@ -985,7 +1099,7 @@ export class Attrib implements Matcher {
                     ? `${this.typeNamespacePrefix.ident.value}:`
                     : this.ident1.value
                 }`,
-                this.ident2.value || this.stringIdent.value,
+                this.ident2.value || this.stringIdent.value || this.numIdent.value,
                 (() => {
                     if (this.prefixMatch.value) {
                         return "[attr^=value]";
@@ -1060,15 +1174,17 @@ export class Negation implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
-        const matched = this.negationArg.match(htmlElements, allHtmlElements, namespaces).reduce((ids: Record<string, true>, element) => {
-            ids[element.identifier] = true;
-            return ids;
-        }, {});
+        const matched = this.negationArg
+            .match(htmlElements, allHtmlElements, namespaces)
+            .reduce((ids: Record<string, true>, element) => {
+                ids[element.identifier] = true;
+                return ids;
+            }, {});
         return htmlElements.filter((element) => !matched[element.identifier]);
     };
 }
@@ -1113,7 +1229,7 @@ export class NegationArg implements Matcher {
                 return tryUniversal;
             }
         }
-        if (queue.items[queue.at].type === "Hash") {
+        if (queue.items[queue.at].type === "Hash" && !this.hash.value) {
             this.hash.value = queue.items[queue.at].value;
             return queue.next();
         }
@@ -1148,7 +1264,7 @@ export class NegationArg implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
@@ -1160,7 +1276,14 @@ export class NegationArg implements Matcher {
             return this.universal.match(htmlElements, htmlElements, namespaces);
         }
         if (this.hash.value) {
-            return htmlElements.filter((element) => matchAttribute(element.attributes(), "id", this.hash.value.slice(1), "[attr=value]"));
+            return htmlElements.filter((element) =>
+                matchAttribute(
+                    element.attributes(),
+                    "id",
+                    this.hash.value.slice(1),
+                    "[attr=value]"
+                )
+            );
         }
         if (this.attrib.consumed()) {
             return this.attrib.match(htmlElements, allHtmlElements, namespaces);
@@ -1226,7 +1349,6 @@ export class Expression implements Matcher {
     of = new LexerItem("Of");
     ws5 = new Ws();
     selectorGroup2 = new SelectorGroup();
-    ident2 = new LexerItem("Ident");
 
     functionalPseudo: FunctionalPseudo;
     constructor(functionalPseudo: FunctionalPseudo) {
@@ -1234,34 +1356,33 @@ export class Expression implements Matcher {
     }
 
     consumed = () => {
-        if (this.ident2.value) {
-            return true;
-        }
         if (this.even.value || this.odd.value || this.selectorGroup1.consumed()) {
             return true;
         }
         const ofMissing = !this.of.value && !this.selectorGroup2.consumed();
         const ofComplete = this.of.value && this.selectorGroup2.consumed();
-    
-        if (this.number1.value) {
-            if (this.ident1.value) {
-                const optionalGroupMissing = !this.plus.value && !this.minus2.value && !this.number2.value;
-                const optionalGroupComplete = (this.plus.value || this.minus2.value) && this.number2.value;
-                if (optionalGroupComplete || optionalGroupMissing) {
-                    return Boolean(ofMissing || ofComplete);
-                }
-            } else if (!this.plus.value && !this.minus2.value && !this.number2.value) {
-                return Boolean(ofMissing || ofComplete);
-            }
+
+        const validOf = Boolean(ofMissing || ofComplete);
+
+        const optionalGroupMissing = Boolean(
+            !this.plus.value && !this.minus2.value && !this.number2.value
+        );
+        const optionalGroupComplete = Boolean(
+            (this.plus.value || this.minus2.value) && this.number2.value
+        );
+
+        const validGroup = optionalGroupComplete || optionalGroupMissing;
+
+        const validOptionals = validGroup && validOf;
+
+        if (this.ident1.value || this.number1.value) {
+            return validOptionals;
         }
+
         return false;
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "Ident" && !this.number1.value && !this.minus1.value) {
-            this.ident2.value = current.value;
-            return queue.next();
-        }
         if (current.type === "Even") {
             this.even.value = current.value;
             return queue.next();
@@ -1270,55 +1391,74 @@ export class Expression implements Matcher {
             this.odd.value = current.value;
             return queue.next();
         }
-        if (!this.minus1.value && !this.number1.value) {
-            const tryConsumeCombinator = this.combinator.process(queue);
-            if (this.combinator.consumed()) {
-                const tryWs = this.ws1.process(tryConsumeCombinator);
-                return this.process(tryWs);
+        if (
+            !this.minus1.value &&
+            !this.ident1.value &&
+            !this.plus.value &&
+            !this.minus2.value &&
+            !this.number1.value
+        ) {
+            if (!this.combinator.consumed()) {
+                const tryConsumeCombinator = this.combinator.process(queue);
+                if (this.combinator.consumed()) {
+                    const tryWs = this.ws1.process(tryConsumeCombinator);
+                    return this.process(tryWs);
+                }
             }
-            const tryConsumeSelectorGroup = this.selectorGroup1.process(queue);
-            if (this.selectorGroup1.consumed()) {
-                return tryConsumeSelectorGroup;
+            if (!this.selectorGroup1.consumed()) {
+                const tryConsumeSelectorGroup = this.selectorGroup1.process(queue);
+                if (this.selectorGroup1.consumed()) {
+                    return tryConsumeSelectorGroup;
+                }
             }
         }
-        if (!this.number1.value && current.type === "Minus") {
+        if (!this.number1.value && !this.minus1.value && current.type === "Minus") {
             this.minus1.value = current.value;
             return this.process(queue.next());
         }
-        if (!this.ident1.value && current.type === "Number") {
+        if (
+            !this.ident1.value &&
+            !this.number1.value &&
+            current.type === "Number"
+        ) {
             this.number1.value = current.value;
-            return this.process(queue.next());
+            const tryWs = this.ws2.process(queue.next());
+            return this.process(tryWs);
         }
-        if (this.number1.value && current.type === "Ident") {
+        if (!this.ident1.value && current.type === "Ident") {
             this.ident1.value = current.value;
             const tryWs = this.ws2.process(queue.next());
             return this.process(tryWs);
         }
         if (this.ident1.value) {
-            if (!this.minus2.value && current.type === "Plus") {
+            if (!this.minus2.value && !this.plus.value && current.type === "Plus") {
                 this.plus.value = current.value;
                 const tryWs = this.ws3.process(queue.next());
                 return this.process(tryWs);
             }
-            if (!this.plus.value && current.type === "Minus") {
+            if (!this.plus.value && !this.minus2.value && current.type === "Minus") {
                 this.minus2.value = current.value;
                 const tryWs = this.ws3.process(queue.next());
                 return this.process(tryWs);
             }
-            if (this.plus.value || this.minus2.value && current.type === "Number") {
+            if (
+                (this.plus.value || this.minus2.value) &&
+                !this.number2.value &&
+                current.type === "Number"
+            ) {
                 this.number2.value = current.value;
                 const tryWs = this.ws4.process(queue.next());
                 return this.process(tryWs);
             }
         }
-        if (this.number1.value && current.type === "Of") {
+        if (this.number1.value && !this.of.value && current.type === "Of") {
             this.of.value = current.value;
             const tryWs = this.ws5.process(queue.next());
             return this.process(tryWs);
         }
-        if (this.of.value) {
-            const tryConsumeSelectorGroup = this.selectorGroup1.process(queue);
-            if (this.selectorGroup1.consumed()) {
+        if (this.of.value && !this.selectorGroup2.consumed()) {
+            const tryConsumeSelectorGroup = this.selectorGroup2.process(queue);
+            if (this.selectorGroup2.consumed()) {
                 return tryConsumeSelectorGroup;
             }
         }
@@ -1342,16 +1482,28 @@ export class Expression implements Matcher {
         searcher.feedLexerItem(this.of);
         searcher.feedParserItem(this.ws5);
         searcher.feedParserItem(this.selectorGroup2);
-        searcher.feedLexerItem(this.ident2);
     };
     getIndex = (element: HtmlElement) => {
-        const childrenOfType = () => element.parent.children().filter((otherChild) => otherChild.getTagName() === element.getTagName());
-        const getIndexOfType = (childrenOfType: HtmlElement[]) => childrenOfType.findIndex((child) => child.identifier === element.identifier);
+        const childrenOfType = () =>
+            element.parent
+                .children()
+                .filter(
+                    (otherChild) => otherChild.getTagName() === element.getTagName()
+                );
+        const getIndexOfType = (childrenOfType: HtmlElement[]) =>
+            childrenOfType.findIndex(
+                (child) => child.identifier === element.identifier
+            );
         switch (this.functionalPseudo.funct.value) {
             case "nth-child(":
                 return element.parent.getIndex(element);
             case "nth-last-child(":
-                return Math.max(-1, element.parent.children().length - 1 - element.parent.getIndex(element));
+                return Math.max(
+                    -1,
+                    element.parent.children().length -
+                    1 -
+                    element.parent.getIndex(element)
+                );
             case "nth-last-of-type(":
                 const lastOfType = childrenOfType();
                 return Math.max(-1, lastOfType.length - 1 - getIndexOfType(lastOfType));
@@ -1364,71 +1516,113 @@ export class Expression implements Matcher {
     match = (
         htmlElements: HtmlElement[],
         allHtmlElements: HtmlElement[],
-        namespaces: Record<string, string>,
+        namespaces: Record<string, string>
     ): HtmlElement[] => {
         if (!this.consumed()) {
             return htmlElements;
         }
         if (this.functionalPseudo.funct.value === "lang(") {
             if (this.ident1.value) {
-                return htmlElements.filter((htmlElements) => htmlElements.attributes()["lang"] === this.ident1.value);
+                return htmlElements.filter(
+                    (htmlElements) =>
+                        htmlElements.attributes()["lang"] === this.ident1.value
+                );
             }
             return [];
         }
         if (this.functionalPseudo.funct.value === "eq(") {
-            const index = parseInt(this.ident2.value);
+            const index = parseInt(this.ident1.value);
             if (!isNaN(index)) {
-                return htmlElements.filter((_, i) => index >= 0 ? i === index : (htmlElements.length - 1 + index) === i);
+                return htmlElements.filter((_, i) =>
+                    index >= 0 ? i === index : htmlElements.length - 1 + index === i
+                );
             }
             return [];
         }
         if (this.functionalPseudo.funct.value === "contains(") {
-            if (this.ident2.value) {
+            if (this.ident1.value) {
                 return htmlElements.filter((htmlElement) => {
-                    return htmlElement.texts().some((text) => text.includes(this.ident2.value));
+                    return htmlElement
+                        .texts()
+                        .some((text) => text.includes(this.ident1.value));
                 });
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === "is(" || this.functionalPseudo.funct.value === "where(") {
+        if (
+            this.functionalPseudo.funct.value === "is(" ||
+            this.functionalPseudo.funct.value === "where("
+        ) {
             if (this.selectorGroup1.consumed() && !this.combinator.consumed()) {
-                return this.selectorGroup1.match(htmlElements, allHtmlElements, namespaces);
+                return this.selectorGroup1.match(
+                    htmlElements,
+                    allHtmlElements,
+                    namespaces
+                );
             }
             return [];
         }
         if (this.functionalPseudo.funct.value === "has(") {
             if (this.selectorGroup1.consumed()) {
-                const matched = this.selectorGroup1.match(htmlElements, allHtmlElements, namespaces);
+                const matched = this.selectorGroup1.match(
+                    htmlElements,
+                    allHtmlElements,
+                    namespaces
+                );
                 if (!this.combinator.consumed() || this.combinator.space.value) {
                     return htmlElements.filter((value) => {
-                        return matched.some(matched => value.descendants().some((descendant) => descendant.identifier === matched.identifier))
+                        return matched.some((matched) =>
+                            value
+                                .descendants()
+                                .some(
+                                    (descendant) => descendant.identifier === matched.identifier
+                                )
+                        );
                     });
                 }
                 if (this.combinator.greater.value) {
                     return htmlElements.filter((value) => {
-                        return matched.some(matched => value.content().getIndex(matched) !== -1)
+                        return matched.some(
+                            (matched) => value.content().getIndex(matched) !== -1
+                        );
                     });
                 }
                 if (this.combinator.plus.value) {
                     return htmlElements.filter((value) => {
-                        return matched.some(matched => value.parent.prevSibling(value)?.identifier === matched.identifier);
+                        return matched.some(
+                            (matched) =>
+                                value.parent.prevSibling(value)?.identifier ===
+                                matched.identifier
+                        );
                     });
                 }
                 if (this.combinator.tilde.value) {
                     return htmlElements.filter((value) => {
-                        return matched.some(matched => value.parent.nextSibling(value)?.identifier === matched.identifier);
+                        return matched.some(
+                            (matched) =>
+                                value.parent.nextSibling(value)?.identifier ===
+                                matched.identifier
+                        );
                     });
                 }
             }
             return [];
         }
         if (this.even.value) {
-            return htmlElements.filter((element) => (this.getIndex(element) + 1) % 2 === 0);
+            return htmlElements.filter(
+                (element) => (this.getIndex(element) + 1) % 2 === 0
+            );
         }
         if (this.odd.value) {
-            return htmlElements.filter((element) => (this.getIndex(element) + 1) % 2 === 1);
+            return htmlElements.filter(
+                (element) => (this.getIndex(element) + 1) % 2 === 1
+            );
         }
-        const ofQuery = this.selectorGroup2.match(htmlElements, allHtmlElements, namespaces);
+        const ofQuery = this.selectorGroup2.match(
+            htmlElements,
+            allHtmlElements,
+            namespaces
+        );
         if (ofQuery.length === 0) {
             return ofQuery;
         }
@@ -1436,13 +1630,20 @@ export class Expression implements Matcher {
             if (!this.ident1.value) {
                 if (!this.minus1.value) {
                     const index = parseInt(this.number1.value);
-                    const element = ofQuery.find((element) => this.getIndex(element) + 1 === index);
+                    const element = ofQuery.find(
+                        (element) => this.getIndex(element) + 1 === index
+                    );
                     return element ? [element] : [];
                 }
             } else {
-                const modifier = (this.minus1.value ? -1 : 1) * parseInt(this.number1.value);
-                const addition = (this.minus2.value ? -1 : (this.plus.value ? 1 : 0)) * (parseInt(this.number2.value) || 0);
-                const upperIndexMatch = Math.max(...ofQuery.map((element) => this.getIndex(element) + 1));
+                const modifier =
+                    (this.minus1.value ? -1 : 1) * parseInt(this.number1.value);
+                const addition =
+                    (this.minus2.value ? -1 : this.plus.value ? 1 : 0) *
+                    (parseInt(this.number2.value) || 0);
+                const upperIndexMatch = Math.max(
+                    ...ofQuery.map((element) => this.getIndex(element) + 1)
+                );
                 const indexAcc: Record<number, true> = {};
                 for (let i = 1; i < ofQuery.length + 1; i++) {
                     const resultIndex = modifier * i + addition;
@@ -1451,7 +1652,9 @@ export class Expression implements Matcher {
                     }
                     indexAcc[resultIndex] = true;
                 }
-                return ofQuery.filter((element) => indexAcc[this.getIndex(element) + 1]);
+                return ofQuery.filter(
+                    (element) => indexAcc[this.getIndex(element) + 1]
+                );
             }
         }
         return [];

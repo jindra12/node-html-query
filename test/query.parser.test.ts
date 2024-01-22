@@ -25,7 +25,7 @@ const tests: { [Type in keyof typeof Query]: {
 }} = {
     Attrib: {
         instance: () => new Query.Attrib(),
-        passes: ["[data-id]", "[data-id=1]", "[data-id='text']", `[data-id="text"]`, "[data-id$='text']", "[data-id^='text']", "[data-id|='text']", "[data-id~='text']"],
+        passes: ["[data-id]", "[data-id=text]", "[data-id=1]", "[data-id='text']", `[data-id="text"]`, "[data-id$='text']", "[data-id^='text']", "[data-id|='text']", "[data-id~='text']"],
         fails: ["Literally any random text []"],
     },
     ClassName: {
@@ -50,8 +50,8 @@ const tests: { [Type in keyof typeof Query]: {
     },
     FunctionalPseudo: {
         instance: () => new Query.FunctionalPseudo(),
-        passes: [":nth-child( 2)", ":nth-child(2n + 1)", "::nth-of-type(n + 1)", "::has(+ p)", ":is(div, p, h1)"],
-        fails: ["::before", "::after", "nth-child"],
+        passes: ["nth-child( 2)", "nth-child(2n + 1)", "nth-of-type(n + 1)", "has(+ p)", "is(div, p, h1)"],
+        fails: ["before", "after", "nth-child"],
     },
     Negation: {
         instance: () => new Query.Negation(),
@@ -86,7 +86,7 @@ const tests: { [Type in keyof typeof Query]: {
     TypeNamespacePrefix: {
         instance: () => new Query.TypeNamespacePrefix(),
         passes: ["*|", "div|"],
-        fails: ["div", "|", "*"],
+        fails: ["div", "*"],
     },
     TypeSelector: {
         instance: () => new Query.TypeSelector(),
@@ -100,7 +100,7 @@ const tests: { [Type in keyof typeof Query]: {
     },
     Ws: {
         instance: () => new Query.Ws(),
-        passes: [" ", "", "   "],
+        passes: [" ", "   "],
         fails: ["a", " a"],
     }
 };

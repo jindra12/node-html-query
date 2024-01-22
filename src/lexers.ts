@@ -83,24 +83,29 @@ export const cssFragments = {
             "gmu"
         ),
     Escape: () =>
-        new RegExp(`${cssFragments.Unicode().source}|[^\(\) :#\.\\r\\n\\f0-9a-fA-F]`, "gmu"),
-    Nonascii: () => /[^ \(\):#\.\u0000-\u007f]/gmu,
+        new RegExp(`${cssFragments.Unicode().source}|(\\\\[^\r\n\f0-9a-fA-F])`, "gmu"),
+    Nonascii: () => /[\u0000-\u007f]/gmu,
     Nmchar: () =>
         new RegExp(
-            `[_a-zA-Z0-9\\-]|${cssFragments.Nonascii().source}|${cssFragments.Escape().source
-            }`,
+            `[_a-zA-Z0-9\\-]|(\\\\${cssFragments.Nonascii().source}|${cssFragments.Escape().source
+            })`,
             "gmu"
         ),
     Nmstart: () =>
         new RegExp(
-            `[_a-zA-Z]|${cssFragments.Nonascii().source}|${cssFragments.Escape().source
-            }`,
+            `[_a-zA-Z]|(\\\\${cssFragments.Nonascii().source}|${cssFragments.Escape().source
+            })`,
             "gmu"
         ),
     Name: () => new RegExp(`${cssFragments.Nmchar().source}+`, "gmu"),
 } as const;
 
 export const cssLexerAtoms = {
+    DashMatch: /\|=/gmu,
+    Includes: /~=/gmu,
+    PrefixMatch: /\^=/gmu,
+    SuffixMatch: /\$=/gmu,
+    SubstringMatch: /\*=/gmu,
     Plus: /\+/gmu,
     Minus: /-/gmu,
     Greater: />/gmu,
@@ -115,18 +120,13 @@ export const cssLexerAtoms = {
     Equals: /=/gmu,
     SquareBracket: /\[/gmu,
     SquareBracketEnd: /\]/gmu,
-    DashMatch: /\|=/gmu,
-    Includes: /~=/gmu,
     Space: /[ \t\r\n\f]+/gmu,
     String_: new RegExp(
-        `"([^\\n\\r\\f"]|${cssFragments.Newline().source}|${cssFragments.Nonascii().source
-        }|${cssFragments.Escape().source})*"|'([^\\n\\r\\f"]|${cssFragments.Newline().source
-        }|${cssFragments.Nonascii().source}|${cssFragments.Escape().source})*'`,
+        `"([^\\n\\r\\f"]|(\\\\${cssFragments.Newline().source}|${cssFragments.Nonascii().source
+        }|${cssFragments.Escape().source}))*"|'([^\\n\\r\\f"]|(\\\\${cssFragments.Newline().source
+        }|${cssFragments.Nonascii().source}|${cssFragments.Escape().source}))*'`,
         "gmu"
     ),
-    PrefixMatch: /\^=/gmu,
-    SuffixMatch: /\$=/gmu,
-    SubstringMatch: /\*=/gmu,
     Of: /of/gmu,
     Odd: /odd/gmu,
     Even: /even/gmu,

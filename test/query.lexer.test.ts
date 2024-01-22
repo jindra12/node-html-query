@@ -66,6 +66,9 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
     }, {
         value: "not it",
         inverse: true,
+    }, {
+        value: "data-id~='text']",
+        inverse: true,
     }],
     Includes: [{
         value: "~=",
