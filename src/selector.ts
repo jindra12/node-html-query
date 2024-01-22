@@ -107,21 +107,18 @@ export class SelectorGroup implements Matcher {
 
 /**
  * selector
-    : simpleSelectorSequence ws ( combinator simpleSelectorSequence ws )*
+    : simpleSelectorSequence ( combinator simpleSelectorSequence )*
     ;
  */
 export class Selector implements Matcher {
     simpleSelectorSequence = new SimpleSelectorSequence();
-    ws = new Ws();
     sequences: {
         combinator: Combinator;
         simpleSelectorSequence: SimpleSelectorSequence;
-        ws: Ws;
     }[] = [];
     consumed = () => {
         return (
             this.simpleSelectorSequence.consumed() &&
-            this.ws.consumed() &&
             this.sequences.every(
                 ({ combinator, simpleSelectorSequence }) =>
                     combinator.consumed() && simpleSelectorSequence.consumed()
@@ -132,41 +129,37 @@ export class Selector implements Matcher {
         if (!this.simpleSelectorSequence.consumed()) {
             const tryProcess = this.simpleSelectorSequence.process(queue);
             if (this.simpleSelectorSequence.consumed()) {
-                const tryProcessWs = this.ws.process(tryProcess);
-                return this.process(tryProcessWs);
+                return this.process(tryProcess);
             }
         }
         const lastArrayItem = this.sequences[this.sequences.length - 1];
-        if (!lastArrayItem || lastArrayItem.simpleSelectorSequence.consumed()) {
+        if (!lastArrayItem || (lastArrayItem.simpleSelectorSequence.consumed() && lastArrayItem.combinator.consumed())) {
             const combinator = new Combinator();
-            const tryParse = combinator.process(queue);
+            const tryCombinator = combinator.process(queue);
             if (combinator.consumed()) {
-                this.sequences.push({
-                    combinator: combinator,
-                    simpleSelectorSequence: new SimpleSelectorSequence(),
-                    ws: new Ws(),
-                });
-                return this.process(tryParse);
-            }
-        } else if (
-            lastArrayItem &&
-            !lastArrayItem.simpleSelectorSequence.consumed()
-        ) {
-            const tryProcess = lastArrayItem.simpleSelectorSequence.process(queue);
-            if (lastArrayItem.simpleSelectorSequence.consumed()) {
-                const tryProcessWs = lastArrayItem.ws.process(tryProcess);
-                return this.process(tryProcessWs);
+                const simpleSelectorSequence = new SimpleSelectorSequence();
+                const trySimple = simpleSelectorSequence.process(tryCombinator);
+                if (simpleSelectorSequence.consumed()) {
+                    this.sequences.push({
+                        combinator: combinator,
+                        simpleSelectorSequence: simpleSelectorSequence,
+                    });
+                    return this.process(trySimple);
+                } else {
+                    this.sequences.push({
+                        combinator: new Combinator(),
+                        simpleSelectorSequence: new SimpleSelectorSequence(),
+                    });
+                }
             }
         }
         return queue;
     };
     search = (searcher: Searcher) => {
         searcher.feedParserItem(this.simpleSelectorSequence);
-        searcher.feedParserItem(this.ws);
         this.sequences.forEach((sequence) => {
             searcher.feedParserItem(sequence.combinator);
             searcher.feedParserItem(sequence.simpleSelectorSequence);
-            searcher.feedParserItem(sequence.ws);
         });
     };
     match = (
@@ -203,18 +196,19 @@ export class Selector implements Matcher {
 
 /**
     combinator
-        : Plus ws
-        | Greater ws
-        | Tilde ws
-        | Space ws
+        : ws Plus ws
+        | ws Greater ws
+        | ws Tilde ws
+        | ws Space
         ;
  */
 export class Combinator implements Matcher {
+    ws1 = new Ws();
     plus = new LexerItem("Plus");
     greater = new LexerItem("Greater");
     tilde = new LexerItem("Tilde");
     space = new LexerItem("Space");
-    ws = new Ws();
+    ws2 = new Ws();
     consumed = () => {
         return Boolean(
             this.plus.value ||
@@ -225,32 +219,42 @@ export class Combinator implements Matcher {
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
+        if (!this.ws1.consumed()) {
+            const tryProcessWs1 = this.ws1.process(queue);
+            if (this.ws1.consumed()) {
+                return this.process(tryProcessWs1);
+            }
+        }
         switch (current.type) {
             case "Plus":
                 this.plus.value = current.value;
-                const tryWsPlus = this.ws.process(queue.next());
+                const tryWsPlus = this.ws2.process(queue.next());
                 return tryWsPlus;
             case "Greater":
                 this.greater.value = current.value;
-                const tryWsGreater = this.ws.process(queue.next());
+                const tryWsGreater = this.ws2.process(queue.next());
                 return tryWsGreater;
             case "Tilde":
                 this.tilde.value = current.value;
-                const tryWsTilde = this.ws.process(queue.next());
+                const tryWsTilde = this.ws2.process(queue.next());
                 return tryWsTilde;
-            case "Space":
-                this.space.value = current.value;
-                const tryWsSpace = this.ws.process(queue.next());
-                return tryWsSpace;
+            default:
+                if (this.ws1.consumed()) {
+                    const extraSpace = this.ws1.spaces.pop();
+                    if (extraSpace) {
+                        this.space.value = extraSpace.value;
+                    }
+                }
         }
         return queue;
     };
     search = (searcher: Searcher) => {
+        searcher.feedParserItem(this.ws1);
         searcher.feedLexerItem(this.plus);
         searcher.feedLexerItem(this.greater);
         searcher.feedLexerItem(this.tilde);
         searcher.feedLexerItem(this.space);
-        searcher.feedParserItem(this.ws);
+        searcher.feedParserItem(this.ws2);
     };
     match = (
         htmlElements: HtmlElement[],
@@ -1303,7 +1307,7 @@ export class NegationArg implements Matcher {
 export class Ws implements ParserItem {
     spaces: LexerItem<"Space">[] = [];
     consumed = () => {
-        return true;
+        return this.spaces.length > 0;
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
@@ -1325,7 +1329,7 @@ export class Ws implements ParserItem {
     : 
         Even
         | Odd
-        | (Combinator ws)? selectorGroup
+        | Combinator? selectorGroup
         | Minus? Number (ident ws (( Plus | Minus ) ws Number)?)? ws ( Of ws selectorGroup)? )?
         | ident
         
@@ -1335,7 +1339,6 @@ export class Expression implements Matcher {
     even = new LexerItem("Even");
     odd = new LexerItem("Odd");
     combinator = new Combinator();
-    ws1 = new Ws();
     selectorGroup1 = new SelectorGroup();
     minus1 = new LexerItem("Minus");
     number1 = new LexerItem("Number");
@@ -1401,8 +1404,7 @@ export class Expression implements Matcher {
             if (!this.combinator.consumed()) {
                 const tryConsumeCombinator = this.combinator.process(queue);
                 if (this.combinator.consumed()) {
-                    const tryWs = this.ws1.process(tryConsumeCombinator);
-                    return this.process(tryWs);
+                    return this.process(tryConsumeCombinator);
                 }
             }
             if (!this.selectorGroup1.consumed()) {
@@ -1468,7 +1470,6 @@ export class Expression implements Matcher {
         searcher.feedLexerItem(this.even);
         searcher.feedLexerItem(this.odd);
         searcher.feedParserItem(this.combinator);
-        searcher.feedParserItem(this.ws1);
         searcher.feedParserItem(this.selectorGroup1);
         searcher.feedLexerItem(this.minus1);
         searcher.feedLexerItem(this.number1);
