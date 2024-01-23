@@ -98,11 +98,6 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         modes: ["TAG"],
         inverse: true,
     }],
-    SCRIPT_SHORT_BODY: [{
-        value: "</>",
-        nextModes: ["TAG"],
-        modes: ["TAG", "SCRIPT"],
-    }],
     SCRIPTLET: [{
         value: "<%%>"
     }, {
@@ -142,11 +137,6 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         value: "style",
         modes: ["TAG"],
         nextModes: ["STYLE", "TAG"],
-    }],
-    STYLE_SHORT_BODY: [{
-        value: "</>",
-        modes: ["TAG", "STYLE"],
-        nextModes: ["TAG"]
     }],
     TAG_CLOSE: [{
         value: ">",

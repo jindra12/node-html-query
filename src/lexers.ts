@@ -22,7 +22,7 @@ fragment TAG_NameStartChar:
 export const htmlFragments = {
     HEXADIGIT: () => /[a-fA-F0-9]/gmu,
     DIGIT: () => /[0-9]/gmu,
-    TAG_NameChar: () => /[:a-zA-Z\-_\.\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u00B7\u0300-\u036F\u203F-\u2040]/gmu,
+    TAG_NameChar: () => /[:a-zA-Z0-9\-_\.\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u00B7\u0300-\u036F\u203F-\u2040]/gmu,
     TAG_NameStartChar: () =>
         /[:a-zA-Z\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/gmu,
     ATTCHARS: () => new RegExp(`${htmlFragments.ATTCHAR().source}+ ?`, "gmu"),
@@ -59,9 +59,7 @@ export const htmlLexerAtoms = {
     },
     TAG_WHITESPACE: { value: /[ \t\r\n]+/gmu, mode: "TAG" },
     SCRIPT_BODY: { value: /(.|\n)*<\/\s*script\s*>/gmu, popMode: true, mode: "SCRIPT" },
-    SCRIPT_SHORT_BODY: { value: /(.|\n)*<\/>/gmu, popMode: true, mode: "SCRIPT" },
     STYLE_BODY: { value: /(.|\n)*<\/\s*style\s*>/gmu, popMode: true, mode: "STYLE" },
-    STYLE_SHORT_BODY: { value: /(.|\n)*<\/>/gmu, popMode: true, mode: "STYLE" },
     ATTVALUE_VALUE: {
         // DOUBLE_QUOTE_STRING | SINGLE_QUOTE_STRING | ATTCHARS | HEXCHARS | DECCHARS
         value: new RegExp(

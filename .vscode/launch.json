@@ -10,7 +10,7 @@
           "${workspaceRoot}/node_modules/.bin/jest",
           "--runInBand",
           "-i",
-          "query.parser.test.ts"
+          "html.methods.test.ts"
         ],
         "console": "integratedTerminal",
         "internalConsoleOptions": "neverOpen"
