@@ -566,13 +566,13 @@ export class Pseudo implements Matcher {
                         "[attr=value]"
                     );
                 case "checked":
-                    return matchAttribute(element.attributes(), "checked", "", "[attr]");
+                    return matchAttribute(element.attributes(), "checked", true, "[attr]");
                 case "disabled":
-                    return matchAttribute(element.attributes(), "disabled", "", "[attr]");
+                    return matchAttribute(element.attributes(), "disabled", true, "[attr]");
                 case "empty":
                     return children.length === 0 && element.texts().join("") === "";
                 case "enabled":
-                    return matchAttribute(element.attributes(), "disabled", "", "not");
+                    return matchAttribute(element.attributes(), "disabled", true, "not");
                 case "first-child":
                     const indexByQuery =
                         fillIndexes()[element.parent.identifier][element.identifier];
@@ -773,9 +773,7 @@ export class TypeNamespacePrefix implements Matcher {
             return htmlElements;
         }
         if (this.universal.value || !this.ident.value) {
-            return flatten(
-                htmlElements.map((htmlElement) => htmlElement.descendants())
-            );
+            return htmlElements;
         }
         return flatten(
             htmlElements
@@ -1095,15 +1093,20 @@ export class Attrib implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        return htmlElements.filter((element) =>
-            matchAttribute(
+        return htmlElements.filter((element) => {
+            const value = this.ident2.value || this.stringIdent.value || this.numIdent.value;
+            const name = `${this.typeNamespacePrefix.consumed() &&
+                this.typeNamespacePrefix.ident.value
+                ? `${this.typeNamespacePrefix.ident.value}:${this.ident1.value}`
+                : this.ident1.value
+            }`;
+            if (!value) {
+                return matchAttribute(element.attributes(), name, true, "[attr]");
+            }
+            return matchAttribute(
                 element.attributes(),
-                `${this.typeNamespacePrefix.consumed() &&
-                    this.typeNamespacePrefix.ident.value
-                    ? `${this.typeNamespacePrefix.ident.value}:`
-                    : this.ident1.value
-                }`,
-                this.ident2.value || this.stringIdent.value || this.numIdent.value,
+                name,
+                value,
                 (() => {
                     if (this.prefixMatch.value) {
                         return "[attr^=value]";
@@ -1126,7 +1129,7 @@ export class Attrib implements Matcher {
                     return "[attr]";
                 })()
             )
-        );
+        });
     };
 }
 

@@ -93,27 +93,36 @@ export const sanitizeAttribute = (attribute: string | undefined) => {
     [attr*=value]
         Represents elements with an attribute name of attr whose value contains at least one occurrence of value within the string.
  */
-export const matchAttribute = (attributes: Record<string, string>, attributeName: string, attributeValue: string, matchType: "[attr]" | "[attr=value]" | "[attr~=value]" | "[attr|=value]" | "[attr^=value]" | "[attr$=value]" | "[attr*=value]" | "not") => {
-    const comparedAttribute = attributes[attributeName];
-    attributeValue = sanitizeAttribute(attributeValue)!;
-    switch (matchType) {
-        case "[attr^=value]":
-            return comparedAttribute?.startsWith(attributeValue) || false;
-        case "[attr$=value]":
-            return comparedAttribute?.endsWith(attributeValue) || false;
-        case "[attr*=value]":
-            return comparedAttribute?.includes(attributeValue) || false;
-        case "[attr]":
-            return Object.keys(attributes).includes(attributeName);
-        case "[attr|=value]":
-            return comparedAttribute === attributeValue || `${attributeValue}-` === comparedAttribute;
-        case "[attr~=value]":
-            return comparedAttribute?.split(/\s/gmu).some((separated) => separated === attributeValue) || false;
-        case "[attr=value]":
-            return comparedAttribute === attributeValue;
-        case "not":
-            return !comparedAttribute || comparedAttribute !== attributeValue;
+export const matchAttribute = <T extends string | boolean>(attributes: Record<string, string>, attributeName: string, attributeValue: T, matchType: T extends boolean ? ("[attr]" | "not") : ("[attr]" | "[attr=value]" | "[attr~=value]" | "[attr|=value]" | "[attr^=value]" | "[attr$=value]" | "[attr*=value]" | "not")) => {
+    if (typeof attributeValue === "boolean") {
+        if (matchType === "[attr]") {
+            return Object.keys(attributes).includes(attributeName) === attributeValue;
+        } else {
+            return Object.keys(attributes).includes(attributeName) !== attributeValue;
+        }
+    } else {
+        const comparedAttribute = attributes[attributeName];
+        const sanitizedAttributeValue = sanitizeAttribute(attributeValue)!;
+        switch (matchType) {
+            case "[attr^=value]":
+                return comparedAttribute?.startsWith(sanitizedAttributeValue) || false;
+            case "[attr$=value]":
+                return comparedAttribute?.endsWith(sanitizedAttributeValue) || false;
+            case "[attr*=value]":
+                return comparedAttribute?.includes(sanitizedAttributeValue) || false;
+            case "[attr]":
+                return Object.keys(attributes).includes(sanitizedAttributeValue);
+            case "[attr|=value]":
+                return comparedAttribute === sanitizedAttributeValue || `${sanitizedAttributeValue}-` === comparedAttribute;
+            case "[attr~=value]":
+                return comparedAttribute?.split(/\s/gmu).some((separated) => separated === sanitizedAttributeValue) || false;
+            case "[attr=value]":
+                return comparedAttribute === sanitizedAttributeValue;
+            case "not":
+                return !comparedAttribute || comparedAttribute !== sanitizedAttributeValue;
+        }
     }
+    return false;
 };
 
 /**
@@ -134,12 +143,12 @@ export const rangeComparator = (attributes: Record<string, string>) => {
     const value = attributes["value"] || "";
     const type = attributes["type"] || "text";
 
-    const numValue = parseFloat(value);
+    const numValue = /^((-?0(\.\d*)?)|(-?[1-9]\d*(\.\d*)?))$/gmui.test(value) ? parseFloat(value) : NaN;
     if (!isNaN(numValue)) {
         const numMin = parseFloat(min);
-        const isMinValid = !numMin || (numValue <= numMin);
+        const isMinValid = !numMin || (numValue >= numMin);
         const numMax = parseFloat(max);
-        const isMaxValid = !numMax || (numValue >= numMax);
+        const isMaxValid = !numMax || (numValue <= numMax);
         const numStep = parseFloat(step);
         const isStepValid = !numStep || numValue % numStep === 0;
         return isMinValid && isMaxValid && isStepValid;
@@ -150,9 +159,9 @@ export const rangeComparator = (attributes: Record<string, string>) => {
         const resolveStep = () => {
             const stepNum = parseInt(step);
             if (stepNum) {
-                const monthRegex = /^\d+-(\d{2})$/;
-                const dateRegex = /^\d+-\d{2}-(\d{2})$/;
-                const dateTimeRegex = /^\d+-\d{2}-\d{2}-\d{2}T\d{2}:(\d{2})$/;
+                const monthRegex = /^\d+-(\d{2})$/gmui;
+                const dateRegex = /^\d+-\d{2}-(\d{2})$/gmui;
+                const dateTimeRegex = /^\d+-\d{2}-\d{2}T\d{2}:(\d{2})$/gmui;
                 const monthExec = monthRegex.exec(value);
                 if (monthExec) {
                     const month = parseInt(monthExec[1]);
@@ -172,9 +181,9 @@ export const rangeComparator = (attributes: Record<string, string>) => {
             return true;
         };
         const dateMin = new Date(min);
-        const isMinValid = isNaN(dateMin.getTime()) || ((dateValue.getTime() || 0) <= dateMin.getTime());
+        const isMinValid = isNaN(dateMin.getTime()) || ((dateValue.getTime() || 0) >= dateMin.getTime());
         const dateMax = new Date(max);
-        const isMaxValid = isNaN(dateMax.getTime()) || ((dateValue.getTime() || 0) >= dateMax.getTime());
+        const isMaxValid = isNaN(dateMax.getTime()) || ((dateValue.getTime() || 0) <= dateMax.getTime());
         return isMinValid && isMaxValid && resolveStep();
     }
 
@@ -190,11 +199,11 @@ export const rangeComparator = (attributes: Record<string, string>) => {
     const weekValue = getWeekValue(value);
     if (weekValue !== undefined) {
         const weekMin = getWeekValue(min);
-        const isMinValid = weekMin === undefined || (weekValue <= weekMin);
+        const isMinValid = weekMin === undefined || (weekValue >= weekMin);
         const weekMax = getWeekValue(max);
-        const isMaxValid = weekMax === undefined || (weekMax >= weekValue);
+        const isMaxValid = weekMax === undefined || (weekValue <= weekMax);
         const weekStep = parseInt(step);
-        const isStepValid = !weekStep || (weekValue % weekStep === 0);
+        const isStepValid = !weekStep || ((weekValue % 100) % weekStep === 0);
         return isMinValid && isMaxValid && isStepValid;
     }
 
@@ -211,9 +220,9 @@ export const rangeComparator = (attributes: Record<string, string>) => {
     const timeValue = getTimeValue(value);
     if (timeValue !== undefined) {
         const timeMin = getTimeValue(min);
-        const isMinValid = timeMin === undefined || (timeValue <= timeMin);
+        const isMinValid = timeMin === undefined || (timeValue >= timeMin);
         const timeMax = getTimeValue(max);
-        const isMaxValid = timeMax === undefined || (timeMax >= timeValue);
+        const isMaxValid = timeMax === undefined || (timeValue <= timeMax);
         const minuteStep = parseInt(step);
         const isStepValid = !minuteStep || timeValue % minuteStep === 0;
         return isMinValid && isMaxValid && isStepValid;
@@ -237,15 +246,14 @@ export const inputValidation = (attributes: Record<string, string>, getAttribute
             return undefined;
         }
     })();
-    let valid = true;
-    if (patternValidation) {
-        valid = patternValidation.test(value);
+    if (patternValidation && !patternValidation.test(value)) {
+        return false;
     }
-    if (attributes["min"] || attributes["max"] || attributes["step"]) {
-        valid = valid && rangeComparator(attributes);
+    if ((attributes["min"] || attributes["max"] || attributes["step"]) && !rangeComparator(attributes)) {
+        return false;
     }
-    if (attributes["required"]) {
-        if (type === "radio" && !value && valid) {
+    if (Object.keys(attributes).includes("required")) {
+        if (type === "radio" && !value) {
             const allAttributes = getAttributes();
             const hasAnotherChecked = allAttributes.some((attributes) => {
                 const otherValue = attributes["value"] || "";
@@ -253,19 +261,27 @@ export const inputValidation = (attributes: Record<string, string>, getAttribute
                 const otherName = attributes["name"] || "";
                 return Boolean(otherValue) && otherType === "radio" && otherName === name;
             });
-            valid = hasAnotherChecked;
+            if (!hasAnotherChecked) {
+                return false;
+            }
         }
-        valid = valid && (Boolean(value) || (type === "checkbox" || Object.keys(attributes).includes("checked")));
+        if (!Boolean(value) && !(type === "checkbox" && Object.keys(attributes).includes("checked"))) {
+            return false;
+        }
     }
     if (attributes["minlength"]) {
         const minlength = parseInt(attributes["minlength"] || "");
-        valid = valid && (isNaN(minlength) || value.length >= minlength);
+        if (!isNaN(minlength) && value.length < minlength) {
+            return false;
+        }
     }
     if (attributes["maxlength"]) {
         const maxlength = parseInt(attributes["maxlength"] || "");
-        valid = valid && (isNaN(maxlength) || value.length <= maxlength);
+        if (!isNaN(maxlength) && value.length > maxlength) {
+            return false;
+        }
     }
-    return valid;
+    return true;
 };
 
 export const flatten = <T>(multi: T[][]): T[] => {

@@ -83,7 +83,7 @@ describe("Test methods of HTML represention", () => {
         expect(html.cache.descendants.invalid).toBeTruthy();
         expect(html.cache.children.invalid).toBeTruthy();
         expect(html.cache.indexes.invalid).toBeTruthy();
-        expect(html.descendants().map(parserItemToString)).toEqual(["<body><div><h1>Hello?</h1></div></body>", "<div><h1>Hello?</h1></div>", "<h1>Hello?</h1>", "<div />"]);
+        expect(html.descendants().map(parserItemToString)).toEqual(["<body><div><h1>Hello?</h1></div></body>", "<div />", "<div><h1>Hello?</h1></div>", "<h1>Hello?</h1>"]);
         expect(html.cache.descendants.invalid).toBeFalsy();
         expect(html.cache.children.invalid).toBeFalsy();
         html.removeChild(1);
@@ -118,4 +118,8 @@ describe("Test methods of HTML represention", () => {
         expect(element.getStyles()).toEqual({ position: "relative" });
         expect(element.cache.styles.invalid).toBeFalsy();
     });
+    it("HTML element does not have itself within its descendants", () => {
+        const element = getHtmlElement(`<svg width="250px" viewBox="0 0 250 20" xmlns="http://www.w3.org/2000/svg"><a href="#" /></svg>`);
+        expect(element.descendants().every((d) => d.identifier !== element.identifier)).toBe(true);
+    })
 });

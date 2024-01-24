@@ -108,14 +108,14 @@ export class HtmlDocument implements ParserItem {
             return this.cache.descendants.value;
         }
         this.cache.descendants.invalid = false;
-        return (this.cache.descendants.value = this.children()
+        return (this.cache.descendants.value = this.children().concat(this.children()
                 .map((child) => child.descendants())
                 .reduce((flatten: HtmlElement[], elements) => {
                     elements.forEach((element) => {
                         flatten.push(element);
                     });
                     return flatten;
-                }, [])
+                }, []))
         );
     };
 
@@ -559,10 +559,13 @@ export class HtmlElement implements ParserItem {
         }
         const seeker = (
             htmlElements: HtmlElement[],
-            collector: (element: HtmlElement) => void
+            collector: (element: HtmlElement) => void,
+            skip = true,
         ) => {
-            htmlElements.forEach(collector);
-            htmlElements.forEach((element) => seeker(element.children(), collector));
+            if (!skip) {
+                htmlElements.forEach(collector);
+            }
+            htmlElements.forEach((element) => seeker(element.children(), collector, false));
         };
         const descendants: HtmlElement[] = [];
         seeker([this], (element) => {
