@@ -481,7 +481,12 @@ const matches: {
     },
     {
         html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
-        query: "li:nth-child(n + 1):nth-child(-n + 3)",
+        query: "li:nth-child(n + 2)",
+        results: ["<li>2</li>", "<li>3</li>", "<li>4</li>", "<li>5</li>", "<li>6</li>", "<li>7</li>"]
+    },
+    {
+        html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
+        query: "li:nth-child(n + 2):nth-child(-n + 3)",
         results: ["<li>2</li>", "<li>3</li>", "<li>4</li>"]
     },
     {
@@ -489,7 +494,7 @@ const matches: {
         query: "li:nth-of-type(2n + 1)",
         results: ["<li>1</li>", "<li>3</li>", "<li>5</li>", "<li>7</li>"]
     },
-    /*{
+    {
         html: "<ul><li>1</li><div /><li>2</li><li>3</li><div /><li>4</li><li>5</li><li>6</li><p /><li>7</li></ul>",
         query: "li:nth-of-type(-n + 3)",
         results: ["<li>1</li>", "<li>2</li>", "<li>3</li>"]
@@ -543,7 +548,7 @@ const matches: {
         html: "<p><article /></p><div><article /></div><p><span /></p><div><span /></div><p><ul /></p><div><ul /></div><quote><article /></quote><h1><span id='1' /></h1>",
         query: ":where(p, div) :where(article, span)",
         results: ["<article />", "<article />", "<span />", "<span />"],
-    },*/
+    },
 ];
 
 describe("Can successfully match query to DOM", () => {

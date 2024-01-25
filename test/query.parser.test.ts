@@ -70,7 +70,7 @@ const tests: { [Type in keyof typeof Query]: {
     },
     Selector: {
         instance: () => new Query.Selector(),
-        passes: ["p", "div > p", "div > #id", ".class > .class", "div + div", "p ~ p", "div > div > div", "p + p > p", "#id #id #id", "p + p + p", "p ~ p ~ p", ":not(div)"],
+        passes: ["p", "div > p", "div > #id", ".class > .class", "div + div", "p ~ p", "div > div > div", "p + p > p", "#id #id #id", "p + p + p", "p ~ p ~ p", ":not(div)", "li:nth-child(n + 1):nth-child(-n + 3)"],
         fails: ["+ p", "p +"],
     },
     SelectorGroup: {

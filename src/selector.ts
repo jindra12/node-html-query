@@ -487,17 +487,19 @@ export class Pseudo implements Matcher {
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "PseudoGeneral") {
+        if (current.type === "PseudoGeneral" && !this.pseudoGeneral.value) {
             this.pseudoGeneral.value = current.value;
             return this.process(queue.next());
         }
-        if (current.type === "Ident") {
+        if (current.type === "Ident" && !this.ident.value) {
             this.ident.value = current.value;
             return this.process(queue.next());
         }
-        const tryFunctionalPseudo = this.functionalPseudo.process(queue);
-        if (this.functionalPseudo.consumed()) {
-            return tryFunctionalPseudo;
+        if (!this.functionalPseudo.consumed()) {
+            const tryFunctionalPseudo = this.functionalPseudo.process(queue);
+            if (this.functionalPseudo.consumed()) {
+                return tryFunctionalPseudo;
+            }
         }
         return queue;
     };
@@ -1505,35 +1507,37 @@ export class Expression implements Matcher {
         searcher.feedParserItem(this.ws5);
         searcher.feedParserItem(this.selectorGroup2);
     };
-    getIndex = (element: HtmlElement) => {
-        const childrenOfType = () =>
-            element.parent
-                .children()
-                .filter(
-                    (otherChild) =>
-                        otherChild.getTagName() === element.getTagName()
-                );
+    getIndex = (element: HtmlElement, selected: HtmlElement[]) => {
+        const childrenOfType = () => selected.filter(
+            (otherChild) =>
+                otherChild.getTagName() === element.getTagName()
+        );
         const getIndexOfType = (childrenOfType: HtmlElement[]) =>
             childrenOfType.findIndex(
                 (child) => child.identifier === element.identifier
             );
+        const selectedMap = selected.reduce((selectedMap: Record<string, true>, element) => {
+            selectedMap[element.identifier] = true;
+            return selectedMap;
+        }, {});
+        const filter = (element: HtmlElement) => selectedMap[element.identifier];
         switch (this.functionalPseudo.funct.value) {
             case "nth-child(":
-                return element.parent.getIndex(element);
+                return element.parent.getIndex(element, filter) + 1;
             case "nth-last-child(":
                 return Math.max(
                     -1,
-                    element.parent.children().length -
-                    1 -
-                    element.parent.getIndex(element)
+                    element.parent.children().filter(filter).length - 
+                    (this.even.value || this.odd.value ? -1 : 0) - 
+                    element.parent.getIndex(element, filter)
                 );
             case "nth-last-of-type(":
                 const lastOfType = childrenOfType();
-                return Math.max(-1, lastOfType.length - 1 - getIndexOfType(lastOfType));
+                return Math.max(-1, lastOfType.length - getIndexOfType(lastOfType));
             case "nth-of-type(":
-                return getIndexOfType(childrenOfType());
+                return getIndexOfType(childrenOfType()) + 1;
             default:
-                return element.parent.getIndex(element);
+                return element.parent.getIndex(element, filter);
         }
     };
     match = (
@@ -1633,12 +1637,12 @@ export class Expression implements Matcher {
         }
         if (this.even.value) {
             return htmlElements.filter(
-                (element) => (this.getIndex(element) + 1) % 2 === 0
+                (element) => this.getIndex(element, htmlElements) % 2 === 0
             );
         }
         if (this.odd.value) {
             return htmlElements.filter(
-                (element) => (this.getIndex(element) + 1) % 2 === 1
+                (element) => this.getIndex(element, htmlElements) % 2 === 1
             );
         }
         const ofQuery = this.selectorGroup2.match(
@@ -1653,7 +1657,7 @@ export class Expression implements Matcher {
             if (!this.minus1.value) {
                 const index = parseInt(this.number1.value || "1");
                 const element = ofQuery.find(
-                    (element) => this.getIndex(element) + 1 === index
+                    (element) => this.getIndex(element, htmlElements) === index
                 );
                 return element ? [element] : [];
             }
@@ -1663,19 +1667,16 @@ export class Expression implements Matcher {
             const addition =
                 (this.minus2.value ? -1 : this.plus.value ? 1 : 0) *
                 (parseInt(this.number2.value) || 0);
-            const upperIndexMatch = Math.max(
-                ...ofQuery.map((element) => this.getIndex(element) + 1)
-            );
             const indexAcc: Record<number, true> = {};
             for (let i = 0; i < ofQuery.length + 1; i++) {
                 const resultIndex = modifier * i + addition;
-                if (resultIndex < 0 || resultIndex > upperIndexMatch) {
+                if (resultIndex < 0) {
                     break;
                 }
                 indexAcc[resultIndex] = true;
             }
             return ofQuery.filter(
-                (element) => indexAcc[this.getIndex(element) + 1]
+                (element) => indexAcc[this.getIndex(element, htmlElements)]
             );
         }
         return [];

@@ -592,8 +592,8 @@ export class HtmlElement implements ParserItem {
         return descendants;
     };
 
-    getIndex = (element: HtmlElement) => {
-        return this.content().getIndex(element);
+    getIndex = (element: HtmlElement, filter?: (element: HtmlElement) => boolean) => {
+        return this.content().getIndex(element, filter);
     };
 
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
@@ -1064,15 +1064,13 @@ export class HtmlContent implements ParserItem {
 
     getIndex = (
         element: HtmlElement,
+        filter?: (element: HtmlElement) => boolean
     ) => {
         if (!this.consumed()) {
             return -1;
         }
-        if (!this.cache.indexes.invalid) {
-            return this.cache.indexes.value[element.identifier] ?? -1;
-        }
-        this.cache.indexes.invalid = false;
-        this.cache.indexes.value = this.content
+        const getIndexes = () => this.content
+            .filter(({ inner: { htmlElement } }) => !filter || filter(htmlElement))
             .reduce(
                 (
                     indexes: Record<string, number>,
@@ -1086,6 +1084,14 @@ export class HtmlContent implements ParserItem {
                 },
                 {}
             );
+        if (filter) {
+            return getIndexes()[element.identifier];
+        }
+        if (!this.cache.indexes.invalid) {
+            return this.cache.indexes.value[element.identifier] ?? -1;
+        }
+        this.cache.indexes.invalid = false;
+        this.cache.indexes.value = getIndexes();
         return this.cache.indexes.value[element.identifier] ?? -1;
     };
 
