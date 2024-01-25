@@ -396,7 +396,7 @@ const matches: {
         query: "input:text",
         results: ["<input type='text' />"],
     },
-    /*{
+    {
         html: "<div /><p />",
         query: ":not(div)",
         results: ["<p />"],
@@ -408,7 +408,7 @@ const matches: {
     },
     {
         html: "<input readonly /><input />",
-        query: ":not(input:read-write)",
+        query: "input:not(:read-write)",
         results: ["<input readonly />"],
     },
     {
@@ -429,7 +429,7 @@ const matches: {
     {
         html: `<a href="#">Not this</a><svg width="250px" viewBox="0 0 250 20" xmlns="http://www.w3.org/2000/svg"><a href="#" /></svg>`,
         query: ":not(svg|a)",
-        results: [`<a href="#">Not this</a>`],
+        results: [`<a href="#">Not this</a>`, `<svg width="250px" viewBox="0 0 250 20" xmlns="http://www.w3.org/2000/svg"><a href="#" /></svg>`],
         namespaces: {
             svg: "http://www.w3.org/2000/svg",
         },
@@ -446,7 +446,7 @@ const matches: {
     },
     {
         html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
-        query: ":nth-child(odd)",
+        query: "li:nth-child(odd)",
         results: ["<li>1</li>", "<li>3</li>", "<li>5</li>", "<li>7</li>"],
     },
     {
@@ -454,7 +454,7 @@ const matches: {
         query: "li:nth-child(-n + 3)",
         results: ["<li>1</li>", "<li>2</li>", "<li>3</li>"]
     },
-    {
+    /*{
         html: "<ul><li>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
         query: "li:nth-child(2n)",
         results: ["<li>2</li>", "<li>4</li>", "<li>6</li>"]

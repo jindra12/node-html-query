@@ -391,7 +391,7 @@ export class SimpleSelectorSequence implements Matcher {
             return this.process(tryProcessPseudo);
         }
         const negation = new Negation();
-        const tryProcessNegation = pseudo.process(queue);
+        const tryProcessNegation = negation.process(queue);
         if (negation.consumed()) {
             this.modifiers.push({
                 attrib: new Attrib(),
@@ -1297,6 +1297,9 @@ export class NegationArg implements Matcher {
         }
         if (this.pseudo.consumed()) {
             return this.pseudo.match(htmlElements, allHtmlElements, namespaces);
+        }
+        if (this.className.consumed()) {
+            return this.className.match(htmlElements, allHtmlElements, namespaces);
         }
         return htmlElements;
     };

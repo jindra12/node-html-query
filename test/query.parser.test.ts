@@ -55,7 +55,7 @@ const tests: { [Type in keyof typeof Query]: {
     },
     Negation: {
         instance: () => new Query.Negation(),
-        passes: [":not(.className)"],
+        passes: [":not(.className)", ":not(div)"],
         fails: [":not(", ":not(.className", ".className"],
     },
     NegationArg: {
@@ -70,17 +70,17 @@ const tests: { [Type in keyof typeof Query]: {
     },
     Selector: {
         instance: () => new Query.Selector(),
-        passes: ["p", "div > p", "div > #id", ".class > .class", "div + div", "p ~ p", "div > div > div", "p + p > p", "#id #id #id", "p + p + p", "p ~ p ~ p"],
+        passes: ["p", "div > p", "div > #id", ".class > .class", "div + div", "p ~ p", "div > div > div", "p + p > p", "#id #id #id", "p + p + p", "p ~ p ~ p", ":not(div)"],
         fails: ["+ p", "p +"],
     },
     SelectorGroup: {
         instance: () => new Query.SelectorGroup(),
-        passes: ["div, div", "p, p", "p > p, div + div", "p, p, p", "#id, .class, p", ".class"],
+        passes: ["div, div", "p, p", "p > p, div + div", "p, p, p", "#id, .class, p", ".class", ":not(div)"],
         fails: ["div,", ",div"],
     },
     SimpleSelectorSequence: {
         instance: () => new Query.SimpleSelectorSequence(),
-        passes: ["*|div", "prefix|div", ".class", "#id", "[id=1]", "[id]", "[id$=2]", "p", "*"],
+        passes: ["*|div", "prefix|div", ".class", "#id", "[id=1]", "[id]", "[id$=2]", "p", "*", ":not(div)"],
         fails: ["12", "2n + 1", "div, div"],
     },
     TypeNamespacePrefix: {
