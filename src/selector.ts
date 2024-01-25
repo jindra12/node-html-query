@@ -133,7 +133,11 @@ export class Selector implements Matcher {
             }
         }
         const lastArrayItem = this.sequences[this.sequences.length - 1];
-        if (!lastArrayItem || (lastArrayItem.simpleSelectorSequence.consumed() && lastArrayItem.combinator.consumed())) {
+        if (
+            !lastArrayItem ||
+            (lastArrayItem.simpleSelectorSequence.consumed() &&
+                lastArrayItem.combinator.consumed())
+        ) {
             const combinator = new Combinator();
             const tryCombinator = combinator.process(queue);
             if (combinator.consumed()) {
@@ -566,9 +570,19 @@ export class Pseudo implements Matcher {
                         "[attr=value]"
                     );
                 case "checked":
-                    return matchAttribute(element.attributes(), "checked", true, "[attr]");
+                    return matchAttribute(
+                        element.attributes(),
+                        "checked",
+                        true,
+                        "[attr]"
+                    );
                 case "disabled":
-                    return matchAttribute(element.attributes(), "disabled", true, "[attr]");
+                    return matchAttribute(
+                        element.attributes(),
+                        "disabled",
+                        true,
+                        "[attr]"
+                    );
                 case "empty":
                     return children.length === 0 && element.texts().join("") === "";
                 case "enabled":
@@ -1094,12 +1108,13 @@ export class Attrib implements Matcher {
             return htmlElements;
         }
         return htmlElements.filter((element) => {
-            const value = this.ident2.value || this.stringIdent.value || this.numIdent.value;
+            const value =
+                this.ident2.value || this.stringIdent.value || this.numIdent.value;
             const name = `${this.typeNamespacePrefix.consumed() &&
-                this.typeNamespacePrefix.ident.value
-                ? `${this.typeNamespacePrefix.ident.value}:${this.ident1.value}`
-                : this.ident1.value
-            }`;
+                    this.typeNamespacePrefix.ident.value
+                    ? `${this.typeNamespacePrefix.ident.value}:${this.ident1.value}`
+                    : this.ident1.value
+                }`;
             if (!value) {
                 return matchAttribute(element.attributes(), name, true, "[attr]");
             }
@@ -1128,7 +1143,7 @@ export class Attrib implements Matcher {
                     }
                     return "[attr]";
                 })()
-            )
+            );
         });
     };
 }
@@ -1413,7 +1428,7 @@ export class Expression implements Matcher {
                     return this.process(tryConsumeCombinator);
                 }
             }
-            if (!this.selectorGroup1.consumed()) {
+            if (!this.selectorGroup1.consumed() && (current.type !== "Ident" || current.value !== "n")) {
                 const tryConsumeSelectorGroup = this.selectorGroup1.process(queue);
                 if (this.selectorGroup1.consumed()) {
                     return tryConsumeSelectorGroup;
@@ -1495,7 +1510,8 @@ export class Expression implements Matcher {
             element.parent
                 .children()
                 .filter(
-                    (otherChild) => otherChild.getTagName() === element.getTagName()
+                    (otherChild) =>
+                        otherChild.getTagName() === element.getTagName()
                 );
         const getIndexOfType = (childrenOfType: HtmlElement[]) =>
             childrenOfType.findIndex(
@@ -1633,36 +1649,34 @@ export class Expression implements Matcher {
         if (ofQuery.length === 0) {
             return ofQuery;
         }
-        if (this.number1.value) {
-            if (!this.ident1.value) {
-                if (!this.minus1.value) {
-                    const index = parseInt(this.number1.value);
-                    const element = ofQuery.find(
-                        (element) => this.getIndex(element) + 1 === index
-                    );
-                    return element ? [element] : [];
-                }
-            } else {
-                const modifier =
-                    (this.minus1.value ? -1 : 1) * parseInt(this.number1.value);
-                const addition =
-                    (this.minus2.value ? -1 : this.plus.value ? 1 : 0) *
-                    (parseInt(this.number2.value) || 0);
-                const upperIndexMatch = Math.max(
-                    ...ofQuery.map((element) => this.getIndex(element) + 1)
+        if (!this.ident1.value) {
+            if (!this.minus1.value) {
+                const index = parseInt(this.number1.value || "1");
+                const element = ofQuery.find(
+                    (element) => this.getIndex(element) + 1 === index
                 );
-                const indexAcc: Record<number, true> = {};
-                for (let i = 1; i < ofQuery.length + 1; i++) {
-                    const resultIndex = modifier * i + addition;
-                    if (resultIndex < 0 || resultIndex > upperIndexMatch) {
-                        break;
-                    }
-                    indexAcc[resultIndex] = true;
-                }
-                return ofQuery.filter(
-                    (element) => indexAcc[this.getIndex(element) + 1]
-                );
+                return element ? [element] : [];
             }
+        } else {
+            const modifier =
+                (this.minus1.value ? -1 : 1) * parseInt(this.number1.value || "1");
+            const addition =
+                (this.minus2.value ? -1 : this.plus.value ? 1 : 0) *
+                (parseInt(this.number2.value) || 0);
+            const upperIndexMatch = Math.max(
+                ...ofQuery.map((element) => this.getIndex(element) + 1)
+            );
+            const indexAcc: Record<number, true> = {};
+            for (let i = 0; i < ofQuery.length + 1; i++) {
+                const resultIndex = modifier * i + addition;
+                if (resultIndex < 0 || resultIndex > upperIndexMatch) {
+                    break;
+                }
+                indexAcc[resultIndex] = true;
+            }
+            return ofQuery.filter(
+                (element) => indexAcc[this.getIndex(element) + 1]
+            );
         }
         return [];
     };

@@ -74,7 +74,8 @@ export class HtmlDocument implements ParserItem {
             }
             if (index !== -1) {
                 this.htmlElements[index].htmlMisc1.push(new HtmlMisc());
-                this.htmlElements[index].htmlMisc1[0].htmlComment.htmlComment.value = text;
+                this.htmlElements[index].htmlMisc1[0].htmlComment.htmlComment.value =
+                    text;
             }
         }
         return this;
@@ -94,7 +95,9 @@ export class HtmlDocument implements ParserItem {
             }
             if (index !== -1) {
                 this.htmlElements[index].htmlMisc1.push(new HtmlMisc());
-                this.htmlElements[index].htmlMisc1[0].htmlComment.htmlConditionalComment.value = text;
+                this.htmlElements[
+                    index
+                ].htmlMisc1[0].htmlComment.htmlConditionalComment.value = text;
             }
         }
         return this;
@@ -108,15 +111,16 @@ export class HtmlDocument implements ParserItem {
             return this.cache.descendants.value;
         }
         this.cache.descendants.invalid = false;
-        return (this.cache.descendants.value = this.children().concat(this.children()
+        return (this.cache.descendants.value = this.children().concat(
+            this.children()
                 .map((child) => child.descendants())
                 .reduce((flatten: HtmlElement[], elements) => {
                     elements.forEach((element) => {
                         flatten.push(element);
                     });
                     return flatten;
-                }, []))
-        );
+                }, [])
+        ));
     };
 
     prevSibling = (element: HtmlElement) => {
@@ -159,7 +163,6 @@ export class HtmlDocument implements ParserItem {
                 child < this.htmlElements.length
             ) {
                 this.htmlElements.splice(child, 1);
-
             } else if (child instanceof HtmlElement) {
                 const index = this.getIndex(child);
                 this.htmlElements.splice(index, 1);
@@ -423,7 +426,11 @@ export class HtmlElement implements ParserItem {
     }
 
     convertWithChildren = () => {
-        if (this.script.consumed() || this.style.consumed() || this.scriptlet.value) {
+        if (
+            this.script.consumed() ||
+            this.style.consumed() ||
+            this.scriptlet.value
+        ) {
             throw `Cannot add children to <script>, <style> or scriptlet`;
         }
         if (this.getHtmlAttributes().length === 0) {
@@ -438,12 +445,16 @@ export class HtmlElement implements ParserItem {
     };
 
     prevSibling = (element: HtmlElement) => {
-        return this.parent instanceof HtmlDocument ? this.parent.prevSibling(element) : this.parent.content().prevSibling(element);
+        return this.parent instanceof HtmlDocument
+            ? this.parent.prevSibling(element)
+            : this.parent.content().prevSibling(element);
     };
 
     nextSibling = (element: HtmlElement) => {
-        return this.parent instanceof HtmlDocument ? this.parent.nextSibling(element) : this.parent.content().nextSibling(element);
-    }
+        return this.parent instanceof HtmlDocument
+            ? this.parent.nextSibling(element)
+            : this.parent.content().nextSibling(element);
+    };
 
     getStyles = () => {
         if (!this.consumed()) {
@@ -463,7 +474,10 @@ export class HtmlElement implements ParserItem {
             }, {}));
     };
 
-    modifyStyle = (styleName: string, styleModifier: (value?: string) => string) => {
+    modifyStyle = (
+        styleName: string,
+        styleModifier: (value?: string) => string
+    ) => {
         if (this.consumed()) {
             this.cache.styles.invalid = true;
             this.cache.attributes.invalid = true;
@@ -510,13 +524,15 @@ export class HtmlElement implements ParserItem {
             return this;
         }
         this.content().htmlCharData.htmlText.value = "";
-        this.content().content.forEach(({ charData, inner: { cData, htmlComment } }) => {
-            charData.htmlText.value = "";
-            charData.htmlText.value = "";
-            htmlComment.htmlComment.value = "";
-            htmlComment.htmlConditionalComment.value = "";
-            cData.value = "";
-        });
+        this.content().content.forEach(
+            ({ charData, inner: { cData, htmlComment } }) => {
+                charData.htmlText.value = "";
+                charData.htmlText.value = "";
+                htmlComment.htmlComment.value = "";
+                htmlComment.htmlConditionalComment.value = "";
+                cData.value = "";
+            }
+        );
         this.children().forEach((child) => {
             child.emptyText();
         });
@@ -560,12 +576,14 @@ export class HtmlElement implements ParserItem {
         const seeker = (
             htmlElements: HtmlElement[],
             collector: (element: HtmlElement) => void,
-            skip = true,
+            skip = true
         ) => {
             if (!skip) {
                 htmlElements.forEach(collector);
             }
-            htmlElements.forEach((element) => seeker(element.children(), collector, false));
+            htmlElements.forEach((element) =>
+                seeker(element.children(), collector, false)
+            );
         };
         const descendants: HtmlElement[] = [];
         seeker([this], (element) => {
@@ -650,7 +668,7 @@ export class HtmlElement implements ParserItem {
         if (this.consumed()) {
             const attribute = this.attributes()[attributeName];
             const modified = modifier(attribute);
-            this.replaceAttribute(attributeName, modified)
+            this.replaceAttribute(attributeName, modified);
         }
         return this;
     };
@@ -689,7 +707,8 @@ export class HtmlElement implements ParserItem {
 
     endTagConsumed = () => {
         return Boolean(
-            this.tagClose.close1.tagClose.value || this.tagClose.close2.tagSlashClose.value
+            this.tagClose.close1.tagClose.value ||
+            this.tagClose.close2.tagSlashClose.value
         );
     };
 
@@ -769,9 +788,11 @@ export class HtmlElement implements ParserItem {
             }
             if (current.type === "TAG_WHITESPACE") {
                 if (!this.tagClose.close1.closingGroup.tagName.value) {
-                    this.tagClose.close1.closingGroup.tagWhiteSpace1.value = current.value;
+                    this.tagClose.close1.closingGroup.tagWhiteSpace1.value =
+                        current.value;
                 } else {
-                    this.tagClose.close1.closingGroup.tagWhiteSpace2.value = current.value;
+                    this.tagClose.close1.closingGroup.tagWhiteSpace2.value =
+                        current.value;
                 }
                 return this.process(queue.next());
             }
@@ -833,7 +854,8 @@ export class HtmlElement implements ParserItem {
         element.tagName.value = this.tagName.value;
         element.tagWhiteSpace2.value = this.tagWhiteSpace2.value;
         element.htmlAttributes = this.htmlAttributes.map((a) => a.clone());
-        element.tagClose.close1.tagClose.value = this.tagClose.close1.tagClose.value;
+        element.tagClose.close1.tagClose.value =
+            this.tagClose.close1.tagClose.value;
         element.tagClose.close1.closingGroup.htmlContent = this.content().clone();
         element.tagClose.close1.closingGroup.tagClose.value =
             this.tagClose.close1.closingGroup.tagClose.value;
@@ -924,8 +946,10 @@ export class HtmlContent implements ParserItem {
                     htmlElement: new HtmlElement(this.parent),
                 },
                 charData: new HtmlChardata(),
-            })
-            this.content[this.content.length - 1].inner.htmlComment.htmlComment.value += text;
+            });
+            this.content[
+                this.content.length - 1
+            ].inner.htmlComment.htmlComment.value += text;
         } else {
             const index = typeof after === "number" ? after : this.getIndex(after);
             if (index >= this.content.length) {
@@ -949,8 +973,10 @@ export class HtmlContent implements ParserItem {
                     htmlElement: new HtmlElement(this.parent),
                 },
                 charData: new HtmlChardata(),
-            })
-            this.content[this.content.length - 1].inner.htmlComment.htmlConditionalComment.value += text;
+            });
+            this.content[
+                this.content.length - 1
+            ].inner.htmlComment.htmlConditionalComment.value += text;
         } else {
             const index = typeof after === "number" ? after : this.getIndex(after);
             if (index >= this.content.length) {
@@ -958,7 +984,8 @@ export class HtmlContent implements ParserItem {
                 return this;
             }
             if (index !== -1) {
-                this.content[index].inner.htmlComment.htmlConditionalComment.value += text;
+                this.content[index].inner.htmlComment.htmlConditionalComment.value +=
+                    text;
             }
         }
         this.parent.convertWithChildren();
@@ -1035,7 +1062,9 @@ export class HtmlContent implements ParserItem {
         return this;
     };
 
-    getIndex = (element: HtmlElement) => {
+    getIndex = (
+        element: HtmlElement,
+    ) => {
         if (!this.consumed()) {
             return -1;
         }
@@ -1043,15 +1072,20 @@ export class HtmlContent implements ParserItem {
             return this.cache.indexes.value[element.identifier] ?? -1;
         }
         this.cache.indexes.invalid = false;
-        this.cache.indexes.value = this.content.reduce(
-            (indexes: Record<string, number>, { inner: { htmlElement } }, index) => {
-                if (htmlElement.consumed()) {
-                    indexes[htmlElement.identifier] = index;
-                }
-                return indexes;
-            },
-            {}
-        );
+        this.cache.indexes.value = this.content
+            .reduce(
+                (
+                    indexes: Record<string, number>,
+                    { inner: { htmlElement } },
+                    index
+                ) => {
+                    if (htmlElement.consumed()) {
+                        indexes[htmlElement.identifier] = index;
+                    }
+                    return indexes;
+                },
+                {}
+            );
         return this.cache.indexes.value[element.identifier] ?? -1;
     };
 
@@ -1401,7 +1435,8 @@ export class Script implements ParserItem {
             this.tagOpen.value &&
             this.scriptOpen.value &&
             this.attributes.every((attribute) => attribute.consumed()) &&
-            ((this.scriptBody.value && this.tagClose.value) || this.tagSlashClose.value)
+            ((this.scriptBody.value && this.tagClose.value) ||
+                this.tagSlashClose.value)
         );
     };
     process = (queue: Queue): Queue => {
@@ -1447,7 +1482,12 @@ export class Script implements ParserItem {
                 }
                 break;
             case "TAG_SLASH_CLOSE":
-                if (this.scriptOpen.value && !this.scriptBody.value && !this.tagClose.value && !this.tagSlashClose.value) {
+                if (
+                    this.scriptOpen.value &&
+                    !this.scriptBody.value &&
+                    !this.tagClose.value &&
+                    !this.tagSlashClose.value
+                ) {
                     this.tagSlashClose.value = current.value;
                     return queue.next();
                 }
@@ -1497,7 +1537,8 @@ export class Style implements ParserItem {
             this.tagOpen.value &&
             this.styleOpen.value &&
             this.attributes.every((attribute) => attribute.consumed()) &&
-            ((this.styleBody.value && this.tagClose.value) || this.tagSlashClose.value)
+            ((this.styleBody.value && this.tagClose.value) ||
+                this.tagSlashClose.value)
         );
     };
     process = (queue: Queue): Queue => {
@@ -1543,7 +1584,12 @@ export class Style implements ParserItem {
                 }
                 break;
             case "TAG_SLASH_CLOSE":
-                if (this.styleOpen.value && !this.styleBody.value && !this.tagClose.value && !this.tagSlashClose.value) {
+                if (
+                    this.styleOpen.value &&
+                    !this.styleBody.value &&
+                    !this.tagClose.value &&
+                    !this.tagSlashClose.value
+                ) {
                     this.tagSlashClose.value = current.value;
                     return queue.next();
                 }
