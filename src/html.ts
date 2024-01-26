@@ -655,6 +655,9 @@ export class HtmlElement implements ParserItem {
                 }
             }
             this.getHtmlAttributes().push(attribute);
+            if (!this.tagWhiteSpace2.value) {
+                this.tagWhiteSpace2.value = " ";
+            }
         }
         return this;
     };
@@ -666,7 +669,11 @@ export class HtmlElement implements ParserItem {
             );
             if (attributeIndex !== -1) {
                 this.cache.attributes.invalid = true;
-                this.getHtmlAttributes().splice(attributeIndex, 1);
+                const attributes = this.getHtmlAttributes();
+                attributes.splice(attributeIndex, 1);
+                if (attributes.length === 0 && !this.tagClose.close2.tagSlashClose.value) {
+                    this.tagWhiteSpace2.value = "";
+                }
             }
             if (attributeName === "style") {
                 this.cache.styles.invalid = true;

@@ -1726,10 +1726,10 @@ class QueryInstance implements Record<number, QueryInstance> {
             const namespaces: Record<string, string> = args[1] || {};
             const [parent, appendTo] = this.getParentAssigner(resolved, namespaces);
             if (parent && appendTo) {
-                m.children().forEach((child) => {
-                    appendTo.addChild(child);
-                    m.removeChild(child);
-                });
+                const content = m.content().clone();
+                m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
+                appendTo.convertWithChildren();
+                appendTo.tagClose.close1.closingGroup.htmlContent = content;
                 m.addChild(parent);
             }
         });
