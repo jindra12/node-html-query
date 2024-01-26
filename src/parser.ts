@@ -3,7 +3,11 @@ import { Lexer, LexerType, cssLexerAtoms, htmlLexerAtoms } from "./lexers";
 import { SelectorGroup } from "./selector";
 import { Queue, QueueItem } from "./types";
 
-export const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer>>, initialMode: string[] = []) => {
+export const parseLexer = (
+    input: string,
+    lexer: Partial<Record<LexerType, Lexer>>,
+    initialMode: string[] = []
+) => {
     const acc: QueueItem[] = [];
     const lexers = Object.values(lexer);
     const lexerKeys = Object.keys(lexer) as LexerType[];
@@ -14,15 +18,20 @@ export const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer
     do {
         let matchedValue = "";
         const matchedLexer = lexers.findIndex((lexer) => {
-            const matchesMode = (!lexer.mode && mode.length === 0) || lexer.mode === mode[mode.length - 1];
+            const matchesMode =
+                (!lexer.mode && mode.length === 0) ||
+                lexer.mode === mode[mode.length - 1];
             if (!matchesMode) {
                 return false;
             }
-            const matchesRegex = new RegExp(`^.{${parsedIndex}}(${lexer.value.source})`, "gmu").exec(input);
-            if (typeof matchesRegex?.[1] !== "string") {
+            const matchesRegex = new RegExp(
+                `^(((.|\n){${parsedIndex}})(?<match>${lexer.value.source}))`,
+                "gu"
+            ).exec(input);
+            if (!matchesRegex?.groups?.["match"]) {
                 return false;
             }
-            const groupMatch = matchesRegex[1];
+            const groupMatch = matchesRegex.groups["match"];
             parsedIndex += groupMatch.length;
             matchedValue = groupMatch;
             if (lexer.popMode) {
@@ -34,28 +43,44 @@ export const parseLexer = (input: string, lexer: Partial<Record<LexerType, Lexer
             return true;
         });
         if (matchedLexer === -1) {
-            throw `${input.slice(parsedIndex)} does not match any known lexer items`;
+            throw `${input.slice(
+                parsedIndex
+            )} does not match any known lexer items, matched previously: ${acc
+                .map(({ type, value }) => `${type}:"${value}"`)
+                .slice(-10)
+                .join(",")}`;
         }
         acc.push({
             type: lexerKeys[matchedLexer],
             value: matchedValue,
         });
-    } while (parsedIndex < input.length)
+    } while (parsedIndex < input.length);
     acc.push({ type: "EOF", value: "" });
-    return { queue: acc, mode: mode };
+    return {
+        queue: acc,
+        mode: mode,
+    };
 };
 
-export const parsedHtmlLexer = Object.entries(htmlLexerAtoms).reduce((lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
-    const typedKey = lexerKey as LexerType;
-    lexer[typedKey] = lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
-    return lexer;
-}, {});
+export const parsedHtmlLexer = Object.entries(htmlLexerAtoms).reduce(
+    (lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
+        const typedKey = lexerKey as LexerType;
+        lexer[typedKey] =
+            lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
+        return lexer;
+    },
+    {}
+);
 
-export const parsedQueryLexer = Object.entries(cssLexerAtoms).reduce((lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
-    const typedKey = lexerKey as LexerType;
-    lexer[typedKey] = lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
-    return lexer;
-}, {});
+export const parsedQueryLexer = Object.entries(cssLexerAtoms).reduce(
+    (lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
+        const typedKey = lexerKey as LexerType;
+        lexer[typedKey] =
+            lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
+        return lexer;
+    },
+    {}
+);
 
 const parseHtmlLexer = (input: string) => {
     return parseLexer(input, parsedHtmlLexer).queue;
@@ -76,12 +101,20 @@ export const createQueueFromItems = (lexerAtoms: QueueItem[]) => {
     return createQueue(0);
 };
 
-export const checkIfNothingRemains = (lexerAtoms: QueueItem[], endQueue: Queue) => {
-    const remainingLexerAtoms = lexerAtoms.slice(endQueue.at).filter((atom) => atom.type !== "EOF");
+export const checkIfNothingRemains = (
+    lexerAtoms: QueueItem[],
+    endQueue: Queue
+) => {
+    const remainingLexerAtoms = lexerAtoms
+        .slice(endQueue.at)
+        .filter((atom) => atom.type !== "EOF");
     if (remainingLexerAtoms.length > 0) {
-        throw `Error in parsing encountered at: ${remainingLexerAtoms.slice(0, 5).map(({ type, value }) => `${type}: "${value}"`).join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 10)}...`
+        throw `Error in parsing encountered at: ${remainingLexerAtoms
+            .slice(0, 5)
+            .map(({ type, value }) => `${type}: "${value}"`)
+            .join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 10)}...`;
     }
-}
+};
 
 export const htmlParser = (input: string) => {
     const lexerAtoms = parseHtmlLexer(input);

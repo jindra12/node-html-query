@@ -25,10 +25,8 @@ const htmlTestParser = (
     if (processed.at !== queue.items.length - 1) {
         throw `(${processed.at}/${queue.items.length}) ${queue.items
             .slice(processed.at)
-            .map((q) => `${q.type}:"${q.value}"`)
-            .join(",")} remaining in queue ${JSON.stringify(instance, (key, value) =>
-                key === "parent" ? "parent" : value
-            )}`;
+            .map((q) => q.value)
+            .join("")}`;
     }
     checkIfNothingRemains(queueItems, processed);
     return instance;
@@ -92,6 +90,30 @@ const tests: {
             "<h3>World</h3>",
             "<h2>Hello </h2>",
             "<div><h2>Hello </h2><h3>World</h3></div>",
+            `
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Title</title>
+    </head>
+    <body>
+        <div id='1' />
+        <div id='2' />
+        <p>
+            <div class='one' />
+        </p>
+        <ul>
+            <li>item</li>
+            <li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>
+        </ul>
+        <article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>
+        <h1 style='position: fixed'>Hello</h1>
+        <h2 style='height: 50%'>Hello</h2>
+        <h3><div id='three' /></h3>
+        <input type='text' style='width: 100px' />
+    </body>
+</html> 
+`
         ],
         fails: ["<div<"],
     },

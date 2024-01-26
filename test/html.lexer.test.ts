@@ -90,12 +90,10 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         nextModes: ["TAG"]
     }],
     SCRIPT_OPEN: [{
-        value: "script",
+        value: "<script",
         nextModes: ["SCRIPT", "TAG"],
-        modes: ["TAG"],
     }, {
-        value: "scripts",
-        modes: ["TAG"],
+        value: "<scripts",
         inverse: true,
     }],
     SCRIPTLET: [{
@@ -134,8 +132,7 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
         nextModes: ["TAG"],
     }],
     STYLE_OPEN: [{
-        value: "style",
-        modes: ["TAG"],
+        value: "<style",
         nextModes: ["STYLE", "TAG"],
     }],
     TAG_CLOSE: [{
@@ -217,15 +214,38 @@ const testMap: Record<LexerType, { inverse?: true, modes?: string[], nextModes?:
 
 const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue;
 
-const complexHtmlStructures: Record<string, string[]> = {
+const complexHtmlStructures: Record<string, (true | string[])> = {
     "<div />": ["<", "div", " ", "/>", ""],
     "<div></div>": ["<", "div", ">", "<", "/", "div", ">", ""],
     "<div><br /></div>": ["<", "div", ">", "<", "br", " ", "/>", "<", "/", "div", ">", ""],
     [`<div class="identifier" />`]: ["<", "div", " ", "class", "=", `"identifier"`, " ", "/>", ""],
     [`<div class='identifier' />`]: ["<", "div", " ", "class", "=", `'identifier'`, " ", "/>", ""],
     "<body><div class='identifier' /></body>": ["<", "body", ">", "<", "div", " ", "class", "=", `'identifier'`, " ", "/>", "<", "/", "body", ">", ""],
-    "<script id='1'>function() { return 'this is javascript </>'; }</script>": ["<", "script", " ", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script>", ""],
-    [`<style>.class #id > div { content: "</>" }</style>`]: ["<", "style", ">", `.class #id > div { content: "</>" }</style>`, ""],
+    "<script id='1'>function() { return 'this is javascript </>'; }</script>": ["<script ", "id", "=", `'1'`, ">", "function() { return 'this is javascript </>'; }</script>", ""],
+    [`<style>.class #id > div { content: "</>" }</style>`]: ["<style", ">", `.class #id > div { content: "</>" }</style>`, ""],
+    [`
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <title>Title</title>
+        </head>
+        <body>
+            <div id='1' />
+            <div id='2' />
+            <p>
+                <div class='one' />
+            </p>
+            <ul>
+                <li>item</li>
+                <li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>
+            </ul>
+            <article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>
+            <h1 style='position: fixed'>Hello</h1>
+            <h2 style='height: 50%'>Hello</h2>
+            <h3><div id='three' /></h3>
+            <input type='text' style='width: 100px' />
+        </body>
+    </html>`]: true,
 };
 
 describe("Match HTML lexer items correctly", () => {
@@ -249,7 +269,12 @@ describe("Match HTML lexer items correctly", () => {
     });
     Object.entries(complexHtmlStructures).forEach(([input, expected]) => {
         it(`Can break down complex HTML structures: ${input}`, () => {
-            expect(parseQueue(input).map((item) => item.value)).toEqual(expected);
+            if (expected === true) {
+                expect(() => parseQueue(input).map((item) => item.value)).not.toThrow();
+            } else {
+                expect(
+                    parseQueue(input).map((item) => item.value)).toEqual(expected);
+            }
         });
     });
 });
