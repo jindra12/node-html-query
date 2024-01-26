@@ -10,7 +10,7 @@
           "${workspaceRoot}/node_modules/.bin/jest",
           "--runInBand",
           "-i",
-          "match.test.ts"
+          "methods.test.ts"
         ],
         "console": "integratedTerminal",
         "internalConsoleOptions": "neverOpen"

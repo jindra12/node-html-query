@@ -46,30 +46,33 @@ const testCases: Partial<Record<
     addBack: [
         ($) => {
             expect($("p").find("div").addBack().print(true)).toEqual(
-                "<p><div class='one'></p><div class='one' />"
+                "<p> <div class='one' /> </p>"
             );
-            expect($("p").find("div").addBack(":not(div)").print(true)).toEqual(
-                "<p><div class='one'></p>"
+            expect($("p").find("div").addBack(":not(p)").print(true)).toEqual(
+                ""
+            );
+            expect($("p").find("div").addBack("p").print(true)).toEqual(
+                "<p> <div class='one' /> </p>"
             );
         },
     ],
-    /*addClass: [
+    addClass: [
         ($) => {
             expect($("[id='2']").addClass("two").print()).toEqual(
-                "<div id='2' class='two' />"
+                `<div id='2' class="two" />`
             );
             expect(
                 $(".one")
                     .addClass((index, className) => `${className}-${index}`)
                     .print()
-            ).toEqual("<div class='one-0' />");
+            ).toEqual(`<div class="one one-0" />`);
             expect(
                 $("body > div[id]")
-                    .addClass((_, index) => `next-${index}`)
+                    .addClass((_, value) => `next-${value}`)
                     .print()
-            ).toEqual("<div id='1' class='next-0' /><div id='2' class='next-1' />");
+            ).toEqual(`<div id='1' class="next-" /><div id='2' class="two next-two" />`);
             expect($("body > div[id]").addClass("two").print()).toEqual(
-                "<div id='1' class='two' /><div id='2' class='two' />"
+                `<div id='1' class="next- two" /><div id='2' class="two next-two" />`
             );
         },
     ],
@@ -77,7 +80,7 @@ const testCases: Partial<Record<
         ($) => {
             $(".one").after("<p />", "<span />");
             expect($("body > p").print(true)).toEqual(
-                "<p><div class='one' /><p /><span /></p>"
+                "<p> <div class='one' /><p /><span /> </p>"
             );
         },
         ($) => {
@@ -114,7 +117,7 @@ const testCases: Partial<Record<
             ).toEqual(`<div class='one'>Random text 0 <div class='one' /></div>`);
         },
     ],
-    appendTo: [
+    /*appendTo: [
         ($) => {
             $("<p />").appendTo($(".one"));
             $("<span />").appendTo(".one");

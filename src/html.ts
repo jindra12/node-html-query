@@ -1008,8 +1008,6 @@ export class HtmlContent implements ParserItem {
     };
 
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
-        this.cache.children.invalid = true;
-        this.cache.indexes.invalid = true;
         child.parent = this.parent;
         const item = {
             htmlElement: child,
@@ -1022,6 +1020,8 @@ export class HtmlContent implements ParserItem {
         } else {
             this.content.splice(index, 0, item);
         }
+        this.cache.children.invalid = true;
+        this.cache.indexes.invalid = true;
         this.parent.convertWithChildren();
         return this;
     };

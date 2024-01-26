@@ -63,7 +63,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     private previous: QueryInstance;
 
     private addElementsToMatcher = (
-        manipulator: (content: string, matched: HtmlElement) => void,
+        manipulator: (content: string, matched: HtmlElement, index: number) => void,
         firstArg: string | ((index: number, html: string) => string),
         ...content: string[]
     ) => {
@@ -73,8 +73,8 @@ class QueryInstance implements Record<number, QueryInstance> {
                     ? firstArg(index, parserItemToString(element))
                     : firstArg;
             const allContent = [textFirstArg, ...content];
-            allContent.forEach((content) => {
-                manipulator(content, element);
+            allContent.forEach((content, index) => {
+                manipulator(content, element, index);
             });
         });
         this.document.cache.descendants.invalid = true;
@@ -314,17 +314,17 @@ class QueryInstance implements Record<number, QueryInstance> {
         ...content: string[]
     ) => {
         return this.addElementsToMatcher(
-            (content: string, matched: HtmlElement) => {
+            (content, matched, contentIndex) => {
                 const tryFirstArgHtml = tryHtmlParser(content);
                 if (!tryFirstArgHtml) {
-                    if (matched.parent instanceof HtmlContent) {
-                        matched.parent.addText(content, matched);
+                    if (matched.parent instanceof HtmlElement) {
+                        matched.parent.content().addText(content, matched);
                     }
                 } else {
                     const index = matched.parent.getIndex(matched);
                     tryFirstArgHtml.descendants().forEach((descentant) => {
-                        matched.parent.addChild(descentant, index + 1);
-                    });
+                        matched.parent.addChild(descentant, index + contentIndex + 1);
+});
                     const comments = getItems<HtmlComment>(
                         tryFirstArgHtml,
                         (item: ParserItem | LexerItem<any>): item is HtmlComment =>
@@ -355,10 +355,10 @@ class QueryInstance implements Record<number, QueryInstance> {
             (content: string, matched: HtmlElement) => {
                 const tryFirstArgHtml = tryHtmlParser(content);
                 if (!tryFirstArgHtml) {
-                    matched.content().addText(content, matched);
+                    matched.content().addText(content);
                 } else {
                     tryFirstArgHtml.descendants().forEach((descentant) => {
-                        matched.content().addChild(descentant);
+                        matched.addChild(descentant);
                     });
                     const comments = getItems<HtmlComment>(
                         tryFirstArgHtml,
@@ -1262,7 +1262,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             .concat(this.virtualDoms.map(parserItemToString))
             .join("");
         return ignoreWhitespace
-            ? printed.replace(/\r|\n|\t/gimu, "").replace(/\s+/gimu, "")
+            ? printed.replace(/|\n\s*/gu, "").replace(/\s+/gu, " ")
             : printed;
     };
     /**
