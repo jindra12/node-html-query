@@ -442,6 +442,11 @@ export class HtmlElement implements ParserItem {
         this.tagClose.close1.closingGroup.tagSlash.value = "/";
         this.tagClose.close1.closingGroup.tagName.value = this.tagName.value;
         this.tagClose.close1.closingGroup.tagClose.value = ">";
+        const attributes = this.getHtmlAttributes();
+        const lastAttribute = attributes[attributes.length - 1];
+        if (lastAttribute) {
+            lastAttribute.attribute.ws.value = "";
+        }
     };
 
     prevSibling = (element: HtmlElement) => {

@@ -1134,8 +1134,7 @@ const testCases: Record<
             expect(accumulator).toEqual({
                 1: "id",
                 2: "id",
-                3: "id",
-                one: "id",
+                three: "id",
                 deep: "id",
             });
         },
@@ -1258,8 +1257,8 @@ const testCases: Record<
     tagName: [
         ($) => {
             expect($(".one").tagName()).toEqual("div");
-            expect($(".one").tagName("span")).toEqual("<span class='one' />");
-            expect($("#deep").tagName("span")).toEqual("<span id='deep'>item</span>");
+            expect($(".one").tagName("span").print()).toEqual("<span class='one' />");
+            expect($("#deep").tagName("span").print()).toEqual("<span id='deep'>item</span>");
         },
     ],
     text: [
