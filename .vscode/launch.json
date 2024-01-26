@@ -10,7 +10,7 @@
           "${workspaceRoot}/node_modules/.bin/jest",
           "--runInBand",
           "-i",
-          "html.lexer.test.ts"
+          "match.test.ts"
         ],
         "console": "integratedTerminal",
         "internalConsoleOptions": "neverOpen"

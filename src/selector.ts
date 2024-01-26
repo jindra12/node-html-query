@@ -1430,7 +1430,9 @@ export class Expression implements Matcher {
                     return this.process(tryConsumeCombinator);
                 }
             }
-            if (!this.selectorGroup1.consumed() && (current.type !== "Ident" || current.value !== "n")) {
+            const fnPseudo = this.functionalPseudo.funct.value;
+            const selectorExempt = fnPseudo === "lang(" || fnPseudo === "contains(" || fnPseudo === "eq(" || current.value === "n";
+            if (!this.selectorGroup1.consumed() && !selectorExempt) {
                 const tryConsumeSelectorGroup = this.selectorGroup1.process(queue);
                 if (this.selectorGroup1.consumed()) {
                     return tryConsumeSelectorGroup;
@@ -1558,20 +1560,22 @@ export class Expression implements Matcher {
             return [];
         }
         if (this.functionalPseudo.funct.value === "eq(") {
-            const index = parseInt(this.ident1.value);
+            const index = parseInt(this.ident1.value || this.number1.value);
             if (!isNaN(index)) {
+                const multiplied = index * (!this.minus1.value ? 1 : -1);
                 return htmlElements.filter((_, i) =>
-                    index >= 0 ? i === index : htmlElements.length - 1 + index === i
+                    multiplied >= 0 ? i === multiplied : htmlElements.length + multiplied === i
                 );
             }
             return [];
         }
         if (this.functionalPseudo.funct.value === "contains(") {
-            if (this.ident1.value) {
+            const contains = this.ident1.value || this.number1.value;
+            if (contains) {
                 return htmlElements.filter((htmlElement) => {
                     return htmlElement
                         .texts()
-                        .some((text) => text.includes(this.ident1.value));
+                        .some((text) => text.includes(contains));
                 });
             }
             return [];

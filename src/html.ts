@@ -1060,6 +1060,7 @@ export class HtmlContent implements ParserItem {
             return -1;
         }
         const getIndexes = () => this.content
+            .filter(({ htmlElement }) => htmlElement.consumed())
             .filter(({ htmlElement }) => !filter || filter(htmlElement))
             .reduce(
                 (

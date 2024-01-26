@@ -521,7 +521,7 @@ const matches: {
     },
     {
         html: "<ul><li lang='en-US'>1</li><li>2</li><li>3</li><li>4</li><li>5</li><li>6</li><li>7</li></ul>",
-        query: "li:lang(en)",
+        query: "li:lang(en-US)",
         results: ["<li lang='en-US'>1</li>"]
     },
     {
