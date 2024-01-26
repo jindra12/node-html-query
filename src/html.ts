@@ -639,6 +639,15 @@ export class HtmlElement implements ParserItem {
                 const desanitized = desanitizeAttribute(attributeValue);
                 attribute.attribute.tagEquals.value = "=";
                 attribute.attribute.value.value = desanitized;
+                if (this.tagClose.close2.tagSlashClose.value) {
+                    attribute.attribute.ws.value = " ";
+                } else {
+                    const attributes = this.getHtmlAttributes();
+                    const last = attributes[attributes.length - 1];
+                    if (last) {
+                        last.attribute.ws.value = " ";
+                    }
+                }
             }
             this.getHtmlAttributes().push(attribute);
         }

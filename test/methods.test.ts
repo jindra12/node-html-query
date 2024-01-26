@@ -183,7 +183,7 @@ const testCases: Record<
                     .blur(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onblur="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onblur='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -209,7 +209,7 @@ const testCases: Record<
                     .change(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onchange="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onchange='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -242,7 +242,7 @@ const testCases: Record<
                     .click(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onclick="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onclick='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -300,7 +300,7 @@ const testCases: Record<
                     .contextmenu(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' oncontextmenu="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' oncontextmenu='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -355,7 +355,7 @@ const testCases: Record<
                     .dblclick(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' ondblclick="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' ondblclick='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -443,7 +443,7 @@ const testCases: Record<
                     .focus(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onfocus="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onfocus='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -469,7 +469,7 @@ const testCases: Record<
                     .focusin(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onfocusin="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onfocusin='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -495,7 +495,7 @@ const testCases: Record<
                     .focusin(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onfocusin="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onfocusin='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -550,7 +550,7 @@ const testCases: Record<
                     .hover(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onhover="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onhover='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -621,7 +621,7 @@ const testCases: Record<
                     .keydown(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onkeydown="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onkeydown='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -647,7 +647,7 @@ const testCases: Record<
                     .keypress(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onkeypress="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onkeypress='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -673,7 +673,7 @@ const testCases: Record<
                     .keyup(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onkeyup="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onkeyup='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -718,7 +718,7 @@ const testCases: Record<
                     .mousedown(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmousedown="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmousedown='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -744,7 +744,7 @@ const testCases: Record<
                     .mouseenter(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseenter="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmouseenter='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -770,7 +770,7 @@ const testCases: Record<
                     .mouseleave(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseleave="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmouseleave='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -796,7 +796,7 @@ const testCases: Record<
                     .mousemove(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmousemove="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmousemove='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -822,7 +822,7 @@ const testCases: Record<
                     .mouseout(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseout="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmouseout='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -848,7 +848,7 @@ const testCases: Record<
                     .mouseover(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseover="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmouseover='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -874,7 +874,7 @@ const testCases: Record<
                     .mouseup(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseup="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onmouseup='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -952,7 +952,7 @@ const testCases: Record<
                     .click(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseup="((event) => event.preventDefault())(this);" onclick="(() => alert('this'))(this)" />`
+                `<div class='one' onmouseup="((event) => event.preventDefault())(this);" onclick='(() => alert("this"))(this)' />`
             );
             expect($(".one").off("click mouseup").print()).toEqual(
                 `<div class='one' />`
@@ -966,7 +966,7 @@ const testCases: Record<
                     .on("click mouseup", (event) => event.preventDefault())
                     .print()
             ).toEqual(
-                `<div class='one' onmouseup="((event) => event.preventDefault())(this);" onclick="((event) => event.preventDefault())(this);" />`
+                `<div class='one' onclick="((event) => event.preventDefault())(this);" onmouseup="((event) => event.preventDefault())(this);" />`
             );
         },
     ],
@@ -1205,7 +1205,7 @@ const testCases: Record<
                     .select(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onselect="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onselect='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -1246,7 +1246,7 @@ const testCases: Record<
                     .submit(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onsubmit="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onsubmit='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
@@ -1308,7 +1308,7 @@ const testCases: Record<
                     .unload(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onunload="((event) => event.preventDefault())(this);(() => alert('this'))(this)" />`
+                `<div class='one' onunload='((event) => event.preventDefault())(this);(() => alert("this"))(this)' />`
             );
         },
         ($) => {
