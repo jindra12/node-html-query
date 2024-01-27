@@ -1,5 +1,10 @@
 import { HtmlComment, HtmlContent, HtmlDocument, HtmlElement } from "./html";
-import { htmlParser, queryParser, tryHtmlParser, tryQueryParser } from "./parser";
+import {
+    htmlParser,
+    queryParser,
+    tryHtmlParser,
+    tryQueryParser,
+} from "./parser";
 import { LexerItem, ParserItem } from "./types";
 import { flatten, getItems, parserItemToString, uniqueId } from "./utils";
 
@@ -20,7 +25,7 @@ interface TypeCombiner {
     data(object: Record<string, string>): QueryInstance;
     data(): Record<string, string>;
     data(key: string, value: string): QueryInstance;
-    html(): string | undefined;
+    html(): string;
     html(value: string): QueryInstance;
     html(setter: (index: number, value: string) => string): QueryInstance;
     tagName(): string;
@@ -53,14 +58,31 @@ type DataType = TypeCombiner["data"];
 type CssType = TypeCombiner["css"];
 type AttrType = TypeCombiner["attr"];
 type WrapType = TypeCombiner["wrap"];
-type HeightType = TypeCombiner["height"];
-type WidthType = TypeCombiner["width"];
 
 class QueryInstance implements Record<number, QueryInstance> {
     private document: HtmlDocument;
     private virtualDoms: HtmlDocument[];
     private matched: HtmlElement[];
     private previous: QueryInstance;
+
+    private getUntil = (selector: string | QueryInstance, namespaces: Record<string, string>) => {
+        return (typeof selector === "string"
+                ? (() => {
+                    const query = tryQueryParser(selector);
+                    if (query) {
+                        return query.match(
+                            this.document.descendants(),
+                            this.document.descendants(),
+                            namespaces
+                        );
+                    }
+                    return [];
+                })()
+                : selector.matched).reduce((mapped: Record<string, true>, element) => {
+                    mapped[element.identifier] = true;
+                    return mapped;
+                }, {})
+    }
 
     private addElementsToMatcher = (
         manipulator: (content: string, matched: HtmlElement, index: number) => void,
@@ -179,12 +201,18 @@ class QueryInstance implements Record<number, QueryInstance> {
         queryInput: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
+        const allDescendants = this.matched
+            .map((m) => m.descendants())
+            .reduce((descendants: HtmlElement[], descendantPart) => {
+                descendants.push(...descendantPart);
+                return descendants;
+            }, []);
         if (typeof queryInput === "string") {
             const query = tryQueryParser(queryInput);
             if (query) {
                 return createQuery(
                     this.document,
-                    query.match(this.matched, this.document.descendants(), namespaces),
+                    query.match(allDescendants, this.document.descendants(), namespaces),
                     this.virtualDoms,
                     this
                 );
@@ -199,7 +227,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             );
             return createQuery(
                 this.document,
-                this.matched.filter((m) => elementMap[m.identifier]),
+                allDescendants.filter((m) => elementMap[m.identifier]),
                 this.virtualDoms,
                 this
             );
@@ -321,10 +349,10 @@ class QueryInstance implements Record<number, QueryInstance> {
                         matched.parent.content().addText(content, matched);
                     }
                 } else {
-                    const index = matched.parent.getIndex(matched);
-                    tryFirstArgHtml.descendants().forEach((descentant) => {
+                    const index = matched.parent.getIndex(matched, false);
+                    tryFirstArgHtml.children().forEach((descentant) => {
                         matched.parent.addChild(descentant, index + contentIndex + 1);
-});
+                    });
                     const comments = getItems<HtmlComment>(
                         tryFirstArgHtml,
                         (item: ParserItem | LexerItem<any>): item is HtmlComment =>
@@ -357,7 +385,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 if (!tryFirstArgHtml) {
                     matched.content().addText(content);
                 } else {
-                    tryFirstArgHtml.descendants().forEach((descentant) => {
+                    tryFirstArgHtml.children().forEach((descentant) => {
                         matched.addChild(descentant);
                     });
                     const comments = getItems<HtmlComment>(
@@ -462,8 +490,8 @@ class QueryInstance implements Record<number, QueryInstance> {
                         matched.parent.addText(content, matched);
                     }
                 } else {
-                    const index = matched.parent.getIndex(matched);
-                    tryFirstArgHtml.descendants().forEach((descentant) => {
+                    const index = matched.parent.getIndex(matched, false);
+                    tryFirstArgHtml.children().forEach((descentant) => {
                         matched.parent.addChild(descentant, index);
                     });
                     const comments = getItems<HtmlComment>(
@@ -534,6 +562,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             }
             if (
                 parsed.match([currentNode], this.document.descendants(), namespaces)
+                    .length
             ) {
                 return currentNode;
             }
@@ -590,7 +619,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             );
             return Object.entries(this.matched[0]?.getStyles() || {}).reduce(
                 (selected: Record<string, string>, [styleName, styleValue]) => {
-                    if (selectedMap[styleName]) {
+                    if (selectedMap[styleName] && styleValue) {
                         selected[styleName] = styleValue;
                     }
                     return selected;
@@ -655,10 +684,19 @@ class QueryInstance implements Record<number, QueryInstance> {
         filter:
             | string
             | QueryInstance
-            | ((index: number, instance: QueryInstance) => any)
+            | ((index: number, instance: QueryInstance) => any),
+        namespaces: Record<string, string> = {}
     ) => {
         if (typeof filter === "string") {
-            return this.find(filter);
+            const query = tryQueryParser(filter);
+            if (query) {
+                return createQuery(
+                    this.document,
+                    query.match(this.matched, this.document.descendants(), namespaces),
+                    this.virtualDoms,
+                    this
+                );
+            }
         } else if (filter instanceof QueryInstance) {
             const matchedMap = filter.matched.reduce(
                 (matchedMap: Record<string, true>, element) => {
@@ -751,22 +789,13 @@ class QueryInstance implements Record<number, QueryInstance> {
         return this.matched.some((m) =>
             m
                 .attributes()
-            ["class"].split(" ")
+            ["class"]?.split(" ")
                 .some((cls) => cls === className)
         );
     };
-    height: HeightType = (height?: any): any => {
-        if (height) {
-            this.matched.forEach((m) => {
-                m.modifyAttribute("height", () => height);
-            });
-            return this;
-        }
-        return this.matched[0]?.attributes()["height"];
-    };
     hide = () => {
         this.matched.forEach((m) => {
-            m.modifyStyle("display", () => "hidden");
+            m.modifyStyle("display", () => "none");
         });
         return this;
     };
@@ -775,12 +804,9 @@ class QueryInstance implements Record<number, QueryInstance> {
     html: HtmlType = (...args: any[]): any => {
         if (args.length === 0 || args[0] === undefined) {
             if (this.matched.length > 0) {
-                return parserItemToString(this.matched[0].content()).replace(
-                    /(^\s+|\s+$)/gimu,
-                    ""
-                );
+                return parserItemToString(this.matched[0].content());
             } else {
-                return undefined;
+                return "";
             }
         } else {
             this.matched.forEach((m, index) => {
@@ -790,15 +816,16 @@ class QueryInstance implements Record<number, QueryInstance> {
                         : args[0](index, parserItemToString(m.content()));
                 const nextDom = tryHtmlParser(resolveArg);
                 if (nextDom) {
-                    m.emptyText();
-                    m.children().forEach((child) => {
-                        m.content().removeChild(child);
-                    });
-                    nextDom.descendants().forEach((d) => {
-                        m.content().addChild(d);
+                    m.convertWithChildren();
+                    m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
+                    nextDom.children().forEach((d) => {
+                        m.addChild(d);
                     });
                 }
             });
+            this.document.cache.children.invalid = true;
+            this.document.cache.descendants.invalid = true;
+            this.document.cache.indexes.invalid = true;
         }
         return this;
     };
@@ -808,7 +835,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         if (selector === undefined) {
             return this.matched[0]
-                ? this.matched[0].parent.getIndex(this.matched[0])
+                ? this.matched[0].parent.getIndex(this.matched[0], false)
                 : -1;
         }
         if (typeof selector === "string") {
@@ -846,7 +873,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     const query = tryQueryParser(selector);
                     if (query) {
                         return query.match(
-                            this.matched,
+                            this.document.descendants(),
                             this.document.descendants(),
                             namespaces
                         );
@@ -855,9 +882,18 @@ class QueryInstance implements Record<number, QueryInstance> {
                 })()
                 : selector.matched;
         toInsertBefore.forEach((m) => {
+            this.matched.forEach((matched, matchedIndex) => {
+                m.parent.addChild(matched, m.parent.getIndex(m, false) + matchedIndex);
+            });
             this.virtualDoms.forEach((v) => {
-                v.descendants().forEach((dom) => {
-                    m.addChild(dom, m.parent.getIndex(m));
+                v.children().forEach((virtual, virtualIndex) => {
+                    m.parent.addChild(
+                        virtual,
+                        Math.max(
+                            0,
+                            m.parent.getIndex(m, false) + this.matched.length - 1 + virtualIndex
+                        )
+                    );
                 });
             });
         });
@@ -874,7 +910,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     const query = tryQueryParser(selector);
                     if (query) {
                         return query.match(
-                            this.matched,
+                            this.document.descendants(),
                             this.document.descendants(),
                             namespaces
                         );
@@ -883,9 +919,16 @@ class QueryInstance implements Record<number, QueryInstance> {
                 })()
                 : selector.matched;
         toInsertAfter.forEach((m) => {
+            const mIndex = m.parent.getIndex(m, false);
+            this.matched.forEach((matched, matchedIndex) => {
+                m.parent.addChild(matched, mIndex + matchedIndex + 1);
+            });
             this.virtualDoms.forEach((v) => {
-                v.descendants().forEach((dom) => {
-                    m.addChild(dom, m.parent.getIndex(m) + 1);
+                v.children().forEach((virtual, virtualIndex) => {
+                    m.parent.addChild(
+                        virtual,
+                        mIndex + this.matched.length + virtualIndex + 1
+                    );
                 });
             });
         });
@@ -959,10 +1002,10 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         const nextSiblings = flatten(
             this.matched.map((m) => {
-                const index = m.parent.getIndex(m);
+                const index = m.parent.getIndex(m, false);
                 return m.parent
                     .children()
-                    .filter((child) => child.parent.getIndex(child) > index);
+                    .filter((child) => child.parent.getIndex(child, false) > index);
             })
         );
         return this.filterBySelector(selector, nextSiblings, namespaces);
@@ -972,46 +1015,28 @@ class QueryInstance implements Record<number, QueryInstance> {
         filter?: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
-        const matchNextAll = this.nextAll(undefined, namespaces);
-        const unmatchNextAll = this.nextAll(selector, namespaces).matched.reduce(
-            (map: Record<string, true>, element) => {
-                map[element.identifier] = true;
-                return map;
-            },
-            {}
+        const until = this.getUntil(selector, namespaces);
+
+        const nextSiblings = flatten(
+            this.matched.map((m) => {
+                const index = m.parent.getIndex(m, false);
+                return m.parent
+                    .children()
+                    .filter((child) => child.parent.getIndex(child, false) > index)
+                    .reduce(
+                        ({ hasMatchedSelector, selected }, element) => {
+                            if (hasMatchedSelector || until[element.identifier]) {
+                                return { hasMatchedSelector: true, selected };
+                            }
+                            selected.push(element);
+                            return { hasMatchedSelector, selected };
+                        },
+                        { hasMatchedSelector: false, selected: new Array<HtmlElement>() }
+                    ).selected;
+            })
         );
-        const bySelector = matchNextAll.matched.filter(
-            (m) => !unmatchNextAll[m.identifier]
-        );
 
-        if (typeof filter === "string") {
-            const query = tryQueryParser(filter);
-            return createQuery(
-                this.document,
-                query?.match(bySelector, this.document.descendants(), namespaces) ||
-                bySelector,
-                this.virtualDoms,
-                this
-            );
-        }
-
-        if (filter) {
-            const filterMap = filter.matched.reduce(
-                (map: Record<string, true>, element) => {
-                    map[element.identifier] = true;
-                    return map;
-                },
-                {}
-            );
-            return createQuery(
-                this.document,
-                bySelector.filter((element) => filterMap[element.identifier]),
-                this.virtualDoms,
-                this
-            );
-        }
-
-        return createQuery(this.document, bySelector, this.virtualDoms, this);
+        return this.filterBySelector(filter, nextSiblings, namespaces);
     };
     not = (
         selector:
@@ -1099,8 +1124,8 @@ class QueryInstance implements Record<number, QueryInstance> {
             selector,
             this.matched.reduce((parents: HtmlElement[], element) => {
                 const parentContent = element.parent;
-                if (parentContent instanceof HtmlContent) {
-                    parents.push(parentContent.parent);
+                if (parentContent instanceof HtmlElement) {
+                    parents.push(parentContent);
                 }
                 return parents;
             }, []),
@@ -1115,9 +1140,9 @@ class QueryInstance implements Record<number, QueryInstance> {
             selector,
             this.matched.reduce((parents: HtmlElement[], element) => {
                 let parentContent = element.parent;
-                while (parentContent instanceof HtmlContent) {
-                    parents.push(parentContent.parent);
-                    parentContent = parentContent.parent.parent;
+                while (parentContent instanceof HtmlElement) {
+                    parents.push(parentContent);
+                    parentContent = parentContent.parent;
                 }
                 return parents;
             }, []),
@@ -1128,17 +1153,19 @@ class QueryInstance implements Record<number, QueryInstance> {
         selector: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
-        const parentsNot = this.parents(selector, namespaces).matched.reduce(
-            (map: Record<string, true>, element) => {
-                map[element.identifier] = true;
-                return map;
-            },
-            {}
-        );
-        const parents = this.parents(undefined, namespaces).matched;
+        const until = this.getUntil(selector, namespaces);
+
+        const parents = this.matched.reduce((parents: HtmlElement[], element) => {
+            let parentContent = element.parent;
+            while (parentContent instanceof HtmlElement && !until[parentContent.identifier]) {
+                parents.push(parentContent);
+                parentContent = parentContent.parent;
+            }
+            return parents;
+        }, []);
         return createQuery(
             this.document,
-            parents.filter((p) => !parentsNot[p.identifier]),
+            parents,
             this.virtualDoms,
             this
         );
@@ -1148,13 +1175,13 @@ class QueryInstance implements Record<number, QueryInstance> {
         ...content: string[]
     ) => {
         return this.addElementsToMatcher(
-            (content: string, matched: HtmlElement) => {
+            (content: string, matched: HtmlElement, prependIndex) => {
                 const tryFirstArgHtml = tryHtmlParser(content);
                 if (!tryFirstArgHtml) {
                     matched.content().addText(content);
                 } else {
-                    tryFirstArgHtml.descendants().forEach((descentant) => {
-                        matched.content().addChild(descentant, 0);
+                    tryFirstArgHtml.children().forEach((child, childIndex) => {
+                        matched.content().addChild(child, childIndex + prependIndex);
                     });
                 }
             },
@@ -1203,10 +1230,10 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         const prevSiblings = flatten(
             this.matched.map((m) => {
-                const index = m.parent.getIndex(m);
+                const index = m.parent.getIndex(m, false);
                 return m.parent
                     .children()
-                    .filter((child) => child.parent.getIndex(child) < index);
+                    .filter((child) => child.parent.getIndex(child, false) < index);
             })
         );
         return this.filterBySelector(selector, prevSiblings, namespaces);
@@ -1216,45 +1243,29 @@ class QueryInstance implements Record<number, QueryInstance> {
         filter?: string | QueryInstance,
         namespaces: Record<string, string> = {}
     ) => {
-        const matchPrevAll = this.prevAll(undefined, namespaces);
-        const unmatchPrevAll = this.prevAll(selector, namespaces).matched.reduce(
-            (map: Record<string, true>, element) => {
-                map[element.identifier] = true;
-                return map;
-            },
-            {}
+        const until = this.getUntil(selector, namespaces);
+
+        const prevSiblings = flatten(
+            this.matched.map((m) => {
+                const index = m.parent.getIndex(m, false);
+                return m.parent
+                    .children()
+                    .filter((child) => child.parent.getIndex(child, false) < index)
+                    .reverse()
+                    .reduce(
+                        ({ hasMatchedSelector, selected }, element) => {
+                            if (hasMatchedSelector || until[element.identifier]) {
+                                return { hasMatchedSelector: true, selected };
+                            }
+                            selected.push(element);
+                            return { hasMatchedSelector, selected };
+                        },
+                        { hasMatchedSelector: false, selected: new Array<HtmlElement>() }
+                    ).selected;
+            })
         );
 
-        const bySelector = matchPrevAll.matched.filter((m) => !unmatchPrevAll[m.identifier]);
-
-        if (typeof filter === "string") {
-            const query = tryQueryParser(filter);
-            return createQuery(
-                this.document,
-                query?.match(bySelector, this.document.descendants(), namespaces) ||
-                bySelector,
-                this.virtualDoms,
-                this
-            );
-        }
-
-        if (filter) {
-            const filterMap = filter.matched.reduce(
-                (map: Record<string, true>, element) => {
-                    map[element.identifier] = true;
-                    return map;
-                },
-                {}
-            );
-            return createQuery(
-                this.document,
-                bySelector.filter((element) => filterMap[element.identifier]),
-                this.virtualDoms,
-                this
-            );
-        }
-
-        return createQuery(this.document, bySelector, this.virtualDoms, this);
+        return this.filterBySelector(filter, prevSiblings, namespaces);
     };
     print = (ignoreWhitespace?: boolean) => {
         const printed = this.matched
@@ -1293,13 +1304,18 @@ class QueryInstance implements Record<number, QueryInstance> {
         if (this.matched.length) {
             return this.on("load", handler);
         } else {
-            const resolveHandler = typeof handler === "string" ? handler : handler.toString();
+            const resolveHandler =
+                typeof handler === "string" ? handler : handler.toString();
             const wrapHandler = `document.addEventListener("load", ${resolveHandler})`;
             const script = htmlParser(
                 `<script>${wrapHandler}</script>`
             ).descendants()[0];
             const query = queryParser("body");
-            const body = query.match(this.document.descendants(), this.document.descendants(), {})[0];
+            const body = query.match(
+                this.document.descendants(),
+                this.document.descendants(),
+                {}
+            )[0];
             if (body) {
                 body.addChild(script);
             }
@@ -1415,11 +1431,11 @@ class QueryInstance implements Record<number, QueryInstance> {
             })
         );
         const replacements = this.matched.concat(
-            flatten(this.virtualDoms.map((v) => v.descendants()))
+            flatten(this.virtualDoms.map((v) => v.children()))
         );
         elements.forEach((element) => {
             const parent = element.parent;
-            const index = parent.getIndex(element);
+            const index = parent.getIndex(element, false);
             parent.removeChild(element);
             replacements.forEach((replacement) => {
                 parent.addChild(replacement, index);
@@ -1445,7 +1461,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     return this.find(item, namespaces).matched;
                 } else {
                     return item.matched.concat(
-                        flatten(item.virtualDoms.map((v) => v.descendants()))
+                        flatten(item.virtualDoms.map((v) => v.children()))
                     );
                 }
             })
@@ -1453,7 +1469,7 @@ class QueryInstance implements Record<number, QueryInstance> {
 
         this.matched.forEach((m) => {
             const parent = m.parent;
-            const index = parent.getIndex(m);
+            const index = parent.getIndex(m, false);
             elements.forEach((e) => {
                 parent.addChild(e, index);
             });
@@ -1466,7 +1482,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     siblings = (selector?: string, namespaces: Record<string, string> = {}) => {
         const matched = flatten(
             this.matched.map((m) => {
-                const index = m.parent.getIndex(m);
+                const index = m.parent.getIndex(m, false);
                 return m.parent.children().filter((_, i) => i !== index);
             })
         );
@@ -1541,7 +1557,7 @@ class QueryInstance implements Record<number, QueryInstance> {
         const indexed = unique.map((element) => {
             const indexes: number[] = [];
             const seeker = (element: HtmlElement) => {
-                const index = element.parent.getIndex(element);
+                const index = element.parent.getIndex(element, false);
                 if (element.parent instanceof HtmlDocument) {
                     indexes.push(index);
                 } else {
@@ -1616,7 +1632,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             }
             const grandparent = element.parent.parent;
             const siblings = element.parent.children();
-            const parentIndex = grandparent.getIndex(element.parent);
+            const parentIndex = grandparent.getIndex(element.parent, false);
             grandparent.removeChild(parentIndex);
             siblings.forEach((sibling) => grandparent.addChild(sibling));
         };
@@ -1634,15 +1650,6 @@ class QueryInstance implements Record<number, QueryInstance> {
         }
         this.attr("value");
         return this.attr("value", args[0]);
-    };
-    width: WidthType = (width?: any): any => {
-        if (width) {
-            this.matched.forEach((m) => {
-                m.modifyAttribute("height", () => width);
-            });
-            return this;
-        }
-        return this.matched[0]?.attributes()["height"];
     };
     wrap: WrapType = (...args: any[]): any => {
         this.matched.forEach((m, index) => {

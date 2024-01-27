@@ -75,7 +75,7 @@ const tests: { [Type in keyof typeof Query]: {
     },
     SelectorGroup: {
         instance: () => new Query.SelectorGroup(),
-        passes: ["div, div", "p, p", "p > p, div + div", "p, p, p", "#id, .class, p", ".class", ":not(div)"],
+        passes: ["div, div", "p, p", "p > p, div + div", "p, p, p", "#id, .class, p", ".class", ":not(div)", "ul,ol", "ol,ul", "ol, ul"],
         fails: ["div,", ",div"],
     },
     SimpleSelectorSequence: {

@@ -30,12 +30,10 @@ export class SelectorGroup implements Matcher {
     }[] = [];
     consumed = () => {
         return (
-            this.selector.consumed() &&
-            (this.selectors.length === 0 ||
-                this.selectors.every(
-                    ({ comma, selector: selector, ws }) =>
-                        comma.value && selector.consumed() && ws.consumed()
-                ))
+            this.selector.consumed() && this.selectors.every(
+                ({ comma, selector }) =>
+                    comma.value && selector.consumed()
+            )
         );
     };
     process = (queue: Queue): Queue => {
@@ -46,28 +44,20 @@ export class SelectorGroup implements Matcher {
             }
         } else {
             const current = queue.items[queue.at];
-            const lastArrayItem = this.selectors[this.selectors.length - 1];
-            if (
-                current.type === "Comma" &&
-                (!lastArrayItem || lastArrayItem.selector.consumed())
-            ) {
-                const item = new LexerItem("Comma");
-                item.value = current.value;
+            if (current.type === "Comma") {
+                const comma = new LexerItem("Comma");
+                comma.value = current.value;
                 const ws = new Ws();
-                const tryProcessWs = ws.process(queue.next());
-                this.selectors.push({
-                    comma: item,
-                    selector: new Selector(),
-                    ws: ws,
-                });
-                return this.process(tryProcessWs);
-            }
-            if (lastArrayItem?.comma.value && !lastArrayItem.selector.consumed()) {
+                const tryWs = ws.process(queue.next());
                 const selector = new Selector();
-                const tryProcessSelector = selector.process(queue);
+                const trySelector = selector.process(tryWs);
                 if (selector.consumed()) {
-                    lastArrayItem.selector = selector;
-                    return this.process(tryProcessSelector);
+                    this.selectors.push({
+                        comma,
+                        selector,
+                        ws,
+                    });
+                    return this.process(trySelector);
                 }
             }
         }
@@ -288,10 +278,10 @@ export class Combinator implements Matcher {
         if (this.tilde.value) {
             return flatten(
                 htmlElements.map((element) => {
-                    const index = element.parent.getIndex(element);
+                    const index = element.parent.getIndex(element, false);
                     return element.parent
                         .children()
-                        .filter((child) => child.parent.getIndex(child) > index);
+                        .filter((child) => child.parent.getIndex(child, false) > index);
                 })
             );
         }
@@ -545,7 +535,7 @@ export class Pseudo implements Matcher {
                     }
                     indexes[parentIndex][element.identifier] = {
                         tagName: element.getTagName(),
-                        order: element.parent.getIndex(element),
+                        order: element.parent.getIndex(element, false),
                     };
                     return indexes;
                 },
@@ -1525,13 +1515,13 @@ export class Expression implements Matcher {
         const filter = (element: HtmlElement) => selectedMap[element.identifier];
         switch (this.functionalPseudo.funct.value) {
             case "nth-child(":
-                return element.parent.getIndex(element, filter) + 1;
+                return element.parent.getIndex(element, false, filter) + 1;
             case "nth-last-child(":
                 return Math.max(
                     -1,
                     element.parent.children().filter(filter).length - 
                     (this.even.value || this.odd.value ? -1 : 0) - 
-                    element.parent.getIndex(element, filter)
+                    element.parent.getIndex(element, false, filter)
                 );
             case "nth-last-of-type(":
                 const lastOfType = childrenOfType();
@@ -1539,7 +1529,7 @@ export class Expression implements Matcher {
             case "nth-of-type(":
                 return getIndexOfType(childrenOfType()) + 1;
             default:
-                return element.parent.getIndex(element, filter);
+                return element.parent.getIndex(element, false, filter);
         }
     };
     match = (
@@ -1614,7 +1604,7 @@ export class Expression implements Matcher {
                 if (this.combinator.greater.value) {
                     return htmlElements.filter((value) => {
                         return matched.some(
-                            (matched) => value.content().getIndex(matched) !== -1
+                            (matched) => value.content().getIndex(matched, false) !== -1
                         );
                     });
                 }

@@ -52,6 +52,12 @@ describe("Test methods of HTML represention", () => {
         html.replaceChild(0, getHtmlElement("<h2>Hello </h2>"));
         expect(parserItemToString(html)).toBe("<div><h2>Hello </h2><h3>World</h3></div>");
     });
+    it("Can determine siblings", () => {
+        const body = getHtmlElement("<body><div id='1' /><div id='2' /><div id='3' /></body>");
+        const id2 = body.children()[1];
+        expect(body.nextSibling(id2)?.attributes()["id"]).toEqual("3");
+        expect(body.prevSibling(id2)?.attributes()["id"]).toEqual("1");
+    });
     it("HTML document can add children", () => {
         const html = htmlParser("<body></body>");
         html.children()[0].addChild(getHtmlElement("<div />"));
@@ -100,6 +106,12 @@ describe("Test methods of HTML represention", () => {
         expect(html.descendants().map(parserItemToString)).toEqual(["<body><h2></h2></body>", "<h2></h2>"]);
         expect(html.cache.descendants.invalid).toBeFalsy();
         expect(html.cache.children.invalid).toBeFalsy();
+    });
+    it("HTML document can determine siblings", () => {
+        const html = htmlParser("<body><div id='1' /><div id='2' /><div id='3' /></body>");
+        const id2 = html.children()[0].children()[1];
+        expect(html.children()[0].nextSibling(id2)?.attributes()["id"]).toEqual("3");
+        expect(html.children()[0].prevSibling(id2)?.attributes()["id"]).toEqual("1");
     });
     it("HTML element has working cache", () => {
         const element = getHtmlElement("<div><h1>Hello?</h1></div>");

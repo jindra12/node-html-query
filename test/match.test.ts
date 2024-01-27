@@ -5,7 +5,7 @@ const testMatch = (htmlInput: string, queryInput: string, namespaces: Record<str
     const html = htmlParser(htmlInput);
     const query = queryParser(queryInput);
     const matched = query.match(html.descendants(), html.descendants(), namespaces);
-    return matched.map((m) => parserItemToString(m));
+    return matched.map((m) => parserItemToString(m).replace(/\n\s*/gu, "").replace(/\s+/gu, " "));
 };
 
 const matches: {
@@ -548,6 +548,90 @@ const matches: {
         html: "<p><article /></p><div><article /></div><p><span /></p><div><span /></div><p><ul /></p><div><ul /></div><quote><article /></quote><h1><span id='1' /></h1>",
         query: ":where(p, div) :where(article, span)",
         results: ["<article />", "<article />", "<span />", "<span />"],
+    },
+    {
+        html: `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Title</title>
+            </head>
+            <body>
+                <div id='1' />
+                <div id='2' />
+                <p>
+                    <div class='one' />
+                </p>
+                <ul>
+                    <li>item</li>
+                    <li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>
+                </ul>
+                <article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>
+                <h1 style='position: fixed'>Hello</h1>
+                <h2 style='height: 50%'>Hello</h2>
+                <h3><div id='three' /></h3>
+                <input type='text' style='width: 100px' />
+            </body>
+        </html> 
+        `,
+        query: "ul,ol",
+        results: [`<ul><li>item</li><li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li></ul>`, "<ol id='shallow'><li><div id='deep'>item</div></li></ol>"],
+    },
+    {
+        html: `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Title</title>
+            </head>
+            <body>
+                <div id='1' />
+                <div id='2' />
+                <p>
+                    <div class='one' />
+                </p>
+                <ul>
+                    <li>item</li>
+                    <li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>
+                </ul>
+                <article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>
+                <h1 style='position: fixed'>Hello</h1>
+                <h2 style='height: 50%'>Hello</h2>
+                <h3><div id='three' /></h3>
+                <input type='text' style='width: 100px' />
+            </body>
+        </html> 
+        `,
+        query: "ol",
+        results: ["<ol id='shallow'><li><div id='deep'>item</div></li></ol>"],
+    },
+    {
+        html: `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Title</title>
+            </head>
+            <body>
+                <div id='1' />
+                <div id='2' />
+                <p>
+                    <div class='one' />
+                </p>
+                <ul>
+                    <li>item</li>
+                    <li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>
+                </ul>
+                <article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>
+                <h1 style='position: fixed'>Hello</h1>
+                <h2 style='height: 50%'>Hello</h2>
+                <h3><div id='three' /></h3>
+                <input type='text' style='width: 100px' />
+            </body>
+        </html> 
+        `,
+        query: "ul",
+        results: [`<ul><li>item</li><li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li></ul>`],
     },
 ];
 

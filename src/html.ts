@@ -47,7 +47,7 @@ export class HtmlDocument implements ParserItem {
     cache: {
         children: { invalid: boolean; value: HtmlElement[] };
         descendants: { invalid: boolean; value: HtmlElement[] };
-        indexes: { invalid: boolean; value: Record<string, number> };
+        indexes: { invalid: boolean; value: Partial<Record<string, number>> };
     } = {
             indexes: { invalid: true, value: {} },
             children: { invalid: true, value: [] },
@@ -128,7 +128,7 @@ export class HtmlDocument implements ParserItem {
         if (index === -1) {
             return undefined;
         }
-        return this.htmlElements[index - 1]?.htmlElement;
+        return this.children()[index - 1];
     };
 
     nextSibling = (element: HtmlElement) => {
@@ -136,7 +136,7 @@ export class HtmlDocument implements ParserItem {
         if (index === -1) {
             return undefined;
         }
-        return this.htmlElements[index + 1]?.htmlElement;
+        return this.children()[index + 1];
     };
 
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
@@ -217,15 +217,12 @@ export class HtmlDocument implements ParserItem {
             return this.cache.indexes.value[element.identifier] ?? -1;
         }
         this.cache.indexes.invalid = false;
-        this.cache.indexes.value = this.htmlElements.reduce(
-            (indexes: Record<string, number>, element, index) => {
-                if (element.consumed()) {
-                    indexes[element.htmlElement.identifier] = index;
-                }
+        this.cache.indexes.value = this.htmlElements
+            .filter(({ htmlElement }) => htmlElement.consumed())
+            .reduce((indexes: Record<string, number>, element, index) => {
+                indexes[element.htmlElement.identifier] = index;
                 return indexes;
-            },
-            {}
-        );
+            }, {});
         return this.cache.indexes.value[element.identifier] ?? -1;
     };
 
@@ -241,7 +238,7 @@ export class HtmlDocument implements ParserItem {
     consumed = () => true;
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (!this.XML.value && !this.DTD.value) {
+        if (!this.XML.value && !this.DTD.value && this.htmlElements.length === 0) {
             const scriptletOrSeaWs = new ScriptletOrSeaWs();
             const tryScriptlet = scriptletOrSeaWs.process(queue);
             if (scriptletOrSeaWs.consumed()) {
@@ -253,7 +250,7 @@ export class HtmlDocument implements ParserItem {
                 return this.process(queue.next());
             }
         }
-        if (!this.DTD.value) {
+        if (!this.DTD.value && this.htmlElements.length === 0) {
             const scriptletOrSeaWs = new ScriptletOrSeaWs();
             const tryScriptlet = scriptletOrSeaWs.process(queue);
             if (scriptletOrSeaWs.consumed()) {
@@ -397,16 +394,16 @@ export class HtmlElement implements ParserItem {
     script: Script = new Script();
     style: Style = new Style();
 
-    data: Record<string, string> = {};
+    data: Partial<Record<string, string>> = {};
     parent: HtmlElement | HtmlDocument;
     identifier: string;
     cache: {
         attributes: {
-            value: Record<string, string>;
+            value: Partial<Record<string, string>>;
             invalid: boolean;
         };
         styles: {
-            value: Record<string, string>;
+            value: Partial<Record<string, string>>;
             invalid: boolean;
         };
     } = {
@@ -450,15 +447,11 @@ export class HtmlElement implements ParserItem {
     };
 
     prevSibling = (element: HtmlElement) => {
-        return this.parent instanceof HtmlDocument
-            ? this.parent.prevSibling(element)
-            : this.parent.content().prevSibling(element);
+        return this.content().prevSibling(element);
     };
 
     nextSibling = (element: HtmlElement) => {
-        return this.parent instanceof HtmlDocument
-            ? this.parent.nextSibling(element)
-            : this.parent.content().nextSibling(element);
+        return this.content().nextSibling(element);
     };
 
     getStyles = () => {
@@ -470,13 +463,14 @@ export class HtmlElement implements ParserItem {
         }
         const attributes = this.attributes();
         this.cache.styles.invalid = false;
-        return (this.cache.styles.value = attributes["style"]
-            .split(";")
-            .map((part) => part.split(":"))
-            .reduce((styles: Record<string, string>, [key, value]) => {
-                styles[key] = value;
-                return styles;
-            }, {}));
+        return (this.cache.styles.value =
+            attributes["style"]
+                ?.split(";")
+                .map((part) => part.split(":"))
+                .reduce((styles: Record<string, string>, [key, value]) => {
+                    styles[key] = value.replace(/(^\s*)|(\s*$)/gu, "");
+                    return styles;
+                }, {}) || {});
     };
 
     modifyStyle = (
@@ -529,15 +523,13 @@ export class HtmlElement implements ParserItem {
             return this;
         }
         this.content().htmlCharData.htmlText.value = "";
-        this.content().content.forEach(
-            ({ charData, cData, htmlComment }) => {
-                charData.htmlText.value = "";
-                charData.htmlText.value = "";
-                htmlComment.htmlComment.value = "";
-                htmlComment.htmlConditionalComment.value = "";
-                cData.value = "";
-            }
-        );
+        this.content().content.forEach(({ charData, cData, htmlComment }) => {
+            charData.htmlText.value = "";
+            charData.htmlText.value = "";
+            htmlComment.htmlComment.value = "";
+            htmlComment.htmlConditionalComment.value = "";
+            cData.value = "";
+        });
         this.children().forEach((child) => {
             child.emptyText();
         });
@@ -597,8 +589,12 @@ export class HtmlElement implements ParserItem {
         return descendants;
     };
 
-    getIndex = (element: HtmlElement, filter?: (element: HtmlElement) => boolean) => {
-        return this.content().getIndex(element, filter);
+    getIndex = (
+        element: HtmlElement,
+        indexOthers: boolean,
+        filter?: (element: HtmlElement) => boolean
+    ) => {
+        return this.content().getIndex(element, indexOthers, filter);
     };
 
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
@@ -671,7 +667,10 @@ export class HtmlElement implements ParserItem {
                 this.cache.attributes.invalid = true;
                 const attributes = this.getHtmlAttributes();
                 attributes.splice(attributeIndex, 1);
-                if (attributes.length === 0 && !this.tagClose.close2.tagSlashClose.value) {
+                if (
+                    attributes.length === 0 &&
+                    !this.tagClose.close2.tagSlashClose.value
+                ) {
                     this.tagWhiteSpace2.value = "";
                 }
             }
@@ -917,7 +916,7 @@ export class HtmlContent implements ParserItem {
 
     cache: {
         children: { invalid: boolean; value: HtmlElement[] };
-        indexes: { invalid: boolean; value: Record<string, number> };
+        indexes: { invalid: boolean; value: Partial<Record<string, number>> };
     } = {
             indexes: { invalid: true, value: {} },
             children: { invalid: true, value: [] },
@@ -947,7 +946,7 @@ export class HtmlContent implements ParserItem {
         if (!after) {
             this.htmlCharData.htmlText.value += text;
         } else {
-            const index = this.getIndex(after);
+            const index = this.getIndex(after, true);
             if (index !== -1) {
                 this.content[index].charData.htmlText.value += text;
             }
@@ -964,11 +963,10 @@ export class HtmlContent implements ParserItem {
                 htmlElement: new HtmlElement(this.parent),
                 charData: new HtmlChardata(),
             });
-            this.content[
-                this.content.length - 1
-            ].htmlComment.htmlComment.value += text;
+            this.content[this.content.length - 1].htmlComment.htmlComment.value +=
+                text;
         } else {
-            const index = typeof after === "number" ? after : this.getIndex(after);
+            const index = typeof after === "number" ? after : this.getIndex(after, true);
             if (index >= this.content.length) {
                 this.addComment(text);
                 return this;
@@ -993,14 +991,13 @@ export class HtmlContent implements ParserItem {
                 this.content.length - 1
             ].htmlComment.htmlConditionalComment.value += text;
         } else {
-            const index = typeof after === "number" ? after : this.getIndex(after);
+            const index = typeof after === "number" ? after : this.getIndex(after, true);
             if (index >= this.content.length) {
                 this.addConditionalComment(text);
                 return this;
             }
             if (index !== -1) {
-                this.content[index].htmlComment.htmlConditionalComment.value +=
-                    text;
+                this.content[index].htmlComment.htmlConditionalComment.value += text;
             }
         }
         this.parent.convertWithChildren();
@@ -1023,6 +1020,16 @@ export class HtmlContent implements ParserItem {
         this.cache.children.invalid = true;
         this.cache.indexes.invalid = true;
         this.parent.convertWithChildren();
+        if (index === 0 && this.htmlCharData.htmlText.value) {
+            const nextCharData = this.htmlCharData.clone();
+            this.htmlCharData = new HtmlChardata();
+            this.content.splice(1, 0, {
+                cData: new LexerItem("CDATA"),
+                charData: nextCharData,
+                htmlComment: new HtmlComment(),
+                htmlElement: new HtmlElement(this.parent),
+            });
+        }
         return this;
     };
 
@@ -1037,7 +1044,7 @@ export class HtmlContent implements ParserItem {
                 this.cache.children.invalid = true;
                 this.cache.indexes.invalid = true;
             } else if (child instanceof HtmlElement) {
-                const index = this.getIndex(child);
+                const index = this.getIndex(child, true);
                 this.content.splice(index, 1);
                 this.cache.children.invalid = true;
                 this.cache.indexes.invalid = true;
@@ -1064,7 +1071,7 @@ export class HtmlContent implements ParserItem {
                 this.cache.children.invalid = true;
                 this.cache.indexes.invalid = true;
             } else if (child instanceof HtmlElement) {
-                const index = this.getIndex(child);
+                const index = this.getIndex(child, true);
                 this.content.splice(index, 1, item);
                 this.cache.children.invalid = true;
                 this.cache.indexes.invalid = true;
@@ -1075,27 +1082,22 @@ export class HtmlContent implements ParserItem {
 
     getIndex = (
         element: HtmlElement,
+        indexOthers: boolean,
         filter?: (element: HtmlElement) => boolean
     ) => {
         if (!this.consumed()) {
             return -1;
         }
-        const getIndexes = () => this.content
-            .filter(({ htmlElement }) => htmlElement.consumed())
-            .filter(({ htmlElement }) => !filter || filter(htmlElement))
-            .reduce(
-                (
-                    indexes: Record<string, number>,
-                    { htmlElement },
-                    index
-                ) => {
+        const getIndexes = () =>
+            this.content
+                .filter(({ htmlElement }) => !indexOthers ? htmlElement.consumed() : true)
+                .filter(({ htmlElement }) => !filter || filter(htmlElement))
+                .reduce((indexes: Record<string, number>, { htmlElement }, index) => {
                     if (htmlElement.consumed()) {
                         indexes[htmlElement.identifier] = index;
                     }
                     return indexes;
-                },
-                {}
-            );
+                }, {});
         if (filter) {
             return getIndexes()[element.identifier];
         }
@@ -1111,22 +1113,22 @@ export class HtmlContent implements ParserItem {
         if (!this.consumed()) {
             return undefined;
         }
-        const index = this.getIndex(element);
+        const index = this.getIndex(element, false);
         if (index === -1) {
             return undefined;
         }
-        return this.content[index - 1]?.htmlElement;
+        return this.children()[index - 1];
     };
 
     nextSibling = (element: HtmlElement) => {
         if (!this.consumed()) {
             return undefined;
         }
-        const index = this.getIndex(element);
+        const index = this.getIndex(element, false);
         if (index === -1) {
             return undefined;
         }
-        return this.content[index + 1]?.htmlElement;
+        return this.children()[index + 1];
     };
 
     search = (searcher: Searcher) => {
@@ -1198,7 +1200,10 @@ export class HtmlContent implements ParserItem {
             (this.htmlCharData.consumed() || this.content.length !== 0) &&
             this.content.every(
                 ({ cData, htmlComment, htmlElement, charData }) =>
-                    cData.value || htmlComment.consumed() || htmlElement.consumed() || charData.consumed()
+                    cData.value ||
+                    htmlComment.consumed() ||
+                    htmlElement.consumed() ||
+                    charData.consumed()
             )
         );
     };
@@ -1404,7 +1409,8 @@ export class Script implements ParserItem {
         searcher.feedLexerItem(this.tagSlashClose);
     };
     consumed = () => {
-        return Boolean(this.scriptOpen.value &&
+        return Boolean(
+            this.scriptOpen.value &&
             this.attributes.every((attribute) => attribute.consumed()) &&
             ((this.scriptBody.value && this.tagClose.value) ||
                 this.tagSlashClose.value)
@@ -1483,7 +1489,8 @@ export class Style implements ParserItem {
         searcher.feedLexerItem(this.tagSlashClose);
     };
     consumed = () => {
-        return Boolean(this.styleOpen.value &&
+        return Boolean(
+            this.styleOpen.value &&
             this.attributes.every((attribute) => attribute.consumed()) &&
             ((this.styleBody.value && this.tagClose.value) ||
                 this.tagSlashClose.value)

@@ -93,7 +93,7 @@ export const sanitizeAttribute = (attribute: string | undefined) => {
     [attr*=value]
         Represents elements with an attribute name of attr whose value contains at least one occurrence of value within the string.
  */
-export const matchAttribute = <T extends string | boolean>(attributes: Record<string, string>, attributeName: string, attributeValue: T, matchType: T extends boolean ? ("[attr]" | "not") : ("[attr]" | "[attr=value]" | "[attr~=value]" | "[attr|=value]" | "[attr^=value]" | "[attr$=value]" | "[attr*=value]" | "not")) => {
+export const matchAttribute = <T extends string | boolean>(attributes: Partial<Record<string, string>>, attributeName: string, attributeValue: T, matchType: T extends boolean ? ("[attr]" | "not") : ("[attr]" | "[attr=value]" | "[attr~=value]" | "[attr|=value]" | "[attr^=value]" | "[attr$=value]" | "[attr*=value]" | "not")) => {
     if (typeof attributeValue === "boolean") {
         if (matchType === "[attr]") {
             return Object.keys(attributes).includes(attributeName) === attributeValue;
@@ -136,7 +136,7 @@ export const matchAttribute = <T extends string | boolean>(attributes: Record<st
     number 	<number> 	<input type="number" min="0" step="5" max="100">
     range 	<number> 	<input type="range" min="60" step="5" max="100">
  */
-export const rangeComparator = (attributes: Record<string, string>) => {
+export const rangeComparator = (attributes: Partial<Record<string, string>>) => {
     const max = attributes["max"] || "";
     const min = attributes["min"] || "";
     const step = attributes["step"] || "";
@@ -234,7 +234,7 @@ export const rangeComparator = (attributes: Record<string, string>) => {
 /**
  * pattern, min, max, required, step, minlength, maxlength
  */
-export const inputValidation = (attributes: Record<string, string>, getAttributes: () => Record<string, string>[]) => {
+export const inputValidation = (attributes: Partial<Record<string, string>>, getAttributes: () => Partial<Record<string, string>>[]) => {
     const value = attributes["value"] || "";
     const type = attributes["type"] || "text";
     const name = attributes["name"] || "";

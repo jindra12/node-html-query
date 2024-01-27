@@ -46,10 +46,10 @@ const testCases: Partial<Record<
     addBack: [
         ($) => {
             expect($("p").find("div").addBack().print(true)).toEqual(
-                "<p> <div class='one' /> </p>"
+                "<div class='one' /><p> <div class='one' /> </p>"
             );
             expect($("p").find("div").addBack(":not(p)").print(true)).toEqual(
-                ""
+                "<div class='one' />"
             );
             expect($("p").find("div").addBack("p").print(true)).toEqual(
                 "<p> <div class='one' /> </p>"
@@ -84,6 +84,12 @@ const testCases: Partial<Record<
             );
         },
         ($) => {
+            $(".one").after("<p><span /></p>");
+            expect($("body > p").print(true)).toEqual(
+                "<p> <div class='one' /><p><span /></p> </p>"
+            );
+        },
+        ($) => {
             $(".one").after(
                 (index, html) => `<div class="hit_${index}">${html}</div>`
             );
@@ -105,6 +111,11 @@ const testCases: Partial<Record<
             );
         },
         ($) => {
+            expect($(".one").append("<p><span /></p>").print()).toEqual(
+                "<div class='one'><p><span /></p></div>"
+            );
+        },
+        ($) => {
             expect($(".one").append("Random text").print()).toEqual(
                 "<div class='one'>Random text</div>"
             );
@@ -117,11 +128,15 @@ const testCases: Partial<Record<
             ).toEqual(`<div class='one'>Random text 0 <div class='one' /></div>`);
         },
     ],
-    /*appendTo: [
+    appendTo: [
         ($) => {
             $("<p />").appendTo($(".one"));
             $("<span />").appendTo(".one");
             expect($(".one").print()).toEqual("<div class='one'><p /><span /></div>");
+        },
+        ($) => {
+            $("<p><span /></p>").appendTo($(".one"));
+            expect($(".one").print()).toEqual("<div class='one'><p><span /></p></div>");
         },
     ],
     attr: [
@@ -149,7 +164,13 @@ const testCases: Partial<Record<
         ($) => {
             $(".one").before("<p />", "<span />");
             expect($("body > p").print(true)).toEqual(
-                "<p><p /><span /><div class='one' /></p>"
+                "<p> <p /><span /><div class='one' /> </p>"
+            );
+        },
+        ($) => {
+            $(".one").before("<p><span /></p>");
+            expect($("body > p").print(true)).toEqual(
+                "<p> <p><span /></p><div class='one' /> </p>"
             );
         },
         ($) => {
@@ -223,8 +244,11 @@ const testCases: Partial<Record<
     ],
     children: [
         ($) => {
-            expect($("body").children().print(true)).toEqual(
-                "<div id='1' /><div id='2' /><p><div class='one' /></p>"
+            expect($("head").children().print(true)).toEqual(
+                "<title>Title</title>"
+            );
+            expect($("article").children().print(true)).toEqual(
+                "<span> <img /> </span>"
             );
         },
     ],
@@ -275,8 +299,9 @@ const testCases: Partial<Record<
     closest: [
         ($) => {
             expect($("#deep").closest("ol").attr("id")).toEqual("shallow");
-            expect($("li").closest("ul", $("ol")).length).toEqual(1);
-            expect($("li").closest("ul", $("body")).length).toEqual(3);
+            expect($("li").closest("ol", $("ul")).length).toEqual(1);
+            expect($("li").closest("ol", $("div")).length).toEqual(0);
+            expect($("li").closest("ul", $("body")).length).toEqual(1);
         },
     ],
     contents: [
@@ -321,7 +346,7 @@ const testCases: Partial<Record<
             expect(
                 $("h1")
                     .css("position", (_, position) =>
-                        position === "relative" ? "inherit" : "absolute"
+                        position === "absolute" ? "inherit" : "absolute"
                     )
                     .css("position")
             ).toEqual("inherit");
@@ -386,7 +411,7 @@ const testCases: Partial<Record<
     end: [
         ($) => {
             expect($("p").find(".one").end().print(true)).toEqual(
-                "<p><div class='one' /></p>"
+                "<p> <div class='one' /> </p>"
             );
         },
     ],
@@ -394,7 +419,7 @@ const testCases: Partial<Record<
         ($) => {
             expect($("div").eq(0).attr("id")).toEqual("1");
             expect($("div").eq(1).attr("id")).toEqual("2");
-            expect($("div").eq(-1).attr("id")).toEqual("1");
+            expect($("div").eq(-1).attr("id")).toEqual("deep");
         },
     ],
     even: [
@@ -403,7 +428,7 @@ const testCases: Partial<Record<
                 $("div")
                     .even()
                     .map((_, item) => item.attr("id"))
-            ).toEqual(["1", "one"]);
+            ).toEqual(["1", "", "three"]);
         },
     ],
     filter: [
@@ -420,13 +445,13 @@ const testCases: Partial<Record<
     find: [
         ($) => {
             expect($("ul").find("li").length).toEqual(3);
-            expect($("ul").find($("li:first-child"))).toEqual(2);
-            expect($("p").find("div").attr("id")).toEqual("one");
+            expect($("ul").find($("li:first-child")).length).toEqual(2);
+            expect($("p").find("div").attr("class")).toEqual("one");
         },
     ],
     first: [
         ($) => {
-            expect($("div.one").first().attr("id")).toEqual("1");
+            expect($("div").first().attr("id")).toEqual("1");
         },
     ],
     focus: [
@@ -509,30 +534,26 @@ const testCases: Partial<Record<
     ],
     has: [
         ($) => {
-            expect($(".one").has("p").print()).toEqual("<div class='one' />");
-            expect($("li").has("ul").length).toEqual(3);
+            expect($("p").has(".one").print(true)).toEqual("<p> <div class='one' /> </p>");
+            expect($("ul,ol").has($("li")).length).toEqual(2);
+            expect($("ul,ol").has("p").length).toEqual(0);
+            expect($("ul,ol").has($("p")).length).toEqual(0);
         },
     ],
     hasClass: [
         ($) => {
             expect($(".one").hasClass("one")).toEqual(true);
-        },
-    ],
-    height: [
-        ($) => {
-            expect($("h1").height()).toBeFalsy();
-            expect($("h2").height()).toEqual("50%");
-            expect($("h2").height("100%").height()).toEqual("100%");
-            expect($("h2").print()).toEqual("<h2 style='height: 50%'>Hello</h2>");
+            expect($("[id=1]").length).toEqual(1);
+            expect($("[id=1]").hasClass("one")).toEqual(false);
         },
     ],
     hide: [
         ($) => {
             expect($("h2").hide().print()).toEqual(
-                `<h2 style="height: 50%;display: none">Hello</h2>`
+                `<h2 style="height: 50%;display:none">Hello</h2>`
             );
             expect($(".one").hide().print()).toEqual(
-                `<div class="one" style="display: none" />`
+                `<div class='one' style="display:none" />`
             );
         },
     ],
@@ -564,15 +585,17 @@ const testCases: Partial<Record<
     ],
     html: [
         ($) => {
-            expect($("p").html()).toEqual("<div class='one' />");
+            expect($("p").html().replace(/\n\s*/gu, "")).toEqual("<div class='one' />");
             expect($("p").html("<span class='two' />").html()).toEqual(
                 "<span class='two' />"
             );
+        },
+        ($) => {
             expect(
                 $("p")
                     .html((index, html) => `<div class='two'>${index} ${html}</div>`)
-                    .html()
-            ).toEqual("<div class='two'>0 <div class='one' /></div>");
+                    .html().replace(/\n\s*/gu, "")
+            ).toEqual(`<div class='two'>0 <div class='one' /></div>`);
         },
     ],
     index: [
@@ -944,7 +967,7 @@ const testCases: Partial<Record<
                 $("div")
                     .odd()
                     .map((_, item) => item.attr("id"))
-            ).toEqual(["two"]);
+            ).toEqual(["2", "deep"]);
         },
     ],
     off: [
@@ -955,7 +978,7 @@ const testCases: Partial<Record<
                     .click(() => alert("this"))
                     .print()
             ).toEqual(
-                `<div class='one' onmouseup="((event) => event.preventDefault())(this);" onclick='(() => alert("this"))(this)' />`
+                `<div class='one' onmouseup="((event) => event.preventDefault())(this)" onclick='(() => alert("this"))(this)' />`
             );
             expect($(".one").off("click mouseup").print()).toEqual(
                 `<div class='one' />`
@@ -969,7 +992,7 @@ const testCases: Partial<Record<
                     .on("click mouseup", (event) => event.preventDefault())
                     .print()
             ).toEqual(
-                `<div class='one' onclick="((event) => event.preventDefault())(this);" onmouseup="((event) => event.preventDefault())(this);" />`
+                `<div class='one' onclick="((event) => event.preventDefault())(this)" onmouseup="((event) => event.preventDefault())(this)" />`
             );
         },
     ],
@@ -977,20 +1000,20 @@ const testCases: Partial<Record<
         ($) => {
             expect(
                 $(".one")
-                    .on("click mouseup", (event) => event.preventDefault())
+                    .once("click mouseup", (event) => event.preventDefault())
                     .attr("onclick")
             ).toMatch(
-                /\(\(event\) => \{ if \(window\['[a-z0-9]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9]+'\] = true; return result; \}\)\(this\)/gimu
+                /^\(\(event\) => \{ if \(window\['[a-z0-9_]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9_]+'\] = true; return result; \}\)\(this\)$/gu
             );
             expect($(".one").attr("onmouseup")).toMatch(
-                /\(\(event\) => \{ if \(window\['[a-z0-9]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9]+'\] = true; return result; \}\)\(this\)/gimu
+                /^\(\(event\) => \{ if \(window\['[a-z0-9_]+'\]\) \{ return; \} const fn = \(event\) => event\.preventDefault\(\); const result = fn\(event\); window\['[a-z0-9_]+'\] = true; return result; \}\)\(this\)$/gu
             );
         },
     ],
     parent: [
         ($) => {
             expect($(".one").parent().print(true)).toEqual(
-                "<p><div class='one' /></p>"
+                "<p> <div class='one' /> </p>"
             );
             expect($("li").parent("ul")[0].tagName()).toEqual("ul");
             expect($("li").parent($("ol"))[0].tagName()).toEqual("ol");
@@ -1002,7 +1025,7 @@ const testCases: Partial<Record<
                 $(".one")
                     .parents()
                     .map((_, q) => q.tagName())
-            ).toEqual(["body", "html"]);
+            ).toEqual(["p", "body", "html"]);
             expect(
                 $(":header")
                     .parents()
@@ -1015,9 +1038,9 @@ const testCases: Partial<Record<
             ).toEqual(["body"]);
             expect(
                 $(":header")
-                    .parents($("body"))
+                    .parents($("html"))
                     .map((_, q) => q.tagName())
-            ).toEqual(["body"]);
+            ).toEqual(["html"]);
         },
     ],
     parentsUntil: [
@@ -1041,7 +1064,7 @@ const testCases: Partial<Record<
         ($) => {
             $("#deep").prepend((_, deep) => `<p>Hello ${deep}</p>`);
             expect($("#deep").print()).toEqual(
-                "<div id='deep'><p>Hello <div id='deep'>item</deep></p>item</div>"
+                "<div id='deep'><p>Hello <div id='deep'>item</div></p>item</div><div id='deep'>item</div>"
             );
         },
     ],
@@ -1062,10 +1085,10 @@ const testCases: Partial<Record<
     prev: [
         ($) => {
             expect($("[id='2']").prev().print()).toEqual("<div id='1' />");
-            expect($(":header").prev("article")).toEqual(
+            expect($(":header").prev("article").print()).toEqual(
                 "<article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>"
             );
-            expect($(":header").prev($("article"))).toEqual(
+            expect($(":header").prev($("article")).print()).toEqual(
                 "<article>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></article>"
             );
         },
@@ -1074,10 +1097,10 @@ const testCases: Partial<Record<
         ($) => {
             expect($("h3").prevAll().length).toEqual(7);
             expect($("h3").prevAll(":header").print()).toEqual(
-                "<h2 style='height: 50%'>Hello</h2><h1 style='position: fixed'>Hello</h1>"
+                "<h1 style='position: fixed'>Hello</h1><h2 style='height: 50%'>Hello</h2>"
             );
             expect($("h3").prevAll($(":header")).print()).toEqual(
-                "<h2 style='height: 50%'>Hello</h2><h1 style='position: fixed'>Hello</h1>"
+                "<h1 style='position: fixed'>Hello</h1><h2 style='height: 50%'>Hello</h2>"
             );
         },
     ],
@@ -1104,7 +1127,7 @@ const testCases: Partial<Record<
             $((event) => {
                 event.preventDefault();
             });
-            expect($("body").print()).toContain(
+            expect($("body").print(true)).toContain(
                 '<script>document.addEventListener("load", (event) => { event.preventDefault(); })</script>'
             );
         },
@@ -1112,7 +1135,7 @@ const testCases: Partial<Record<
             $().ready((event) => {
                 event.preventDefault();
             });
-            expect($("body").print()).toContain(
+            expect($("body").print(true)).toContain(
                 '<script>document.addEventListener("load", (event) => { event.preventDefault(); })</script>'
             );
         },
@@ -1120,8 +1143,8 @@ const testCases: Partial<Record<
             $("article").ready((event) => {
                 event.preventDefault();
             });
-            expect($("article").attr("onload")).toContain(
-                "((event) => { event.preventDefault(); })(this)"
+            expect($("article").attr("onload")?.replace(/\n\s*/gu, "")).toContain(
+                "((event) => {event.preventDefault();})(this)"
             );
         },
     ],
@@ -1144,10 +1167,15 @@ const testCases: Partial<Record<
     ],
     remove: [
         ($) => {
-            expect($("article").remove("img").print()).not.toContain("<img />");
+            $("article > span > *").remove("img");
+            expect($("article").print()).not.toContain("<img />");
+            $("div[id='1']").remove();
+            expect($("div[id='1']").length).toEqual(0);
+            $("h2").remove();
+            expect($("h2").length).toEqual(0);
         },
     ],
-    removeAttr: [
+    /*removeAttr: [
         ($) => {
             expect($("[id='1']").length).toEqual(1);
             $("[id='1']").removeAttr("id");
@@ -1343,12 +1371,6 @@ const testCases: Partial<Record<
             expect($("input[type='text']").val("Value").val()).toEqual("Value");
             expect($("input[type='text']").val((index, value) => `${value}__${index + 1}`).val()).toEqual("Value__1");
         },
-    ],
-    width: [
-        ($) => {
-            expect($("input").width()).toEqual("100px");
-            expect($("input").width("92").width()).toEqual("92");
-        }
     ],
     wrap: [
         ($) => {
