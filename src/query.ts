@@ -1660,7 +1660,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             const namespaces: Record<string, string> = args[1] || {};
             const [parent, appendTo] = this.getParentAssigner(resolved, namespaces);
             if (parent && appendTo) {
-                appendTo.addChild(m);
+                appendTo.addChild(m.clone());
                 m.parent.replaceChild(m, parent);
             }
         });
@@ -1668,63 +1668,53 @@ class QueryInstance implements Record<number, QueryInstance> {
         return this;
     };
     wrapAll: WrapType = (...args: any[]): any => {
-        if (this.matched.length === 0) {
+        if (!this.matched.length) {
             return this;
         }
-        const [parent, appendTo] = this.getParentAssigner(
-            typeof args[0] === "function" ? args[0](0, this.eq(0)) : args[0],
-            args[1] || {}
-        );
-        if (!parent || !appendTo) {
-            return this;
-        }
-        const parents = this.matched.map((_, i) => this.eq(i).parents().matched);
-        const parentsWithCount = parents.reduce(
-            (
-                parentsWithCount: Record<
-                    string,
-                    { count: number; lowestIndex: number; parent: HtmlElement }
-                >,
-                parents
-            ) => {
-                parents.forEach((parent, index) => {
-                    if (parentsWithCount[parent.identifier]) {
-                        parentsWithCount[parent.identifier].count++;
-                        if (parentsWithCount[parent.identifier].lowestIndex > index) {
-                            parentsWithCount[parent.identifier].lowestIndex = index;
-                        }
-                    } else {
-                        parentsWithCount[parent.identifier] = {
-                            count: 1,
-                            parent: parent,
-                            lowestIndex: index,
-                        };
-                    }
-                });
-                return parentsWithCount;
-            },
-            {}
-        );
+        type ParentType = HtmlElement | HtmlDocument;
+        const getParentList = (element: ParentType, parents: Record<string, { index: number, element: ParentType }> = {}, index = 0): Record<string, { index: number, element: ParentType }> => {
+            parents[element.identifier] = { element, index };
+            return element instanceof HtmlDocument ? parents : getParentList(element.parent, parents, index + 1);
+        };
+        const parentLists = this.matched.map((m) => getParentList(m));
+        const allParentKeys = Object.keys(flatten(parentLists.map((p) => Object.keys(p))).reduce((acc: Record<string, true>, toUnique) => {
+            acc[toUnique] = true;
+            return acc;
+        }, {}));
+        const onlyCommonKeys = allParentKeys.filter((key) => parentLists.every(parent => parent[key]));
+        const commonKeysWithLowestIndex = onlyCommonKeys.map((key) => {
+            return {
+                key,
+                index: Math.min(...parentLists.map((p) => p[key].index)),
+            }
+        });
+        const lowestCommonKey = commonKeysWithLowestIndex.sort(({ index: aIndex }, { index: bIndex }) => {
+            return aIndex - bIndex;
+        })[0];
+        const commonParent = parentLists[0][lowestCommonKey.key].element;
 
-        const commonParents = Object.values(parentsWithCount).filter(
-            ({ count }) => count === this.matched.length
-        );
-        const lowestIndex = commonParents.sort(
-            (aParent, bParent) => aParent.lowestIndex - bParent.lowestIndex
-        )[0];
-        if (lowestIndex) {
-            lowestIndex.parent.children().forEach((child) => {
-                appendTo.addChild(child);
-                lowestIndex.parent.removeChild(child);
-            });
-            lowestIndex.parent.addChild(parent);
-        } else {
-            this.document.children().forEach((child) => {
-                appendTo.addChild(child);
-                this.document.removeChild(child);
-            });
-            this.document.addChild(parent);
-        }
+        this.matched.forEach((m, index) => {
+            const resolved: string | QueryInstance =
+                typeof args[0] === "function" ? args[0](index, m) : args[0];
+            const element = typeof resolved === "string" ? tryHtmlParser(resolved)?.children()[0] : resolved.matched[0];
+            if (element) {
+                if (commonParent instanceof HtmlDocument) {
+                    const copy = [...commonParent.htmlElements]
+                        .filter((element) => element.htmlElement.consumed())
+                        .map((element) => element.htmlElement.clone());
+                    copy.forEach((c) => element.addChild(c));
+                    commonParent.htmlElements = [];
+                    commonParent.addChild(element);
+                } else {
+                    commonParent.convertWithChildren();
+                    const copy = commonParent.children().map(c => c.clone());
+                    commonParent.tagClose.close1.closingGroup.htmlContent = new HtmlContent(commonParent);
+                    copy.forEach((c) => element.addChild(c));
+                    commonParent.addChild(element);
+                }
+            }
+        });
+
         this.document.cache.descendants.invalid = true;
         return this;
     };

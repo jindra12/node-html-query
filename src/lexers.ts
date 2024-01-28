@@ -120,9 +120,9 @@ export const cssLexerAtoms = {
     SquareBracketEnd: /\]/gu,
     Space: /[ \t\r\n\f]+/gu,
     String_: new RegExp(
-        `"([^\\n\\r\\f"]|(\\\\${cssFragments.Newline().source}|${cssFragments.Nonascii().source
-        }|${cssFragments.Escape().source}))*"|'([^\\n\\r\\f"]|(\\\\${cssFragments.Newline().source
-        }|${cssFragments.Nonascii().source}|${cssFragments.Escape().source}))*'`,
+        `"([^\\n\\r\\f"]|(\\\\(${cssFragments.Newline().source}|${cssFragments.Nonascii().source
+        }|${cssFragments.Escape().source})))*"|'([^\\n\\r\\f']|(\\\\(${cssFragments.Newline().source
+        }|${cssFragments.Nonascii().source}|${cssFragments.Escape().source})))*'`,
         "gu"
     ),
     Of: /of/gu,

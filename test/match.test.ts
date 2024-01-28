@@ -643,6 +643,36 @@ const matches: {
         query: "ul",
         results: [`<ul><li>item</li><li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li></ul>`],
     },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: "[id='1'],[id='2']",
+        results: ["<div id='1' />", "<div id='2' />"]
+    },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: `[id="1"],[id="2"]`,
+        results: ["<div id='1' />", "<div id='2' />"]
+    },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: `[id=1],[id=2]`,
+        results: ["<div id='1' />", "<div id='2' />"]
+    },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: "[id='1'],[id='2']",
+        results: ["<div id='1' />", "<div id='2' />"]
+    },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: "[id='2']",
+        results: ["<div id='2' />"]
+    },
+    {
+        html: "<div id='1' /><div id='2' />",
+        query: "[id='1']",
+        results: ["<div id='1' />"]
+    }
 ];
 
 describe("Can successfully match query to DOM", () => {
