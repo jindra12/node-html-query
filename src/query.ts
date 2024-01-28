@@ -349,7 +349,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                         matched.parent.content().addText(content, matched);
                     }
                 } else {
-                    const index = matched.parent.getIndex(matched, false);
+                    const index = matched.parent.getIndex(matched, true);
                     tryFirstArgHtml.children().forEach((descentant) => {
                         matched.parent.addChild(descentant, index + contentIndex + 1);
                     });
@@ -490,7 +490,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                         matched.parent.addText(content, matched);
                     }
                 } else {
-                    const index = matched.parent.getIndex(matched, false);
+                    const index = matched.parent.getIndex(matched, true);
                     tryFirstArgHtml.children().forEach((descentant) => {
                         matched.parent.addChild(descentant, index);
                     });
@@ -663,6 +663,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     empty = () => {
         this.matched.forEach((matched) => {
             matched.emptyText();
+            matched.emptyComments();
             matched.children().forEach((child) => {
                 matched.content().removeChild(child);
             });
@@ -883,7 +884,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 : selector.matched;
         toInsertBefore.forEach((m) => {
             this.matched.forEach((matched, matchedIndex) => {
-                m.parent.addChild(matched, m.parent.getIndex(m, false) + matchedIndex);
+                m.parent.addChild(matched, m.parent.getIndex(m, true) + matchedIndex);
             });
             this.virtualDoms.forEach((v) => {
                 v.children().forEach((virtual, virtualIndex) => {
@@ -891,7 +892,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                         virtual,
                         Math.max(
                             0,
-                            m.parent.getIndex(m, false) + this.matched.length - 1 + virtualIndex
+                            m.parent.getIndex(m, true) + this.matched.length - 1 + virtualIndex
                         )
                     );
                 });
@@ -919,7 +920,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 })()
                 : selector.matched;
         toInsertAfter.forEach((m) => {
-            const mIndex = m.parent.getIndex(m, false);
+            const mIndex = m.parent.getIndex(m, true);
             this.matched.forEach((matched, matchedIndex) => {
                 m.parent.addChild(matched, mIndex + matchedIndex + 1);
             });
@@ -1359,13 +1360,14 @@ class QueryInstance implements Record<number, QueryInstance> {
                 const nextMatched = this.matched.filter(
                     (m) => !deleteMap[m.identifier]
                 );
+                this.document.cache.descendants.invalid = true;
                 return createQuery(this.document, nextMatched, this.virtualDoms, this);
             }
         } else {
             this.matched.forEach((m) => m.parent.removeChild(m));
+            this.document.cache.descendants.invalid = true;
             return createQuery(this.document, [], this.virtualDoms, this);
         }
-        this.document.cache.descendants.invalid = true;
         return this;
     };
     removeAttr = (attributeNames: string) => {
@@ -1424,7 +1426,8 @@ class QueryInstance implements Record<number, QueryInstance> {
         const elements = flatten(
             arrayified.map((item) => {
                 if (typeof item === "string") {
-                    return this.find(item, namespaces).matched;
+                    const query = tryQueryParser(item);
+                    return query?.match(this.document.descendants(), this.document.descendants(), namespaces) || [];
                 } else {
                     return item.matched;
                 }
@@ -1435,10 +1438,10 @@ class QueryInstance implements Record<number, QueryInstance> {
         );
         elements.forEach((element) => {
             const parent = element.parent;
-            const index = parent.getIndex(element, false);
+            const index = parent.getIndex(element, true);
             parent.removeChild(element);
             replacements.forEach((replacement) => {
-                parent.addChild(replacement, index);
+                parent.addChild(replacement.clone(), index);
             });
         });
         this.document.cache.descendants.invalid = true;
@@ -1451,27 +1454,24 @@ class QueryInstance implements Record<number, QueryInstance> {
             | (() => string | string[] | QueryInstance | QueryInstance[])
             | QueryInstance
             | QueryInstance[],
-        namespaces: Record<string, string> = {}
     ) => {
         const executed = typeof content === "function" ? content() : content;
         const arrayified = Array.isArray(executed) ? executed : [executed];
         const elements = flatten(
             arrayified.map((item) => {
                 if (typeof item === "string") {
-                    return this.find(item, namespaces).matched;
+                    return tryHtmlParser(item)?.children() || [];
                 } else {
-                    return item.matched.concat(
-                        flatten(item.virtualDoms.map((v) => v.children()))
-                    );
+                    return item.matched;
                 }
             })
         );
 
         this.matched.forEach((m) => {
             const parent = m.parent;
-            const index = parent.getIndex(m, false);
+            const index = parent.getIndex(m, true);
             elements.forEach((e) => {
-                parent.addChild(e, index);
+                parent.addChild(e.clone(), index);
             });
         });
         this.document.cache.descendants.invalid = true;
@@ -1505,6 +1505,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                         ? args[0](index, m.texts().join(" "))
                         : args[0]
                 ).toString();
+                m.emptyText();
                 m.content().addText(value);
             });
         }
@@ -1528,7 +1529,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     typeof classNames === "function"
                         ? classNames(index, classes || "")
                         : classNames.split(" ");
-                const arrayify = Array.isArray(resolve) ? resolve : resolve.split(" ");
+                const arrayify = Array.isArray(resolve) ? flatten(resolve.map((r) => r.split(" "))) : resolve.split(" ");
                 const classList = (classes || "").split(" ");
                 const map = classList.reduce((map: Record<string, true>, cls) => {
                     map[cls] = true;
@@ -1565,6 +1566,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     seeker(element.parent);
                 }
             };
+            seeker(element);
             return {
                 element,
                 indexes,
@@ -1607,7 +1609,7 @@ class QueryInstance implements Record<number, QueryInstance> {
         );
         const elements = (
             selector === undefined
-                ? []
+                ? toUnwrap.map(({ parent }) => parent)
                 : typeof selector === "string"
                     ? (() => {
                         const parents = toUnwrap.map((u) => u.parent);
@@ -1632,7 +1634,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             }
             const grandparent = element.parent.parent;
             const siblings = element.parent.children();
-            const parentIndex = grandparent.getIndex(element.parent, false);
+            const parentIndex = grandparent.getIndex(element.parent, true);
             grandparent.removeChild(parentIndex);
             siblings.forEach((sibling) => grandparent.addChild(sibling));
         };

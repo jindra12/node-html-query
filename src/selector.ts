@@ -961,7 +961,7 @@ export class ClassName implements Matcher {
                 element.attributes(),
                 "class",
                 this.ident.value,
-                "[attr=value]"
+                "[attr~=value]"
             )
         );
     };

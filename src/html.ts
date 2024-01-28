@@ -523,13 +523,37 @@ export class HtmlElement implements ParserItem {
             return this;
         }
         this.content().htmlCharData.htmlText.value = "";
-        this.content().content.forEach(({ charData, cData, htmlComment }) => {
+        this.content().content.forEach(({ charData }) => {
             charData.htmlText.value = "";
-            charData.htmlText.value = "";
+            charData.seaWs.value = "";
+        });
+        this.content().content = this.content().content.filter(({
+            cData,
+            charData,
+            htmlComment,
+            htmlElement,
+        }) => cData.value || charData.consumed() || htmlComment.consumed() || htmlElement.consumed());
+        this.children().forEach((child) => {
+            child.emptyText();
+        });
+        return this;
+    };
+
+    emptyComments = () => {
+        if (!this.consumed()) {
+            return this;
+        }
+        this.content().htmlCharData.htmlText.value = "";
+        this.content().content.forEach(({ htmlComment }) => {
             htmlComment.htmlComment.value = "";
             htmlComment.htmlConditionalComment.value = "";
-            cData.value = "";
         });
+        this.content().content = this.content().content.filter(({
+            cData,
+            charData,
+            htmlComment,
+            htmlElement,
+        }) => cData.value || charData.consumed() || htmlComment.consumed() || htmlElement.consumed());
         this.children().forEach((child) => {
             child.emptyText();
         });
@@ -948,7 +972,14 @@ export class HtmlContent implements ParserItem {
         } else {
             const index = this.getIndex(after, true);
             if (index !== -1) {
-                this.content[index].charData.htmlText.value += text;
+                const charData = new HtmlChardata();
+                charData.htmlText.value = text;
+                this.content.splice(index, 0, {
+                    cData: new LexerItem("CDATA"),
+                    charData: charData,
+                    htmlComment: new HtmlComment(),
+                    htmlElement: new HtmlElement(this.parent),
+                });
             }
         }
         this.parent.convertWithChildren();

@@ -25,6 +25,16 @@ const matches: {
         results: ["<div class='rodeo'></div>"],
     },
     {
+        html: "<div class='rodeo proper'></div>",
+        query: ".rodeo",
+        results: ["<div class='rodeo proper'></div>"],
+    },
+    {
+        html: "<div class='rodeo proper'></div>",
+        query: ".proper",
+        results: ["<div class='rodeo proper'></div>"],
+    },
+    {
         html: "<div name='pipe'></div><div name='pipe' />",
         query: "[name='pipe']",
         results: ["<div name='pipe'></div>", "<div name='pipe' />"]

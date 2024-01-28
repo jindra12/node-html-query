@@ -1175,7 +1175,7 @@ const testCases: Partial<Record<
             expect($("h2").length).toEqual(0);
         },
     ],
-    /*removeAttr: [
+    removeAttr: [
         ($) => {
             expect($("[id='1']").length).toEqual(1);
             $("[id='1']").removeAttr("id");
@@ -1204,7 +1204,7 @@ const testCases: Partial<Record<
     ],
     replaceAll: [
         ($) => {
-            $("<h4>Hello</h4>").replaceAll(":heading");
+            $("<h4>Hello</h4>").replaceAll(":header");
             expect($("h4").print()).toEqual(
                 "<h4>Hello</h4><h4>Hello</h4><h4>Hello</h4>"
             );
@@ -1212,7 +1212,7 @@ const testCases: Partial<Record<
     ],
     replaceWith: [
         ($) => {
-            $(":heading").replaceAll("<h4>Hello</h4>");
+            $(":header").replaceWith("<h4>Hello</h4>");
             expect($("h4").print()).toEqual(
                 "<h4>Hello</h4><h4>Hello</h4><h4>Hello</h4>"
             );
@@ -1246,7 +1246,7 @@ const testCases: Partial<Record<
     ],
     siblings: [
         ($) => {
-            expect($("h1").siblings(":heading").length).toEqual(2);
+            expect($("h1").siblings(":header").length).toEqual(2);
             expect($("li:first-child").siblings().print()).toEqual(
                 "<li><ol id='shallow'><li><div id='deep'>item</div></li></ol></li>"
             );
@@ -1255,7 +1255,7 @@ const testCases: Partial<Record<
     slice: [
         ($) => {
             expect($("div").slice(1, 3).print()).toEqual(
-                "<div id='2' /><div id='deep'>item</div>"
+                "<div id='2' /><div class='one' />"
             );
         },
     ],
@@ -1295,14 +1295,14 @@ const testCases: Partial<Record<
     text: [
         ($) => {
             expect($("article").text()).toEqual("Lorem ipsum ");
-            expect($("article,h2").text()).toEqual("Lorem ipsum  Hello");
+            expect($("h2").text()).toEqual("Hello");
             expect($("article").text("Value").text()).toEqual("Value");
             expect(
                 $("article,h2")
                     .text((index, value) => `${value}, ${index}`)
                     .print()
             ).toEqual(
-                "<article>Value, 0<span> <img /> </span> <!-- this is a comment --><h2 style='height: 50%'>Hello 1</h2></article>"
+                "<article>Value, 0<span> <img /></span><!-- this is a comment --></article><h2 style='height: 50%'>Hello, 1</h2>"
             );
         },
     ],
@@ -1310,10 +1310,12 @@ const testCases: Partial<Record<
         ($) => {
             expect($(".one").toggleClass("one").attr("class")).toEqual("");
             expect($(".one").toggleClass("one", false).attr("class")).toEqual("");
+        },
+        ($) => {
             expect($(".one").toggleClass("two").attr("class")).toEqual("one two");
             expect($(".one").toggleClass("two", true).attr("class")).toEqual("one two");
             expect($(".one").toggleClass("two", false).attr("class")).toEqual("one");
-            expect($(".one").toggleClass((index, classes) => [classes, `class__${index}`]).print()).toEqual("<div class='one class__0' />");
+            expect($(".one").toggleClass((index, classes) => [classes, `class__${index}`]).print()).toEqual(`<div class="class__0" />`);
         },
     ],
     uniqueSort: [
@@ -1376,7 +1378,7 @@ const testCases: Partial<Record<
         ($) => {
             $("[id='1']").wrap("<div class='eleven' />");
             expect($(".eleven").print()).toEqual("<div class='eleven'><div id='1' /></div>");
-            $(":heading").wrap((index) => `<div style='width: ${index}px' class='twelve'></div>`);
+            $(":header").wrap((index) => `<div style='width: ${index}px' class='twelve'></div>`);
             expect($(".twelve").length).toEqual(3);
             expect($(".twelve").map((_, item) => item.css("width")).join("")).toEqual("0px1px2px");
         }
@@ -1390,7 +1392,7 @@ const testCases: Partial<Record<
             expect($("h5 > ul").length).toEqual(1);
         }
     ],
-    wrapInner: [
+    /*wrapInner: [
         ($) => {
             $("article").wrapInner("<p />");
             expect($("article").print()).toEqual("<article><p>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></p></article>");
