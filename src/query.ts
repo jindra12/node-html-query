@@ -1,4 +1,11 @@
-import { HtmlComment, HtmlContent, HtmlDocument, HtmlElement } from "./html";
+import {
+    HtmlComment,
+    HtmlContent,
+    HtmlDocument,
+    HtmlElement,
+    HtmlElements,
+    HtmlMisc,
+} from "./html";
 import {
     htmlParser,
     queryParser,
@@ -44,6 +51,9 @@ interface TypeCombiner {
         parent: (index: number, child: QueryInstance) => QueryInstance | string
     ): QueryInstance;
     wrap(parent: string): QueryInstance;
+    wrapAll(parent: string): QueryInstance;
+    wrapAll(parent: QueryInstance): QueryInstance;
+    wrapAll(parent: () => QueryInstance | string): QueryInstance;
     height(): string;
     height(value: string): QueryInstance;
     width(): string;
@@ -58,6 +68,7 @@ type DataType = TypeCombiner["data"];
 type CssType = TypeCombiner["css"];
 type AttrType = TypeCombiner["attr"];
 type WrapType = TypeCombiner["wrap"];
+type WrapAllType = TypeCombiner["wrapAll"];
 
 class QueryInstance implements Record<number, QueryInstance> {
     private document: HtmlDocument;
@@ -65,8 +76,12 @@ class QueryInstance implements Record<number, QueryInstance> {
     private matched: HtmlElement[];
     private previous: QueryInstance;
 
-    private getUntil = (selector: string | QueryInstance, namespaces: Record<string, string>) => {
-        return (typeof selector === "string"
+    private getUntil = (
+        selector: string | QueryInstance,
+        namespaces: Record<string, string>
+    ) => {
+        return (
+            typeof selector === "string"
                 ? (() => {
                     const query = tryQueryParser(selector);
                     if (query) {
@@ -78,11 +93,12 @@ class QueryInstance implements Record<number, QueryInstance> {
                     }
                     return [];
                 })()
-                : selector.matched).reduce((mapped: Record<string, true>, element) => {
-                    mapped[element.identifier] = true;
-                    return mapped;
-                }, {})
-    }
+                : selector.matched
+        ).reduce((mapped: Record<string, true>, element) => {
+            mapped[element.identifier] = true;
+            return mapped;
+        }, {});
+    };
 
     private addElementsToMatcher = (
         manipulator: (content: string, matched: HtmlElement, index: number) => void,
@@ -892,7 +908,10 @@ class QueryInstance implements Record<number, QueryInstance> {
                         virtual,
                         Math.max(
                             0,
-                            m.parent.getIndex(m, true) + this.matched.length - 1 + virtualIndex
+                            m.parent.getIndex(m, true) +
+                            this.matched.length -
+                            1 +
+                            virtualIndex
                         )
                     );
                 });
@@ -1158,18 +1177,16 @@ class QueryInstance implements Record<number, QueryInstance> {
 
         const parents = this.matched.reduce((parents: HtmlElement[], element) => {
             let parentContent = element.parent;
-            while (parentContent instanceof HtmlElement && !until[parentContent.identifier]) {
+            while (
+                parentContent instanceof HtmlElement &&
+                !until[parentContent.identifier]
+            ) {
                 parents.push(parentContent);
                 parentContent = parentContent.parent;
             }
             return parents;
         }, []);
-        return createQuery(
-            this.document,
-            parents,
-            this.virtualDoms,
-            this
-        );
+        return createQuery(this.document, parents, this.virtualDoms, this);
     };
     prepend = (
         firstArg: string | ((index: number, html: string) => string),
@@ -1427,7 +1444,13 @@ class QueryInstance implements Record<number, QueryInstance> {
             arrayified.map((item) => {
                 if (typeof item === "string") {
                     const query = tryQueryParser(item);
-                    return query?.match(this.document.descendants(), this.document.descendants(), namespaces) || [];
+                    return (
+                        query?.match(
+                            this.document.descendants(),
+                            this.document.descendants(),
+                            namespaces
+                        ) || []
+                    );
                 } else {
                     return item.matched;
                 }
@@ -1453,7 +1476,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             | string[]
             | (() => string | string[] | QueryInstance | QueryInstance[])
             | QueryInstance
-            | QueryInstance[],
+            | QueryInstance[]
     ) => {
         const executed = typeof content === "function" ? content() : content;
         const arrayified = Array.isArray(executed) ? executed : [executed];
@@ -1529,7 +1552,9 @@ class QueryInstance implements Record<number, QueryInstance> {
                     typeof classNames === "function"
                         ? classNames(index, classes || "")
                         : classNames.split(" ");
-                const arrayify = Array.isArray(resolve) ? flatten(resolve.map((r) => r.split(" "))) : resolve.split(" ");
+                const arrayify = Array.isArray(resolve)
+                    ? flatten(resolve.map((r) => r.split(" ")))
+                    : resolve.split(" ");
                 const classList = (classes || "").split(" ");
                 const map = classList.reduce((map: Record<string, true>, cls) => {
                     map[cls] = true;
@@ -1667,53 +1692,119 @@ class QueryInstance implements Record<number, QueryInstance> {
         this.document.cache.descendants.invalid = true;
         return this;
     };
-    wrapAll: WrapType = (...args: any[]): any => {
+    wrapAll: WrapAllType = (...args: any[]): any => {
         if (!this.matched.length) {
             return this;
         }
         type ParentType = HtmlElement | HtmlDocument;
-        const getParentList = (element: ParentType, parents: Record<string, { index: number, element: ParentType }> = {}, index = 0): Record<string, { index: number, element: ParentType }> => {
+        const getParentList = (
+            element: ParentType,
+            parents: Record<string, { index: number; element: ParentType }> = {},
+            index = 0
+        ): Record<string, { index: number; element: ParentType }> => {
             parents[element.identifier] = { element, index };
-            return element instanceof HtmlDocument ? parents : getParentList(element.parent, parents, index + 1);
+            return element instanceof HtmlDocument
+                ? parents
+                : getParentList(element.parent, parents, index + 1);
         };
         const parentLists = this.matched.map((m) => getParentList(m));
-        const allParentKeys = Object.keys(flatten(parentLists.map((p) => Object.keys(p))).reduce((acc: Record<string, true>, toUnique) => {
-            acc[toUnique] = true;
-            return acc;
-        }, {}));
-        const onlyCommonKeys = allParentKeys.filter((key) => parentLists.every(parent => parent[key]));
+        const allParentKeys = Object.keys(
+            flatten(parentLists.map((p) => Object.keys(p))).reduce(
+                (acc: Record<string, true>, toUnique) => {
+                    acc[toUnique] = true;
+                    return acc;
+                },
+                {}
+            )
+        );
+        const onlyCommonKeys = allParentKeys.filter((key) =>
+            parentLists.every((parent) => parent[key] && parent[key].index !== 0)
+        );
         const commonKeysWithLowestIndex = onlyCommonKeys.map((key) => {
             return {
                 key,
                 index: Math.min(...parentLists.map((p) => p[key].index)),
-            }
+            };
         });
-        const lowestCommonKey = commonKeysWithLowestIndex.sort(({ index: aIndex }, { index: bIndex }) => {
-            return aIndex - bIndex;
-        })[0];
+        const lowestCommonKey = commonKeysWithLowestIndex.sort(
+            ({ index: aIndex }, { index: bIndex }) => {
+                return aIndex - bIndex;
+            }
+        )[0];
         const commonParent = parentLists[0][lowestCommonKey.key].element;
-
-        this.matched.forEach((m, index) => {
-            const resolved: string | QueryInstance =
-                typeof args[0] === "function" ? args[0](index, m) : args[0];
-            const element = typeof resolved === "string" ? tryHtmlParser(resolved)?.children()[0] : resolved.matched[0];
-            if (element) {
-                if (commonParent instanceof HtmlDocument) {
-                    const copy = [...commonParent.htmlElements]
-                        .filter((element) => element.htmlElement.consumed())
-                        .map((element) => element.htmlElement.clone());
-                    copy.forEach((c) => element.addChild(c));
-                    commonParent.htmlElements = [];
-                    commonParent.addChild(element);
-                } else {
-                    commonParent.convertWithChildren();
-                    const copy = commonParent.children().map(c => c.clone());
-                    commonParent.tagClose.close1.closingGroup.htmlContent = new HtmlContent(commonParent);
-                    copy.forEach((c) => element.addChild(c));
-                    commonParent.addChild(element);
-                }
-            }
+        const childrenToBeWrapped = commonParent.children().filter((element) => {
+            return parentLists.some((list) => list[element.identifier]);
         });
+        const childrenToBeWrappedMap = childrenToBeWrapped.reduce(
+            (childrenToBeWrappedMap: Record<string, true>, child) => {
+                childrenToBeWrappedMap[child.identifier] = true;
+                return childrenToBeWrappedMap;
+            },
+            {}
+        );
+        const resolved: string | QueryInstance =
+            typeof args[0] === "function" ? args[0]() : args[0];
+        const element =
+            typeof resolved === "string"
+                ? tryHtmlParser(resolved)?.children()[0]
+                : resolved.matched[0];
+
+        if (element) {
+            if (commonParent instanceof HtmlDocument) {
+                const copy = [...commonParent.htmlElements]
+                    .filter(
+                        (element) =>
+                            element.consumed() &&
+                            childrenToBeWrappedMap[element.htmlElement.identifier]
+                    )
+                    .map((element) => element.clone());
+                copy.forEach((c) => {
+                    const convertMisc = (misc: HtmlMisc) => {
+                        if (misc.htmlComment.htmlComment.value) {
+                            element.addComment(misc.htmlComment.htmlComment.value);
+                        }
+                        if (misc.htmlComment.htmlConditionalComment.value) {
+                            element.addConditionalComment(
+                                misc.htmlComment.htmlConditionalComment.value
+                            );
+                        }
+                        if (misc.seaWs.value) {
+                            element.content().addText(misc.seaWs.value);
+                        }
+                    };
+                    c.htmlMisc1.forEach(convertMisc);
+                    element.addChild(c.htmlElement);
+                    c.htmlMisc2.forEach(convertMisc);
+                });
+                const wrapper = new HtmlElements(commonParent);
+                wrapper.htmlElement = element;
+                const rest = [
+                    wrapper,
+                    ...commonParent.htmlElements.filter(
+                        (element) => !childrenToBeWrappedMap[element.htmlElement.identifier]
+                    ),
+                ];
+                commonParent.htmlElements = rest;
+            } else {
+                commonParent.convertWithChildren();
+                element.convertWithChildren();
+                const copy = commonParent
+                    .children()
+                    .filter((c) => childrenToBeWrappedMap[c.identifier])
+                    .map((c) => c.clone());
+                copy.forEach((c) => element.addChild(c));
+                const rest = commonParent
+                    .content()
+                    .content.filter(
+                        (c) => !childrenToBeWrappedMap[c.htmlElement.identifier]
+                    );
+                commonParent.tagClose.close1.closingGroup.htmlContent = new HtmlContent(
+                    commonParent
+                );
+                commonParent.addChild(element);
+                commonParent.content().content.push(...rest);
+            }
+        }
 
         this.document.cache.descendants.invalid = true;
         return this;

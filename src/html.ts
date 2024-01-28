@@ -356,6 +356,14 @@ export class HtmlElements implements ParserItem {
         }
         return queue;
     };
+
+    clone = () => {
+        const htmlElements = new HtmlElements(this.htmlElement.parent as HtmlDocument);
+        htmlElements.htmlMisc1 = this.htmlMisc1.map((misc) => misc.clone());
+        htmlElements.htmlElement = this.htmlElement.clone();
+        htmlElements.htmlMisc2 = this.htmlMisc2.map((misc) => misc.clone());
+        return htmlElements;
+    };
 }
 
 /**
@@ -1382,6 +1390,12 @@ export class HtmlMisc implements ParserItem {
             return queue.next();
         }
         return queue;
+    };
+    clone = () => {
+        const htmlMisc = new HtmlMisc();
+        htmlMisc.htmlComment = this.htmlComment.clone();
+        htmlMisc.seaWs.value = this.seaWs.value;
+        return htmlMisc;
     };
 }
 

@@ -1388,11 +1388,20 @@ const testCases: Partial<Record<
             $("[id='1'],[id='2']").wrapAll("<h4 />");
             expect($("h4").print()).toEqual("<h4><div id='1' /><div id='2' /></h4>");
             $("#one,#shallow").wrapAll("<h5></h5>");
-            expect($("h5 > p").length).toEqual(1);
-            expect($("h5 > ul").length).toEqual(1);
+            expect($("h5").print()).toEqual("<h5><ol id='shallow'><li><div id='deep'>item</div></li></ol></h5>");
+            $("article > *").wrapAll($("h2"));
+            expect($("article h2").print()).toEqual("<h2 style='height: 50%'>Hello<span> <img /> </span></h2>");
+        },
+        ($) => {
+            $("[id='1'],[id='2']").wrapAll(() => "<h4 />");
+            expect($("h4").print()).toEqual("<h4><div id='1' /><div id='2' /></h4>");
+            $("#one,#shallow").wrapAll(() => "<h5></h5>");
+            expect($("h5").print()).toEqual("<h5><ol id='shallow'><li><div id='deep'>item</div></li></ol></h5>");
+            $("article > *").wrapAll(() => $("h2"));
+            expect($("article h2").print()).toEqual("<h2 style='height: 50%'>Hello<span> <img /> </span></h2>");
         }
     ],
-    /*wrapInner: [
+    wrapInner: [
         ($) => {
             $("article").wrapInner("<p />");
             expect($("article").print()).toEqual("<article><p>Lorem ipsum <span> <img /> </span> <!-- this is a comment --></p></article>");
@@ -1409,7 +1418,7 @@ const testCases: Partial<Record<
             expect($("div")[1].attr("id")).toEqual("2");
             expect(Array.from($("div")).length).toEqual(5);
         }
-    ],*/
+    ],
 };
 
 describe("Methods of Query work as expected", () => {
