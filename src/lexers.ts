@@ -33,6 +33,75 @@ export const htmlFragments = {
     SINGLE_QUOTE_STRING: () => /'[^'<]*'/gu,
 } as const;
 
+const matchScriptBody = (input: string, skip: number) => {
+    const ignore = {
+        doubleQuote: false,
+        singleQuote: false,
+        template: false,
+    };
+    for (let i = skip; i < input.length; i++) {
+        const char = input[i];
+        if (ignore.doubleQuote) {
+            if (char === '"') {
+                ignore.doubleQuote = false;
+            }
+        } else if (ignore.singleQuote) {
+            if (char === "'") {
+                ignore.singleQuote = false;
+            }
+        } else if (ignore.template) {
+            if (char === "`") {
+                ignore.template = false;
+            }
+        } else {
+            if (char === '"') {
+                ignore.doubleQuote = true;
+            } else if (char === "'") {
+                ignore.singleQuote = true;
+            } else if (char === "`") {
+                ignore.template = true;
+            } else if (input[i + 1] === "<" && input[i + 2] === "/") {
+                const matchEndScript = /^<\/\s*script\s*>/gu.exec(input.slice(i + 1));
+                if (matchEndScript) {
+                    return matchEndScript[0].length + i + 1;
+                }
+            }
+        }
+    }
+    return undefined;
+};
+
+const matchStyleBody = (input: string, skip: number) => {
+    const ignore = {
+        doubleQuote: false,
+        singleQuote: false,
+    };
+    for (let i = skip; i < input.length; i++) {
+        const char = input[i];
+        if (ignore.doubleQuote) {
+            if (char === '"') {
+                ignore.doubleQuote = false;
+            }
+        } else if (ignore.singleQuote) {
+            if (char === "'") {
+                ignore.singleQuote = false;
+            }
+        } else {
+            if (char === '"') {
+                ignore.doubleQuote = true;
+            } else if (char === "'") {
+                ignore.singleQuote = true;
+            } else if (input[i + 1] === "<" && input[i + 2] === "/") {
+                const matchEndScript = /^<\/\s*style\s*>/gu.exec(input.slice(i + 1));
+                if (matchEndScript) {
+                    return matchEndScript[0].length + i + 1;
+                }
+            }
+        }
+    }
+    return undefined;
+};
+
 export const htmlLexerAtoms = {
     HTML_COMMENT: /<!--(.|\n)*-->/gu,
     HTML_CONDITIONAL_COMMENT: /<!\[(.|\n)*\]>/gu,
@@ -58,8 +127,8 @@ export const htmlLexerAtoms = {
         mode: "TAG",
     },
     TAG_WHITESPACE: { value: /[ \t\r\n]+/gu, mode: "TAG" },
-    SCRIPT_BODY: { value: /(.|\n)*<\/\s*script\s*>/gu, popMode: true, mode: "SCRIPT" },
-    STYLE_BODY: { value: /(.|\n)*<\/\s*style\s*>/gu, popMode: true, mode: "STYLE" },
+    SCRIPT_BODY: { value: matchScriptBody, popMode: true, mode: "SCRIPT" },
+    STYLE_BODY: { value: matchStyleBody, popMode: true, mode: "STYLE" },
     ATTVALUE_VALUE: {
         // DOUBLE_QUOTE_STRING | SINGLE_QUOTE_STRING | ATTCHARS | HEXCHARS | DECCHARS
         value: new RegExp(
@@ -146,7 +215,7 @@ export type LexerType =
     | "EOF";
 
 export interface Lexer {
-    value: RegExp;
+    value: RegExp | ((input: string, skip: number) => (number | undefined));
     popMode?: boolean;
     mode?: "SCRIPT" | "STYLE" | "TAG" | "ATTVALUE";
     pushMode?: ReadonlyArray<"SCRIPT" | "STYLE" | "TAG" | "ATTVALUE">;
@@ -154,9 +223,14 @@ export interface Lexer {
 
 export const normalizeHtmlLexer = (
     item: keyof typeof htmlLexerAtoms
-): Lexer => {
+) => {
     const value = htmlLexerAtoms[item];
     if (value instanceof RegExp) {
+        return {
+            value: value,
+        };
+    }
+    if (typeof value === "function") {
         return {
             value: value,
         };

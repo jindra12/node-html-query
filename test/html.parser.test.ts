@@ -28,7 +28,7 @@ const htmlTestParser = (
             .map((q) => q.value)
             .join("")}`;
     }
-    checkIfNothingRemains(queueItems, processed);
+    checkIfNothingRemains(queueItems, processed, instance);
     return instance;
 };
 

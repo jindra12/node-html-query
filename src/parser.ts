@@ -1,7 +1,8 @@
 import { HtmlDocument } from "./html";
 import { Lexer, LexerType, cssLexerAtoms, htmlLexerAtoms } from "./lexers";
 import { SelectorGroup } from "./selector";
-import { Queue, QueueItem } from "./types";
+import { ParserItem, Queue, QueueItem } from "./types";
+import { parserItemToString } from "./utils";
 
 export const parseLexer = (
     input: string,
@@ -24,16 +25,27 @@ export const parseLexer = (
             if (!matchesMode) {
                 return false;
             }
-            const matchesRegex = new RegExp(
-                `^(((.|\n){${parsedIndex}})(?<match>${lexer.value.source}))`,
-                "gu"
-            ).exec(input);
-            if (!matchesRegex?.groups?.["match"]) {
-                return false;
+            if (typeof lexer.value === "function") {
+                const executed = lexer.value(input, parsedIndex);
+                if (typeof executed === "number") {
+                    const groupMatch = input.slice(parsedIndex, executed);
+                    parsedIndex += groupMatch.length;
+                    matchedValue = groupMatch;                    
+                } else {
+                    return false;
+                }
+            } else {
+                const matchesRegex = new RegExp(
+                    `^(((.|\n){${parsedIndex}})(?<match>${lexer.value.source}))`,
+                    "gu"
+                ).exec(input);
+                if (!matchesRegex?.groups?.["match"]) {
+                    return false;
+                }
+                const groupMatch = matchesRegex.groups["match"];
+                parsedIndex += groupMatch.length;
+                matchedValue = groupMatch;
             }
-            const groupMatch = matchesRegex.groups["match"];
-            parsedIndex += groupMatch.length;
-            matchedValue = groupMatch;
             if (lexer.popMode) {
                 mode.pop();
             }
@@ -66,7 +78,7 @@ export const parsedHtmlLexer = Object.entries(htmlLexerAtoms).reduce(
     (lexer: Partial<Record<LexerType, Lexer>>, [lexerKey, lexerValue]) => {
         const typedKey = lexerKey as LexerType;
         lexer[typedKey] =
-            lexerValue instanceof RegExp ? { value: lexerValue } : lexerValue;
+            (lexerValue instanceof RegExp || typeof lexerValue === "function") ? { value: lexerValue } : lexerValue;
         return lexer;
     },
     {}
@@ -103,16 +115,17 @@ export const createQueueFromItems = (lexerAtoms: QueueItem[]) => {
 
 export const checkIfNothingRemains = (
     lexerAtoms: QueueItem[],
-    endQueue: Queue
+    endQueue: Queue,
+    parent: ParserItem,
 ) => {
     const remainingLexerAtoms = lexerAtoms
         .slice(endQueue.at)
         .filter((atom) => atom.type !== "EOF");
     if (remainingLexerAtoms.length > 0) {
-        throw `Error in parsing encountered at: ${remainingLexerAtoms
+        throw `Error in parsing (finished: ${endQueue.at}/${lexerAtoms.length}) encountered at: ${remainingLexerAtoms
             .slice(0, 5)
             .map(({ type, value }) => `${type}: "${value}"`)
-            .join(", ")}, near: ${remainingLexerAtoms[0].value.slice(0, 10)}...`;
+            .join(", ")}, remainder near error: ${parserItemToString(parent).slice(-50)}`;
     }
 };
 
@@ -120,7 +133,7 @@ export const htmlParser = (input: string) => {
     const lexerAtoms = parseHtmlLexer(input);
     const document = new HtmlDocument();
     const endQueue = document.process(createQueueFromItems(lexerAtoms));
-    checkIfNothingRemains(lexerAtoms, endQueue);
+    checkIfNothingRemains(lexerAtoms, endQueue, document);
     return document;
 };
 
@@ -128,7 +141,7 @@ export const queryParser = (input: string) => {
     const lexerAtoms = parseQueryLexer(input);
     const selectorGroup = new SelectorGroup();
     const endQueue = selectorGroup.process(createQueueFromItems(lexerAtoms));
-    checkIfNothingRemains(lexerAtoms, endQueue);
+    checkIfNothingRemains(lexerAtoms, endQueue, selectorGroup);
     return selectorGroup;
 };
 

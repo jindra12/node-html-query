@@ -358,7 +358,9 @@ export class HtmlElements implements ParserItem {
     };
 
     clone = () => {
-        const htmlElements = new HtmlElements(this.htmlElement.parent as HtmlDocument);
+        const htmlElements = new HtmlElements(
+            this.htmlElement.parent as HtmlDocument
+        );
         htmlElements.htmlMisc1 = this.htmlMisc1.map((misc) => misc.clone());
         htmlElements.htmlElement = this.htmlElement.clone();
         htmlElements.htmlMisc2 = this.htmlMisc2.map((misc) => misc.clone());
@@ -535,12 +537,13 @@ export class HtmlElement implements ParserItem {
             charData.htmlText.value = "";
             charData.seaWs.value = "";
         });
-        this.content().content = this.content().content.filter(({
-            cData,
-            charData,
-            htmlComment,
-            htmlElement,
-        }) => cData.value || charData.consumed() || htmlComment.consumed() || htmlElement.consumed());
+        this.content().content = this.content().content.filter(
+            ({ cData, charData, htmlComment, htmlElement }) =>
+                cData.value ||
+                charData.consumed() ||
+                htmlComment.consumed() ||
+                htmlElement.consumed()
+        );
         this.children().forEach((child) => {
             child.emptyText();
         });
@@ -556,12 +559,13 @@ export class HtmlElement implements ParserItem {
             htmlComment.htmlComment.value = "";
             htmlComment.htmlConditionalComment.value = "";
         });
-        this.content().content = this.content().content.filter(({
-            cData,
-            charData,
-            htmlComment,
-            htmlElement,
-        }) => cData.value || charData.consumed() || htmlComment.consumed() || htmlElement.consumed());
+        this.content().content = this.content().content.filter(
+            ({ cData, charData, htmlComment, htmlElement }) =>
+                cData.value ||
+                charData.consumed() ||
+                htmlComment.consumed() ||
+                htmlElement.consumed()
+        );
         this.children().forEach((child) => {
             child.emptyText();
         });
@@ -759,7 +763,10 @@ export class HtmlElement implements ParserItem {
 
     endTagConsumed = () => {
         return Boolean(
-            this.tagClose.close1.tagClose.value ||
+            (this.tagClose.close1.closingGroup.tagOpen.value &&
+                this.tagClose.close1.closingGroup.tagSlash.value &&
+                this.tagClose.close1.closingGroup.tagName.value &&
+                this.tagClose.close1.closingGroup.tagClose.value) ||
             this.tagClose.close2.tagSlashClose.value
         );
     };
@@ -785,7 +792,13 @@ export class HtmlElement implements ParserItem {
     };
 
     consumed = () => {
-        if (this.tagOpen.value && this.tagName.value && this.endTagConsumed()) {
+        if (
+            this.tagOpen.value &&
+            this.tagName.value &&
+            (this.tagClose.close1.tagClose.value ||
+                this.tagClose.close2.tagSlashClose.value) &&
+            this.endTagConsumed()
+        ) {
             return true;
         }
         if (this.scriptlet.value) {
@@ -1005,7 +1018,8 @@ export class HtmlContent implements ParserItem {
             this.content[this.content.length - 1].htmlComment.htmlComment.value +=
                 text;
         } else {
-            const index = typeof after === "number" ? after : this.getIndex(after, true);
+            const index =
+                typeof after === "number" ? after : this.getIndex(after, true);
             if (index >= this.content.length) {
                 this.addComment(text);
                 return this;
@@ -1030,7 +1044,8 @@ export class HtmlContent implements ParserItem {
                 this.content.length - 1
             ].htmlComment.htmlConditionalComment.value += text;
         } else {
-            const index = typeof after === "number" ? after : this.getIndex(after, true);
+            const index =
+                typeof after === "number" ? after : this.getIndex(after, true);
             if (index >= this.content.length) {
                 this.addConditionalComment(text);
                 return this;
@@ -1129,7 +1144,9 @@ export class HtmlContent implements ParserItem {
         }
         const getIndexes = () =>
             this.content
-                .filter(({ htmlElement }) => !indexOthers ? htmlElement.consumed() : true)
+                .filter(({ htmlElement }) =>
+                    !indexOthers ? htmlElement.consumed() : true
+                )
                 .filter(({ htmlElement }) => !filter || filter(htmlElement))
                 .reduce((indexes: Record<string, number>, { htmlElement }, index) => {
                     if (htmlElement.consumed()) {
