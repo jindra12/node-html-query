@@ -7,7 +7,7 @@ const queryTestParser = (input: string, instance: ParserItem) => {
     const queueItems = parseLexer(input, parsedQueryLexer).queue;
     const queue = createQueueFromItems(queueItems);
     const processed = instance.process(queue);
-    checkIfNothingRemains(queueItems, processed);
+    checkIfNothingRemains(queueItems, processed, instance);
     if (!instance.consumed()) {
         throw `Instance could not consume test`;
     }

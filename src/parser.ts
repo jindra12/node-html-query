@@ -36,13 +36,13 @@ export const parseLexer = (
                 }
             } else {
                 const matchesRegex = new RegExp(
-                    `^(((.|\n){${parsedIndex}})(?<match>${lexer.value.source}))`,
+                    `^(${lexer.value.source})`,
                     "gu"
-                ).exec(input);
-                if (!matchesRegex?.groups?.["match"]) {
+                ).exec(input.slice(parsedIndex));
+                if (!matchesRegex?.[0]) {
                     return false;
                 }
-                const groupMatch = matchesRegex.groups["match"];
+                const groupMatch = matchesRegex[0];
                 parsedIndex += groupMatch.length;
                 matchedValue = groupMatch;
             }
@@ -57,7 +57,7 @@ export const parseLexer = (
         if (matchedLexer === -1) {
             throw `${input.slice(
                 parsedIndex
-            )} does not match any known lexer items, matched previously: ${acc
+            ).slice(0, 25)}... does not match any known lexer items, matched previously: ${acc
                 .map(({ type, value }) => `${type}:"${value}"`)
                 .slice(-10)
                 .join(",")}`;

@@ -133,5 +133,10 @@ describe("Test methods of HTML represention", () => {
     it("HTML element does not have itself within its descendants", () => {
         const element = getHtmlElement(`<svg width="250px" viewBox="0 0 250 20" xmlns="http://www.w3.org/2000/svg"><a href="#" /></svg>`);
         expect(element.descendants().every((d) => d.identifier !== element.identifier)).toBe(true);
-    })
+    });
+    it("HTML document knows not to add children to <link> and <meta>", () => {
+        const document = htmlParser("<html><meta><link></html>");
+        const htmlElement = document.children()[0];
+        expect(htmlElement.children().map(c => c.tagName.value)).toEqual(["meta", "link"]);
+    });
 });

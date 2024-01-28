@@ -29,8 +29,8 @@ export const htmlFragments = {
     ATTCHAR: () => /[\-_\.\/\+,\?:;#0-9a-zA-Z]/gu,
     HEXCHARS: () => /#[0-9a-fA-F]+/gu,
     DECCHARS: () => /[0-9]+%?/gu,
-    DOUBLE_QUOTE_STRING: () => /"[^"<]*"/gu,
-    SINGLE_QUOTE_STRING: () => /'[^'<]*'/gu,
+    DOUBLE_QUOTE_STRING: () => /"[^"]*"/gu,
+    SINGLE_QUOTE_STRING: () => /'[^']*'/gu,
 } as const;
 
 const matchScriptBody = (input: string, skip: number) => {
@@ -60,10 +60,10 @@ const matchScriptBody = (input: string, skip: number) => {
                 ignore.singleQuote = true;
             } else if (char === "`") {
                 ignore.template = true;
-            } else if (input[i + 1] === "<" && input[i + 2] === "/") {
-                const matchEndScript = /^<\/\s*script\s*>/gu.exec(input.slice(i + 1));
+            } else if (input[i] === "<" && input[i + 1] === "/") {
+                const matchEndScript = /^<\/\s*script\s*>/gu.exec(input.slice(i));
                 if (matchEndScript) {
-                    return matchEndScript[0].length + i + 1;
+                    return matchEndScript[0].length + i;
                 }
             }
         }
@@ -91,10 +91,10 @@ const matchStyleBody = (input: string, skip: number) => {
                 ignore.doubleQuote = true;
             } else if (char === "'") {
                 ignore.singleQuote = true;
-            } else if (input[i + 1] === "<" && input[i + 2] === "/") {
-                const matchEndScript = /^<\/\s*style\s*>/gu.exec(input.slice(i + 1));
+            } else if (input[i] === "<" && input[i + 1] === "/") {
+                const matchEndScript = /^<\/\s*style\s*>/gu.exec(input.slice(i));
                 if (matchEndScript) {
-                    return matchEndScript[0].length + i + 1;
+                    return matchEndScript[0].length + i;
                 }
             }
         }

@@ -761,9 +761,11 @@ export class HtmlElement implements ParserItem {
         ));
     };
 
+    noEndingTagNeeded = () => this.tagName.value === "meta" || this.tagName.value === "link";
+
     endTagConsumed = () => {
         return Boolean(
-            (this.tagClose.close1.closingGroup.tagOpen.value &&
+            this.noEndingTagNeeded() || (this.tagClose.close1.closingGroup.tagOpen.value &&
                 this.tagClose.close1.closingGroup.tagSlash.value &&
                 this.tagClose.close1.closingGroup.tagName.value &&
                 this.tagClose.close1.closingGroup.tagClose.value) ||
@@ -830,19 +832,21 @@ export class HtmlElement implements ParserItem {
             }
         }
         if (this.tagClose.close1.tagClose.value) {
-            if (
-                !this.tagClose.close1.closingGroup.tagOpen.value &&
-                !this.tagClose.close1.closingGroup.htmlContent.consumed()
-            ) {
-                const tryHtmlContent =
-                    this.tagClose.close1.closingGroup.htmlContent.process(queue);
-                if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
-                    return this.process(tryHtmlContent);
+            if (!this.noEndingTagNeeded()) {
+                if (
+                    !this.tagClose.close1.closingGroup.tagOpen.value &&
+                    !this.tagClose.close1.closingGroup.htmlContent.consumed()
+                ) {
+                    const tryHtmlContent =
+                        this.tagClose.close1.closingGroup.htmlContent.process(queue);
+                    if (this.tagClose.close1.closingGroup.htmlContent.consumed()) {
+                        return this.process(tryHtmlContent);
+                    }
                 }
-            }
-            if (current.type === "TAG_OPEN") {
-                this.tagClose.close1.closingGroup.tagOpen.value = current.value;
-                return this.process(queue.next());
+                if (current.type === "TAG_OPEN") {
+                    this.tagClose.close1.closingGroup.tagOpen.value = current.value;
+                    return this.process(queue.next());
+                }
             }
             if (
                 this.tagClose.close1.closingGroup.tagOpen.value &&
