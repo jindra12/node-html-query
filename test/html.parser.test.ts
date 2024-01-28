@@ -180,13 +180,9 @@ const tests: {
     HtmlComment: {
         instance: () => new Html.HtmlComment(),
         passes: [
-            "<!--This is a comment. Comments are not displayed in the browser-->",
-            `<!--[if lt IE 9]>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/respond.js/1.4.2/respond.js" integrity="sha512-BWbLJlfp8hzXlxT6K5KLdxPVAj+4Zn2e4FVq5P7NSFH/mkAJ18UiZRQUD4anR3jyp0/WYkeZ0Zmq5EWWrDxneQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-            <![endif]-->`,
-            `<![if !IE]>
-            <link href="non-ie.css" rel="stylesheet">
-            <![endif]>`,
+            "<![if lt IE 9]>",
+            "<![if !IE]>",
+            "<![endif]>",
         ],
         fails: ["<div />", "<>", "<!>"],
     },

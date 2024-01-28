@@ -103,10 +103,10 @@ const matchStyleBody = (input: string, skip: number) => {
 };
 
 export const htmlLexerAtoms = {
-    HTML_COMMENT: /<!--(.|\n)*-->/gu,
-    HTML_CONDITIONAL_COMMENT: /<!\[(.|\n)*\]>/gu,
-    XML: /<\?xml(.|\n)*>/gu,
-    CDATA: /<!\[CDATA\[(.|\n)*\]\]>/gu,
+    HTML_COMMENT: /<!--((?!-->).|\n)*-->/gu,
+    HTML_CONDITIONAL_COMMENT: /<!\[((?!\]>).|\n)*\]>/gu,
+    XML: /<\?xml([^>]|\n)*>/gu,
+    CDATA: /<!\[CDATA\[((?!\]\]>).|\n)*\]\]>/gu,
     DTD: /<!([^>]|\n)*>/gu,
     SCRIPTLET: /(<\?[^\?]*\?>)|(<%[^%]*%>)/gu,
     SEA_WS: /(\s|\t|\r|\n)+/gu,

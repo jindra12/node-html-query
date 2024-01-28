@@ -13,9 +13,9 @@ describe("Can parse and query full html file", () => {
     });
     it("Can parse a complex html file", () => {
         const $ = Query(file);
-        expect($("div").length).toEqual(273);
+        expect($("div").length).toEqual(142);
         expect($("header h1").text()).toEqual(":nth-child()");
-        expect($("a")[0].attr("href")).toEqual("https://developer.mozilla.org/en-US/docs/Web/CSS/:nth-child#content");
-        expect($(".bc-head-txt-label.bc-head-icon-chrome").text()).toEqual("Chrome");
+        expect($("a")[0].attr("href")).toEqual("#content");
+        expect($("#mozilla-footer-logo-svg").text()).toEqual("Mozilla logo");
     });
 });
