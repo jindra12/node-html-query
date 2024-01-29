@@ -761,11 +761,28 @@ export class HtmlElement implements ParserItem {
         ));
     };
 
-    noEndingTagNeeded = () => this.tagName.value === "meta" || this.tagName.value === "link";
+    noEndingTagNeeded = () =>
+        [
+            "meta",
+            "link",
+            "input",
+            "img",
+            "hr",
+            "br",
+            "area",
+            "base",
+            "col",
+            "embed",
+            "param",
+            "source",
+            "track",
+            "wbr",
+        ].includes(this.tagName.value);
 
     endTagConsumed = () => {
         return Boolean(
-            this.noEndingTagNeeded() || (this.tagClose.close1.closingGroup.tagOpen.value &&
+            this.noEndingTagNeeded() ||
+            (this.tagClose.close1.closingGroup.tagOpen.value &&
                 this.tagClose.close1.closingGroup.tagSlash.value &&
                 this.tagClose.close1.closingGroup.tagName.value &&
                 this.tagClose.close1.closingGroup.tagClose.value) ||
