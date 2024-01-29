@@ -30,10 +30,7 @@ export class SelectorGroup implements Matcher {
     }[] = [];
     consumed = () => {
         return (
-            this.selector.consumed() && this.selectors.every(
-                ({ comma, selector }) =>
-                    comma.value && selector.consumed()
-            )
+            this.selector.consumed()
         );
     };
     process = (queue: Queue): Queue => {
@@ -108,11 +105,7 @@ export class Selector implements Matcher {
     }[] = [];
     consumed = () => {
         return (
-            this.simpleSelectorSequence.consumed() &&
-            this.sequences.every(
-                ({ combinator, simpleSelectorSequence }) =>
-                    combinator.consumed() && simpleSelectorSequence.consumed()
-            )
+            this.simpleSelectorSequence.consumed()
         );
     };
     process = (queue: Queue): Queue => {

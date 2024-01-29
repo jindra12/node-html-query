@@ -522,7 +522,7 @@ export class HtmlElement implements ParserItem {
     content = () => this.tagClose.close1.closingGroup.htmlContent;
 
     children = () => {
-        if (!this.consumed() || !this.content().consumed()) {
+        if (!this.consumed()) {
             return [];
         }
         return this.content().children();
@@ -606,23 +606,7 @@ export class HtmlElement implements ParserItem {
         if (!this.consumed()) {
             return [];
         }
-        const seeker = (
-            htmlElements: HtmlElement[],
-            collector: (element: HtmlElement) => void,
-            skip = true
-        ) => {
-            if (!skip) {
-                htmlElements.forEach(collector);
-            }
-            htmlElements.forEach((element) =>
-                seeker(element.children(), collector, false)
-            );
-        };
-        const descendants: HtmlElement[] = [];
-        seeker([this], (element) => {
-            descendants.push(element);
-        });
-        return descendants;
+        return this.content().descendants();
     };
 
     getIndex = (
@@ -983,10 +967,10 @@ export class HtmlContent implements ParserItem {
     cache: {
         children: { invalid: boolean; value: HtmlElement[] };
         indexes: { invalid: boolean; value: Partial<Record<string, number>> };
-    } = {
+            } = {
             indexes: { invalid: true, value: {} },
             children: { invalid: true, value: [] },
-        };
+                    };
 
     identifier: string;
     parent: HtmlElement;
@@ -1008,6 +992,26 @@ export class HtmlContent implements ParserItem {
             .map(({ htmlElement }) => htmlElement));
     };
 
+    descendants = () => {
+        const seeker = (
+            htmlElements: HtmlElement[],
+            collector: (element: HtmlElement) => void,
+            skip = true
+        ) => {
+            if (!skip) {
+                htmlElements.forEach(collector);
+            }
+            htmlElements.forEach((element) =>
+                seeker(element.children(), collector, false)
+            );
+        };
+        const descendants: HtmlElement[] = [];
+        seeker([this.parent], (element) => {
+            descendants.push(element);
+        });
+        return descendants;
+    };
+    
     addText = (text: string, after?: HtmlElement) => {
         if (!after) {
             this.htmlCharData.htmlText.value += text;
@@ -1273,16 +1277,7 @@ export class HtmlContent implements ParserItem {
         return queue;
     };
     consumed = () => {
-        return (
-            (this.htmlCharData.consumed() || this.content.length !== 0) &&
-            this.content.every(
-                ({ cData, htmlComment, htmlElement, charData }) =>
-                    cData.value ||
-                    htmlComment.consumed() ||
-                    htmlElement.consumed() ||
-                    charData.consumed()
-            )
-        );
+        return this.htmlCharData.consumed() || this.content.length !== 0;
     };
     clone = () => {
         const content = new HtmlContent(this.parent);
@@ -1493,9 +1488,7 @@ export class Script implements ParserItem {
     };
     consumed = () => {
         return Boolean(
-            this.scriptOpen.value &&
-            this.attributes.every((attribute) => attribute.consumed()) &&
-            ((this.scriptBody.value && this.tagClose.value) ||
+            this.scriptOpen.value && ((this.scriptBody.value && this.tagClose.value) ||
                 this.tagSlashClose.value)
         );
     };
@@ -1574,7 +1567,6 @@ export class Style implements ParserItem {
     consumed = () => {
         return Boolean(
             this.styleOpen.value &&
-            this.attributes.every((attribute) => attribute.consumed()) &&
             ((this.styleBody.value && this.tagClose.value) ||
                 this.tagSlashClose.value)
         );
