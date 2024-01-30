@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import jsdom from "jsdom";
 import jQuery from "jquery";
-import { Query } from "../dist";
+import { Query } from "../src";
 
 import v8Profiler from 'v8-profiler-next';
 v8Profiler.setGenerateType(1);

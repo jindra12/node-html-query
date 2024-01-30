@@ -112,12 +112,12 @@ export const htmlLexerAtoms = {
     SEA_WS: /(\s|\t|\r|\n)+/gu,
     SCRIPT_OPEN: { value: /<\s*script\s*/gu, pushMode: ["SCRIPT", "TAG"] },
     STYLE_OPEN: { value: /<\s*style\s*/gu, pushMode: ["STYLE", "TAG"] },
-    TAG_OPEN: { value: /</gu, pushMode: ["TAG"] },
+    TAG_OPEN: { value: "<", pushMode: ["TAG"] },
     HTML_TEXT: { value: /[^<]+/gu },
-    TAG_CLOSE: { value: />/gu, popMode: true, mode: "TAG" },
-    TAG_SLASH_CLOSE: { value: /\/>/gu, popMode: true, mode: "TAG" },
-    TAG_SLASH: { value: /\//gu, mode: "TAG" },
-    TAG_EQUALS: { value: /=/gu, mode: "TAG", pushMode: ["ATTVALUE"] },
+    TAG_CLOSE: { value: ">", popMode: true, mode: "TAG" },
+    TAG_SLASH_CLOSE: { value: "/>", popMode: true, mode: "TAG" },
+    TAG_SLASH: { value: "/", mode: "TAG" },
+    TAG_EQUALS: { value: "=", mode: "TAG", pushMode: ["ATTVALUE"] },
     TAG_NAME: {
         value: new RegExp(
             `${htmlFragments.TAG_NameStartChar().source}(${htmlFragments.TAG_NameChar().source
@@ -168,25 +168,25 @@ export const cssFragments = {
 } as const;
 
 export const cssLexerAtoms = {
-    DashMatch: /\|=/gu,
-    Includes: /~=/gu,
-    PrefixMatch: /\^=/gu,
-    SuffixMatch: /\$=/gu,
-    SubstringMatch: /\*=/gu,
-    Plus: /\+/gu,
-    Minus: /-/gu,
-    Greater: />/gu,
-    Comma: /,/gu,
-    Tilde: /~/gu,
-    Dot: /\./gu,
-    PseudoNot: /:not\(/gu,
+    DashMatch: "|=",
+    Includes: "~=",
+    PrefixMatch: "^=",
+    SuffixMatch: "$=",
+    SubstringMatch: "*=",
+    Plus: "+",
+    Minus: "-",
+    Greater: ">",
+    Comma: ",",
+    Tilde: "~",
+    Dot: ".",
+    PseudoNot: ":not(",
     PseudoGeneral: /::?/gu,
-    Namespace: /\|/gu,
-    Universal: /\*/gu,
+    Namespace: "|",
+    Universal: "*",
     Number: /([0-9]*\.[0-9]+|[0-9]+)/gu,
-    Equals: /=/gu,
-    SquareBracket: /\[/gu,
-    SquareBracketEnd: /\]/gu,
+    Equals: "=",
+    SquareBracket: "[",
+    SquareBracketEnd: "]",
     Space: /[ \t\r\n\f]+/gu,
     String_: new RegExp(
         `"([^\\n\\r\\f"]|(\\\\(${cssFragments.Newline().source}|${cssFragments.Nonascii().source
@@ -194,9 +194,9 @@ export const cssLexerAtoms = {
         }|${cssFragments.Nonascii().source}|${cssFragments.Escape().source})))*'`,
         "gu"
     ),
-    Of: /of/gu,
-    Odd: /odd/gu,
-    Even: /even/gu,
+    Of: "of",
+    Odd: "odd",
+    Even: "even",
     Function_: new RegExp(
         `(-?${cssFragments.Nmstart().source})(${cssFragments.Nmchar().source})*\\(`,
         "gu"
@@ -206,7 +206,7 @@ export const cssLexerAtoms = {
         `(-?${cssFragments.Nmstart().source})(${cssFragments.Nmchar().source})*`,
         "gu"
     ),
-    BackBrace: /\)/gu,
+    BackBrace: ")",
 } as const;
 
 export type LexerType =
@@ -215,7 +215,7 @@ export type LexerType =
     | "EOF";
 
 export interface Lexer {
-    value: RegExp | ((input: string, skip: number) => (number | undefined));
+    value: string | RegExp | ((input: string, skip: number) => (number | undefined));
     popMode?: boolean;
     mode?: "SCRIPT" | "STYLE" | "TAG" | "ATTVALUE";
     pushMode?: ReadonlyArray<"SCRIPT" | "STYLE" | "TAG" | "ATTVALUE">;
@@ -225,6 +225,11 @@ export const normalizeHtmlLexer = (
     item: keyof typeof htmlLexerAtoms
 ) => {
     const value = htmlLexerAtoms[item];
+    if (typeof value === "string") {
+        return {
+            value: value,
+        };
+    }
     if (value instanceof RegExp) {
         return {
             value: value,

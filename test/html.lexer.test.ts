@@ -434,7 +434,7 @@ describe("Match HTML lexer items correctly", () => {
             it(`${test.inverse ? "Doesn't match" : "Matches"
                 } ${lexerType} with value ${test.value}, in mode ${test.modes?.join(", ") || "none"
                 } and changes modes to: ${test.nextModes?.join(", ") || "none"
-                } with regex ${typeof normalized === "function" ? "N/A" : normalized.source}`, () => {
+                } with regex ${typeof normalized === "function" ? "N/A" : typeof normalized === "string" ? normalized : normalized.source}`, () => {
                     if (test.inverse) {
                         expect(() =>
                             parseLexer(test.value, parsedLexer, false, test.modes)
