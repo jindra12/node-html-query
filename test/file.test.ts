@@ -10,7 +10,7 @@ const files = {
     "webpack.html": fs.readFileSync(path.join(__dirname, "webpack.html"), { encoding: "utf-8" }),
 };
 
-const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue;
+const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer, false).queue;
 
 describe("Can parse and query full html file", () => {
     Object.entries(files).forEach(([fileName, file]) => {

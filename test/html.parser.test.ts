@@ -13,7 +13,7 @@ const htmlTestParser = (
     instance: ParserItem,
     initialMode?: string[]
 ) => {
-    const queueItems = parseLexer(input, parsedHtmlLexer, initialMode).queue;
+    const queueItems = parseLexer(input, parsedHtmlLexer, false, initialMode).queue;
     const queue = createQueueFromItems(queueItems);
     const processed = instance.process(queue);
     if (!instance.consumed()) {

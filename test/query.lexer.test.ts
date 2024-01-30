@@ -175,7 +175,7 @@ const testMap: Record<LexerType, { inverse?: boolean, value: string }[]> = {
     }],
 };
 
-const parseQueue = (input: string) => parseLexer(input, parsedQueryLexer).queue;
+const parseQueue = (input: string) => parseLexer(input, parsedQueryLexer, false).queue;
 
 const complexQueryStructures: Record<string, string[]> = {
     ".className #id": [".", "className", " ", "#id", ""],
@@ -196,9 +196,9 @@ describe("Match query lexer items correctly", () => {
         tests.forEach((test) => {
             it(`${test.inverse ? "Doesn't match" : "Matches"} ${lexerType} with value ${test.value}, with regex ${cssLexerAtoms[lexerType].source}`, () => {
                 if (test.inverse) {
-                    expect(() => parseLexer(test.value, parsedLexer)).toThrow();
+                    expect(() => parseLexer(test.value, parsedLexer, false)).toThrow();
                 } else {
-                    const parsed = parseLexer(test.value, parsedLexer);
+                    const parsed = parseLexer(test.value, parsedLexer, false);
                     expect(parsed.queue).toHaveLength(2);
                     expect(parsed.queue[0].type).toEqual(lexerType);
                     expect(parsed.queue[1].type).toEqual("EOF");

@@ -75,6 +75,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     private virtualDoms: HtmlDocument[];
     private matched: HtmlElement[];
     private previous: QueryInstance;
+    private compress: boolean;
 
     private getUntil = (
         selector: string | QueryInstance,
@@ -142,7 +143,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 )[0];
                 appendTo = parent;
             } else {
-                const html = tryHtmlParser(resolved);
+                const html = tryHtmlParser(resolved, this.compress);
                 if (html) {
                     parent = html.descendants()[0];
                     appendTo = this.getLowestChild(parent);
@@ -192,7 +193,7 @@ class QueryInstance implements Record<number, QueryInstance> {
         document: HtmlDocument,
         matched: HtmlElement[],
         virtualDoms: HtmlDocument[],
-        previous: QueryInstance | undefined
+        previous: QueryInstance | { compress: boolean }
     ) {
         this.document = document;
         this.matched = Object.values(
@@ -202,7 +203,13 @@ class QueryInstance implements Record<number, QueryInstance> {
             }, {})
         );
         this.virtualDoms = virtualDoms;
-        this.previous = previous || this;
+        if (previous instanceof QueryInstance) {
+            this.previous = previous;
+            this.compress = previous.compress;
+        } else {
+            this.previous = this;
+            this.compress = previous.compress;
+        }
     }
 
     [x: number]: QueryInstance;
@@ -303,7 +310,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     );
                 }
             } else {
-                const htmlObject = tryHtmlParser(toAdd);
+                const htmlObject = tryHtmlParser(toAdd, this.compress);
                 if (htmlObject) {
                     return createQuery(
                         this.document,
@@ -359,7 +366,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         return this.addElementsToMatcher(
             (content, matched, contentIndex) => {
-                const tryFirstArgHtml = tryHtmlParser(content);
+                const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
                     if (matched.parent instanceof HtmlElement) {
                         matched.parent.content().addText(content, matched);
@@ -397,7 +404,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         return this.addElementsToMatcher(
             (content: string, matched: HtmlElement) => {
-                const tryFirstArgHtml = tryHtmlParser(content);
+                const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
                     matched.content().addText(content);
                 } else {
@@ -500,7 +507,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         return this.addElementsToMatcher(
             (content: string, matched: HtmlElement) => {
-                const tryFirstArgHtml = tryHtmlParser(content);
+                const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
                     if (matched.parent instanceof HtmlContent) {
                         matched.parent.addText(content, matched);
@@ -831,7 +838,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                     typeof args[0] === "string"
                         ? args[0]
                         : args[0](index, parserItemToString(m.content()));
-                const nextDom = tryHtmlParser(resolveArg);
+                const nextDom = tryHtmlParser(resolveArg, this.compress);
                 if (nextDom) {
                     m.convertWithChildren();
                     m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
@@ -1194,7 +1201,7 @@ class QueryInstance implements Record<number, QueryInstance> {
     ) => {
         return this.addElementsToMatcher(
             (content: string, matched: HtmlElement, prependIndex) => {
-                const tryFirstArgHtml = tryHtmlParser(content);
+                const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
                     matched.content().addText(content);
                 } else {
@@ -1326,7 +1333,8 @@ class QueryInstance implements Record<number, QueryInstance> {
                 typeof handler === "string" ? handler : handler.toString();
             const wrapHandler = `document.addEventListener("load", ${resolveHandler})`;
             const script = htmlParser(
-                `<script>${wrapHandler}</script>`
+                `<script>${wrapHandler}</script>`,
+                this.compress,
             ).descendants()[0];
             const query = queryParser("body");
             const body = query.match(
@@ -1483,7 +1491,7 @@ class QueryInstance implements Record<number, QueryInstance> {
         const elements = flatten(
             arrayified.map((item) => {
                 if (typeof item === "string") {
-                    return tryHtmlParser(item)?.children() || [];
+                    return tryHtmlParser(item, this.compress)?.children() || [];
                 } else {
                     return item.matched;
                 }
@@ -1746,7 +1754,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             typeof args[0] === "function" ? args[0]() : args[0];
         const element =
             typeof resolved === "string"
-                ? tryHtmlParser(resolved)?.children()[0]
+                ? tryHtmlParser(resolved, this.compress)?.children()[0]
                 : resolved.matched[0];
 
         if (element) {
@@ -1832,7 +1840,7 @@ const createQuery = (
     document: HtmlDocument,
     matched: HtmlElement[],
     virtualDoms: HtmlDocument[],
-    previous: QueryInstance | undefined
+    previous: QueryInstance | { compress: boolean }
 ): QueryInstance => {
     const instance = new QueryInstance(document, matched, virtualDoms, previous);
     return new Proxy(instance, {
@@ -1849,30 +1857,30 @@ const createQuery = (
     });
 };
 
-export const Query = (htmlInput: string) => {
-    const html = htmlParser(htmlInput);
+export const Query = (htmlInput: string, compress: boolean = true) => {
+    const html = htmlParser(htmlInput, compress);
     return (
         queryInput?: string | ((event: Event) => void),
         namespaces: Record<string, string> = {}
     ) => {
         const allHtmLElements = html.descendants();
         if (typeof queryInput === "function") {
-            const query = createQuery(html, [], [], undefined);
+            const query = createQuery(html, [], [], { compress });
             return query.ready(queryInput);
         }
         if (!queryInput) {
-            return createQuery(html, [], [], undefined);
+            return createQuery(html, [], [], { compress });
         }
         const query = tryQueryParser(queryInput);
         if (query) {
             const matched = query.match(allHtmLElements, allHtmLElements, namespaces);
-            return createQuery(html, matched, [], undefined);
+            return createQuery(html, matched, [], { compress });
         } else {
-            const virtualDom = tryHtmlParser(queryInput);
+            const virtualDom = tryHtmlParser(queryInput, compress);
             if (virtualDom) {
-                return createQuery(html, [], [virtualDom], undefined);
+                return createQuery(html, [], [virtualDom], { compress });
             }
-            return createQuery(html, [], [], undefined).ready(queryInput);
+            return createQuery(html, [], [], { compress }).ready(queryInput);
         }
     };
 };

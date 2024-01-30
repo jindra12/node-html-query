@@ -7,7 +7,8 @@ import { parserItemToString } from "./utils";
 export const parseLexer = (
     input: string,
     lexer: Partial<Record<LexerType, Lexer>>,
-    initialMode: string[] = []
+    compress: boolean,
+    initialMode: string[] = [],
 ) => {
     const acc: QueueItem[] = [];
     const lexers = Object.values(lexer);
@@ -62,10 +63,12 @@ export const parseLexer = (
                 .slice(-10)
                 .join(",")}`;
         }
-        acc.push({
-            type: lexerKeys[matchedLexer],
-            value: matchedValue,
-        });
+        if (!compress || lexerKeys[matchedLexer] !== "SEA_WS") {
+            acc.push({
+                type: lexerKeys[matchedLexer],
+                value: matchedValue,
+            });
+        }
     } while (parsedIndex < input.length);
     acc.push({ type: "EOF", value: "" });
     return {
@@ -94,12 +97,12 @@ export const parsedQueryLexer = Object.entries(cssLexerAtoms).reduce(
     {}
 );
 
-const parseHtmlLexer = (input: string) => {
-    return parseLexer(input, parsedHtmlLexer).queue;
+const parseHtmlLexer = (input: string, compress: boolean) => {
+    return parseLexer(input, parsedHtmlLexer, compress).queue;
 };
 
 const parseQueryLexer = (input: string) => {
-    return parseLexer(input, parsedQueryLexer).queue;
+    return parseLexer(input, parsedQueryLexer, false).queue;
 };
 
 export const createQueueFromItems = (lexerAtoms: QueueItem[]) => {
@@ -129,8 +132,8 @@ export const checkIfNothingRemains = (
     }
 };
 
-export const htmlParser = (input: string) => {
-    const lexerAtoms = parseHtmlLexer(input);
+export const htmlParser = (input: string, compress: boolean) => {
+    const lexerAtoms = parseHtmlLexer(input, compress);
     const document = new HtmlDocument();
     const endQueue = document.process(createQueueFromItems(lexerAtoms));
     checkIfNothingRemains(lexerAtoms, endQueue, document);
@@ -145,9 +148,9 @@ export const queryParser = (input: string) => {
     return selectorGroup;
 };
 
-export const tryHtmlParser = (input: string) => {
+export const tryHtmlParser = (input: string, compress: boolean) => {
     try {
-        return htmlParser(input);
+        return htmlParser(input, compress);
     } catch {
         return undefined;
     }

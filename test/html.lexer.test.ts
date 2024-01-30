@@ -292,7 +292,7 @@ const testMap: Record<
     ],
 };
 
-const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer).queue;
+const parseQueue = (input: string) => parseLexer(input, parsedHtmlLexer, false).queue;
 
 const complexHtmlStructures: Record<string, true | string[]> = {
     "<div />": ["<", "div", " ", "/>", ""],
@@ -437,10 +437,10 @@ describe("Match HTML lexer items correctly", () => {
                 } with regex ${typeof normalized === "function" ? "N/A" : normalized.source}`, () => {
                     if (test.inverse) {
                         expect(() =>
-                            parseLexer(test.value, parsedLexer, test.modes)
+                            parseLexer(test.value, parsedLexer, false, test.modes)
                         ).toThrow();
                     } else {
-                        const parsed = parseLexer(test.value, parsedLexer, test.modes);
+                        const parsed = parseLexer(test.value, parsedLexer, false, test.modes);
                         expect(parsed.queue).toHaveLength(2);
                         expect(parsed.queue[0].type).toEqual(lexerType);
                         expect(parsed.queue[1].type).toEqual("EOF");

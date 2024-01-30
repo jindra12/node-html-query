@@ -2,7 +2,7 @@ import { htmlParser, queryParser } from "../src/parser";
 import { parserItemToString } from "../src/utils";
 
 const testMatch = (htmlInput: string, queryInput: string, namespaces: Record<string, string> = {}) => {
-    const html = htmlParser(htmlInput);
+    const html = htmlParser(htmlInput, false);
     const query = queryParser(queryInput);
     const matched = query.match(html.descendants(), html.descendants(), namespaces);
     return matched.map((m) => parserItemToString(m).replace(/\n\s*/gu, "").replace(/\s+/gu, " "));

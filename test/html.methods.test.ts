@@ -2,7 +2,7 @@ import { htmlParser } from "../src/parser";
 import { parserItemToString } from "../src/utils";
 
 const getHtmlElement = (element: string) => {
-    const html = htmlParser(element);
+    const html = htmlParser(element, false);
     return html.children()[0];
 };
 
@@ -59,26 +59,26 @@ describe("Test methods of HTML represention", () => {
         expect(body.prevSibling(id2)?.attributes()["id"]).toEqual("1");
     });
     it("HTML document can add children", () => {
-        const html = htmlParser("<body></body>");
+        const html = htmlParser("<body></body>", false);
         html.children()[0].addChild(getHtmlElement("<div />"));
         expect(parserItemToString(html)).toBe("<body><div /></body>");
     });
     it("HTML document can remove children", () => {
-        const html = htmlParser("<body><h1>First</h1><h2>Second</h2><h3>Third</h3></body>");
+        const html = htmlParser("<body><h1>First</h1><h2>Second</h2><h3>Third</h3></body>", false);
         const h2 = html.children()[0].children()[1];
         html.children()[0].removeChild(0);
         html.children()[0].removeChild(h2);
         expect(parserItemToString(html)).toBe("<body><h3>Third</h3></body>");
     });
     it("HTML document can replace children", () => {
-        const html = htmlParser("<body><h1>First</h1><h2>Second</h2><h3>Third</h3></body>");
+        const html = htmlParser("<body><h1>First</h1><h2>Second</h2><h3>Third</h3></body>", false);
         const h2 = html.children()[0].children()[1];
         html.children()[0].replaceChild(0, getHtmlElement("<h4>Fourth</h4>"));
         html.children()[0].replaceChild(h2, getHtmlElement("<h5>Fifth</h5>"));
         expect(parserItemToString(html)).toBe("<body><h4>Fourth</h4><h5>Fifth</h5><h3>Third</h3></body>");
     });
     it("HTML document has working cache", () => {
-        const html = htmlParser("<body><div><h1>Hello?</h1></div></body>");
+        const html = htmlParser("<body><div><h1>Hello?</h1></div></body>", false);
         expect(html.cache.descendants.invalid).toBeTruthy();
         expect(html.cache.children.invalid).toBeTruthy();
         expect(html.cache.indexes.invalid).toBeTruthy();
@@ -108,7 +108,7 @@ describe("Test methods of HTML represention", () => {
         expect(html.cache.children.invalid).toBeFalsy();
     });
     it("HTML document can determine siblings", () => {
-        const html = htmlParser("<body><div id='1' /><div id='2' /><div id='3' /></body>");
+        const html = htmlParser("<body><div id='1' /><div id='2' /><div id='3' /></body>", false);
         const id2 = html.children()[0].children()[1];
         expect(html.children()[0].nextSibling(id2)?.attributes()["id"]).toEqual("3");
         expect(html.children()[0].prevSibling(id2)?.attributes()["id"]).toEqual("1");
@@ -135,7 +135,7 @@ describe("Test methods of HTML represention", () => {
         expect(element.descendants().every((d) => d.identifier !== element.identifier)).toBe(true);
     });
     it("HTML document knows not to add children to <link> and <meta>", () => {
-        const document = htmlParser("<html><meta><link></html>");
+        const document = htmlParser("<html><meta><link></html>", false);
         const htmlElement = document.children()[0];
         expect(htmlElement.children().map(c => c.tagName.value)).toEqual(["meta", "link"]);
     });

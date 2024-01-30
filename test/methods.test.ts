@@ -25,7 +25,7 @@ const query = () =>
         <input type='text' style='width: 100px' />
     </body>
 </html> 
-`
+`, false
     );
 
 const testCases: Partial<Record<
@@ -419,7 +419,7 @@ const testCases: Partial<Record<
         ($) => {
             expect($("div").eq(0).attr("id")).toEqual("1");
             expect($("div").eq(1).attr("id")).toEqual("2");
-            expect($("div").eq(-1).attr("id")).toEqual("deep");
+            expect($("div").eq(-1).attr("id")).toEqual("three");
         },
     ],
     even: [
@@ -428,7 +428,7 @@ const testCases: Partial<Record<
                 $("div")
                     .even()
                     .map((_, item) => item.attr("id"))
-            ).toEqual(["1", "", "three"]);
+            ).toEqual(["1", "", "deep"]);
         },
     ],
     filter: [
@@ -967,7 +967,7 @@ const testCases: Partial<Record<
                 $("div")
                     .odd()
                     .map((_, item) => item.attr("id"))
-            ).toEqual(["2", "deep"]);
+            ).toEqual(["2", "three"]);
         },
     ],
     off: [

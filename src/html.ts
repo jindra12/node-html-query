@@ -111,16 +111,20 @@ export class HtmlDocument implements ParserItem {
             return this.cache.descendants.value;
         }
         this.cache.descendants.invalid = false;
-        return (this.cache.descendants.value = this.children().concat(
-            this.children()
-                .map((child) => child.descendants())
-                .reduce((flatten: HtmlElement[], elements) => {
-                    elements.forEach((element) => {
-                        flatten.push(element);
-                    });
-                    return flatten;
-                }, [])
-        ));
+        const descendants: HtmlElement[] = [];
+        const queue = [this as any as HtmlElement];
+        let queueIndex = 0;
+        while (queueIndex < queue.length) {
+            const item = queue[queueIndex];
+            queueIndex++;
+            if (item) {
+                const children = item.children();
+                descendants.push(...children);
+                queue.push(...children);
+            }
+        }
+        this.cache.descendants.value = descendants;
+        return descendants;
     };
 
     prevSibling = (element: HtmlElement) => {
@@ -967,10 +971,10 @@ export class HtmlContent implements ParserItem {
     cache: {
         children: { invalid: boolean; value: HtmlElement[] };
         indexes: { invalid: boolean; value: Partial<Record<string, number>> };
-            } = {
+    } = {
             indexes: { invalid: true, value: {} },
             children: { invalid: true, value: [] },
-                    };
+        };
 
     identifier: string;
     parent: HtmlElement;
@@ -993,25 +997,21 @@ export class HtmlContent implements ParserItem {
     };
 
     descendants = () => {
-        const seeker = (
-            htmlElements: HtmlElement[],
-            collector: (element: HtmlElement) => void,
-            skip = true
-        ) => {
-            if (!skip) {
-                htmlElements.forEach(collector);
-            }
-            htmlElements.forEach((element) =>
-                seeker(element.children(), collector, false)
-            );
-        };
         const descendants: HtmlElement[] = [];
-        seeker([this.parent], (element) => {
-            descendants.push(element);
-        });
+        const queue = [this.parent];
+        let queueIndex = 0;
+        while (queueIndex < queue.length) {
+            const item = queue[queueIndex];
+            queueIndex++;
+            if (item) {
+                const children = item.children();
+                descendants.push(...children);
+                queue.push(...children);
+            }
+        }
         return descendants;
     };
-    
+
     addText = (text: string, after?: HtmlElement) => {
         if (!after) {
             this.htmlCharData.htmlText.value += text;

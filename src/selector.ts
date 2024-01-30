@@ -824,12 +824,15 @@ export class TypeSelector implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        const typeMatched = this.typeNamespacePrefix.match(
-            htmlElements,
-            allHtmlElements,
-            namespaces
-        );
-        return this.elementName.match(typeMatched, allHtmlElements, namespaces);
+        if (this.typeNamespacePrefix.consumed()) {
+            const typeMatched = this.typeNamespacePrefix.match(
+                htmlElements,
+                allHtmlElements,
+                namespaces
+            );
+            return this.elementName.match(typeMatched, allHtmlElements, namespaces);
+        }
+        return this.elementName.match(htmlElements, allHtmlElements, namespaces);
     };
 }
 

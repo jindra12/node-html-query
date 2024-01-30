@@ -4,7 +4,7 @@ import { ParserItem } from "../src/types";
 import { parserItemToString } from "../src/utils";
 
 const queryTestParser = (input: string, instance: ParserItem) => {
-    const queueItems = parseLexer(input, parsedQueryLexer).queue;
+    const queueItems = parseLexer(input, parsedQueryLexer, false).queue;
     const queue = createQueueFromItems(queueItems);
     const processed = instance.process(queue);
     checkIfNothingRemains(queueItems, processed, instance);
