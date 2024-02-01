@@ -35,7 +35,7 @@ export const getItems = <T extends ParserItem>(document: ParserItem, validator: 
     return items;
 }
 
-export const parserItemToString = (document: ParserItem) => {
+export const parserItemToString = (document?: ParserItem) => {
     let aggregate = "";
     const searcher = searchProducer((item) => {
         if (item instanceof LexerItem) {
@@ -43,7 +43,7 @@ export const parserItemToString = (document: ParserItem) => {
         }
         return true;
     });
-    document.search(searcher);
+    document?.search(searcher);
     return aggregate;
 };
 

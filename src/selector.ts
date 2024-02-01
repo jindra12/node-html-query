@@ -527,7 +527,7 @@ export class Pseudo implements Matcher {
                         indexes[parentIndex] = {};
                     }
                     indexes[parentIndex][element.identifier] = {
-                        tagName: element.getTagName(),
+                        tagName: element.getTagName() || "",
                         order: element.parent.getIndex(element, false),
                     };
                     return indexes;
@@ -633,21 +633,21 @@ export class Pseudo implements Matcher {
                         allHtmlElements.map((element) => element.attributes())
                     );
                 case "header":
-                    return /^h[1-6]$/.test(element.tagName.value);
+                    return /^h[1-6]$/.test(element.tagName?.value || "");
                 case "image":
                     return element.attributes()["type"] === "image";
                 case "input":
                     return ["input", "button", "textarea", "select"].includes(
-                        element.tagName.value
+                        element.tagName?.value || ""
                     );
                 case "password":
                     return (
-                        element.tagName.value === "input" &&
+                        element.tagName?.value === "input" &&
                         element.attributes()["type"] === "password"
                     );
                 case "radio":
                     return (
-                        element.tagName.value === "input" &&
+                        element.tagName?.value === "input" &&
                         element.attributes()["type"] === "radio"
                     );
                 case "reset":
@@ -656,7 +656,7 @@ export class Pseudo implements Matcher {
                     return element.attributes()["type"] === "submit";
                 case "text":
                     return (
-                        element.tagName.value === "input" &&
+                        element.tagName?.value === "input" &&
                         element.attributes()["type"] === "text"
                     );
                 default:
@@ -1600,7 +1600,7 @@ export class Expression implements Matcher {
                 if (this.combinator.greater.value) {
                     return htmlElements.filter((value) => {
                         return matched.some(
-                            (matched) => value.content().getIndex(matched, false) !== -1
+                            (matched) => value.content()?.getIndex(matched, false) !== -1
                         );
                     });
                 }

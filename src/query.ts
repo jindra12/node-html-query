@@ -369,7 +369,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
                     if (matched.parent instanceof HtmlElement) {
-                        matched.parent.content().addText(content, matched);
+                        matched.parent.content()?.addText(content, matched);
                     }
                 } else {
                     const index = matched.parent.getIndex(matched, true);
@@ -382,10 +382,10 @@ class QueryInstance implements Record<number, QueryInstance> {
                             item instanceof HtmlComment
                     );
                     comments.forEach((comment) => {
-                        if (comment.htmlComment.value) {
+                        if (comment.htmlComment?.value) {
                             matched.parent.addComment(comment.htmlComment.value, index + 1);
                         }
-                        if (comment.htmlConditionalComment.value) {
+                        if (comment.htmlConditionalComment?.value) {
                             matched.parent.addConditionalComment(
                                 comment.htmlConditionalComment.value,
                                 index + 1
@@ -406,7 +406,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             (content: string, matched: HtmlElement) => {
                 const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
-                    matched.content().addText(content);
+                    matched.content()?.addText(content);
                 } else {
                     tryFirstArgHtml.children().forEach((descentant) => {
                         matched.addChild(descentant);
@@ -417,10 +417,10 @@ class QueryInstance implements Record<number, QueryInstance> {
                             item instanceof HtmlComment
                     );
                     comments.forEach((comment) => {
-                        if (comment.htmlComment.value) {
+                        if (comment.htmlComment?.value) {
                             matched.parent.addComment(comment.htmlComment.value);
                         }
-                        if (comment.htmlConditionalComment.value) {
+                        if (comment.htmlConditionalComment?.value) {
                             matched.parent.addConditionalComment(
                                 comment.htmlConditionalComment.value
                             );
@@ -446,12 +446,14 @@ class QueryInstance implements Record<number, QueryInstance> {
                 : query.matched;
         parsedQuery?.forEach((element) => {
             this.matched.forEach((nextChild) => {
-                element.content().addChild(nextChild);
+                element.convertWithChildren();
+                element.content()?.addChild(nextChild);
                 nextChild.parent.removeChild(nextChild);
             });
             this.virtualDoms.forEach((document) => {
                 document.children().forEach((child) => {
-                    element.content().addChild(child);
+                    element.convertWithChildren();
+                    element.content()?.addChild(child);
                 });
                 const comments = getItems<HtmlComment>(
                     document,
@@ -459,13 +461,15 @@ class QueryInstance implements Record<number, QueryInstance> {
                         item instanceof HtmlComment
                 );
                 comments.forEach((comment) => {
-                    if (comment.htmlComment.value) {
-                        element.content().parent.addComment(comment.htmlComment.value);
+                    if (comment.htmlComment?.value) {
+                        element.convertWithChildren();
+                        element.content()?.parent.addComment(comment.htmlComment.value);
                     }
-                    if (comment.htmlConditionalComment.value) {
+                    if (comment.htmlConditionalComment?.value) {
+                        element.convertWithChildren();
                         element
                             .content()
-                            .parent.addConditionalComment(
+                            ?.parent.addConditionalComment(
                                 comment.htmlConditionalComment.value
                             );
                     }
@@ -523,10 +527,10 @@ class QueryInstance implements Record<number, QueryInstance> {
                             item instanceof HtmlComment
                     );
                     comments.forEach((comment) => {
-                        if (comment.htmlComment.value) {
+                        if (comment.htmlComment?.value) {
                             matched.parent.addComment(comment.htmlComment.value, index);
                         }
-                        if (comment.htmlConditionalComment.value) {
+                        if (comment.htmlConditionalComment?.value) {
                             matched.parent.addConditionalComment(
                                 comment.htmlConditionalComment.value,
                                 index
@@ -610,9 +614,9 @@ class QueryInstance implements Record<number, QueryInstance> {
     contents = () => {
         const children = this.matched.map(
             (m) =>
-                parserItemToString(m.tagClose.close1.closingGroup.htmlContent) ||
+                parserItemToString(m.tagClose?.close1?.closingGroup?.htmlContent) ||
                 parserItemToString(m.script) ||
-                m.scriptlet.value ||
+                m.scriptlet?.value ||
                 parserItemToString(m.style)
         );
         return children.join("");
@@ -688,7 +692,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             matched.emptyText();
             matched.emptyComments();
             matched.children().forEach((child) => {
-                matched.content().removeChild(child);
+                matched.content()?.removeChild(child);
             });
         });
         return this;
@@ -841,7 +845,9 @@ class QueryInstance implements Record<number, QueryInstance> {
                 const nextDom = tryHtmlParser(resolveArg, this.compress);
                 if (nextDom) {
                     m.convertWithChildren();
-                    m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
+                    if (m.tagClose?.close1?.closingGroup) {
+                        m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
+                    }
                     nextDom.children().forEach((d) => {
                         m.addChild(d);
                     });
@@ -1203,10 +1209,12 @@ class QueryInstance implements Record<number, QueryInstance> {
             (content: string, matched: HtmlElement, prependIndex) => {
                 const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
-                    matched.content().addText(content);
+                    matched.convertWithChildren();
+                    matched.content()?.addText(content);
                 } else {
                     tryFirstArgHtml.children().forEach((child, childIndex) => {
-                        matched.content().addChild(child, childIndex + prependIndex);
+                        matched.convertWithChildren();
+                        matched.content()?.addChild(child, childIndex + prependIndex);
                     });
                 }
             },
@@ -1228,12 +1236,14 @@ class QueryInstance implements Record<number, QueryInstance> {
                 : query.matched;
         matched?.forEach((element) => {
             this.matched.forEach((nextChild) => {
-                element.content().addChild(nextChild, 0);
+                element.convertWithChildren();
+                element.addChild(nextChild, 0);
                 nextChild.parent.removeChild(nextChild);
             });
             this.virtualDoms.forEach((document) => {
                 document.children().forEach((child) => {
-                    element.content().addChild(child, 0);
+                    element.convertWithChildren();
+                    element.addChild(child, 0);
                 });
             });
         });
@@ -1306,14 +1316,14 @@ class QueryInstance implements Record<number, QueryInstance> {
      */
     tagName: TagNameType = (...args: any[]): any => {
         if (args.length === 0 || args[0] === undefined) {
-            return this.matched[0]?.tagName.value;
+            return this.matched[0]?.tagName?.value;
         }
         this.matched.forEach((m, i) => {
             const resolveArg =
-                typeof args[0] === "string" ? args[0] : args[0](i, m.tagName.value);
-            m.tagName.value = resolveArg;
-            if (!m.tagClose.close2.tagSlashClose.value) {
-                m.tagClose.close1.closingGroup.tagName.value = resolveArg;
+                typeof args[0] === "string" ? args[0] : args[0](i, m.tagName?.value || "");
+            m.tagName = new LexerItem("TAG_NAME", resolveArg);
+            if (m.tagClose?.close1?.closingGroup) {
+                m.tagClose.close1.closingGroup.tagName = new LexerItem("TAG_NAME", resolveArg);
             }
         });
         return this;
@@ -1343,6 +1353,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 {}
             )[0];
             if (body) {
+                body.convertWithChildren();
                 body.addChild(script);
             }
         }
@@ -1536,8 +1547,9 @@ class QueryInstance implements Record<number, QueryInstance> {
                         ? args[0](index, m.texts().join(" "))
                         : args[0]
                 ).toString();
+                m.convertWithChildren();
                 m.emptyText();
-                m.content().addText(value);
+                m.addText(value);
             });
         }
         return this;
@@ -1762,26 +1774,31 @@ class QueryInstance implements Record<number, QueryInstance> {
                 const copy = [...commonParent.htmlElements]
                     .filter(
                         (element) =>
-                            element.consumed() &&
+                            element.htmlElement?.consumed() &&
                             childrenToBeWrappedMap[element.htmlElement.identifier]
                     )
                     .map((element) => element.clone());
                 copy.forEach((c) => {
                     const convertMisc = (misc: HtmlMisc) => {
-                        if (misc.htmlComment.htmlComment.value) {
+                        if (misc.htmlComment?.htmlComment?.value) {
+                            element.convertWithChildren();
                             element.addComment(misc.htmlComment.htmlComment.value);
                         }
-                        if (misc.htmlComment.htmlConditionalComment.value) {
+                        if (misc.htmlComment?.htmlConditionalComment?.value) {
+                            element.convertWithChildren();
                             element.addConditionalComment(
                                 misc.htmlComment.htmlConditionalComment.value
                             );
                         }
-                        if (misc.seaWs.value) {
-                            element.content().addText(misc.seaWs.value);
+                        if (misc.seaWs?.value) {
+                            element.convertWithChildren();
+                            element.content()?.addText(misc.seaWs.value);
                         }
                     };
                     c.htmlMisc1.forEach(convertMisc);
-                    element.addChild(c.htmlElement);
+                    if (c.htmlElement) {
+                        element.addChild(c.htmlElement);
+                    }
                     c.htmlMisc2.forEach(convertMisc);
                 });
                 const wrapper = new HtmlElements(commonParent);
@@ -1789,7 +1806,7 @@ class QueryInstance implements Record<number, QueryInstance> {
                 const rest = [
                     wrapper,
                     ...commonParent.htmlElements.filter(
-                        (element) => !childrenToBeWrappedMap[element.htmlElement.identifier]
+                        (element) => element.htmlElement && !childrenToBeWrappedMap[element.htmlElement.identifier]
                     ),
                 ];
                 commonParent.htmlElements = rest;
@@ -1803,14 +1820,16 @@ class QueryInstance implements Record<number, QueryInstance> {
                 copy.forEach((c) => element.addChild(c));
                 const rest = commonParent
                     .content()
-                    .content.filter(
-                        (c) => !childrenToBeWrappedMap[c.htmlElement.identifier]
+                    ?.content.filter(
+                        (c) => c instanceof HtmlElement && !childrenToBeWrappedMap[c.identifier]
                     );
-                commonParent.tagClose.close1.closingGroup.htmlContent = new HtmlContent(
-                    commonParent
-                );
-                commonParent.addChild(element);
-                commonParent.content().content.push(...rest);
+                if (commonParent.tagClose?.close1?.closingGroup) {
+                    commonParent.tagClose.close1.closingGroup.htmlContent = new HtmlContent(
+                        commonParent
+                    );
+                    commonParent.addChild(element);
+                    commonParent.content()?.content.push(...(rest || []));
+                }
             }
         }
 
@@ -1824,10 +1843,15 @@ class QueryInstance implements Record<number, QueryInstance> {
             const namespaces: Record<string, string> = args[1] || {};
             const [parent, appendTo] = this.getParentAssigner(resolved, namespaces);
             if (parent && appendTo) {
-                const content = m.content().clone();
-                m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
+                const content = m.content()?.clone();
+                m.convertWithChildren();
+                if (m.tagClose?.close1?.closingGroup) {
+                    m.tagClose.close1.closingGroup.htmlContent = new HtmlContent(m);
+                }
                 appendTo.convertWithChildren();
-                appendTo.tagClose.close1.closingGroup.htmlContent = content;
+                if (appendTo.tagClose?.close1?.closingGroup) {
+                    appendTo.tagClose.close1.closingGroup.htmlContent = content;
+                }
                 m.addChild(parent);
             }
         });
