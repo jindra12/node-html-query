@@ -460,6 +460,7 @@ export class HtmlElement implements ParserItem {
             this.tagClose.close2.tagSlashClose.value = "";
             this.tagClose = {
                 close1: {
+                    tagClose: new LexerItem("TAG_CLOSE", ">"),
                     closingGroup: {
                         htmlContent: new HtmlContent(this),
                         tagClose: new LexerItem("TAG_CLOSE", ">"),
@@ -587,7 +588,7 @@ export class HtmlElement implements ParserItem {
         indexOthers: boolean,
         filter?: (element: HtmlElement) => boolean
     ) => {
-        return this.content()?.getIndex(element, indexOthers, filter) || -1;
+        return this.content()?.getIndex(element, indexOthers, filter) ?? -1;
     };
 
     addChild = (child: HtmlElement, index: number | undefined = undefined) => {
@@ -807,10 +808,10 @@ export class HtmlElement implements ParserItem {
         if (this.tagClose?.close1?.tagClose?.value) {
             if (!this.noEndingTagNeeded()) {
                 if (
-                    this.tagClose.close1.closingGroup &&
                     !this.tagClose?.close1?.closingGroup?.tagOpen?.value &&
                     !this.tagClose.close1.closingGroup?.htmlContent?.consumed()
                 ) {
+                    this.tagClose.close1.closingGroup ||= {};
                     const htmlContent = new HtmlContent(this);
                     const tryHtmlContent = htmlContent.process(queue);
                     if (htmlContent.consumed()) {
@@ -966,7 +967,7 @@ export class HtmlContent implements ParserItem {
         }
         this.cache.children.invalid = false;
         return this.cache.children.value = this.content
-            .filter((content): content is HtmlElement => content instanceof HTMLElement)
+            .filter((content): content is HtmlElement => content instanceof HtmlElement)
     };
 
     descendants = () => {

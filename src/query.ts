@@ -406,9 +406,11 @@ class QueryInstance implements Record<number, QueryInstance> {
             (content: string, matched: HtmlElement) => {
                 const tryFirstArgHtml = tryHtmlParser(content, this.compress);
                 if (!tryFirstArgHtml) {
+                    matched.convertWithChildren();
                     matched.content()?.addText(content);
                 } else {
                     tryFirstArgHtml.children().forEach((descentant) => {
+                        matched.convertWithChildren();
                         matched.addChild(descentant);
                     });
                     const comments = getItems<HtmlComment>(
@@ -1705,6 +1707,7 @@ class QueryInstance implements Record<number, QueryInstance> {
             const namespaces: Record<string, string> = args[1] || {};
             const [parent, appendTo] = this.getParentAssigner(resolved, namespaces);
             if (parent && appendTo) {
+                appendTo.convertWithChildren();
                 appendTo.addChild(m.clone());
                 m.parent.replaceChild(m, parent);
             }

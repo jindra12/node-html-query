@@ -33,6 +33,7 @@ describe("Test methods of HTML represention", () => {
     });
     it("Can add children", () => {
         const html = getHtmlElement("<div />");
+        html.convertWithChildren();
         html.addChild(getHtmlElement("<br />"));
         html.addChild(getHtmlElement("<p>Hello?</p>"), 0);
         expect(parserItemToString(html)).toBe("<div><p>Hello?</p><br /></div>");
@@ -60,6 +61,7 @@ describe("Test methods of HTML represention", () => {
     });
     it("HTML document can add children", () => {
         const html = htmlParser("<body></body>", false);
+        html.children()[0].convertWithChildren();
         html.children()[0].addChild(getHtmlElement("<div />"));
         expect(parserItemToString(html)).toBe("<body><div /></body>");
     });
@@ -137,6 +139,6 @@ describe("Test methods of HTML represention", () => {
     it("HTML document knows not to add children to <link> and <meta>", () => {
         const document = htmlParser("<html><meta><link></html>", false);
         const htmlElement = document.children()[0];
-        expect(htmlElement.children().map(c => c.tagName.value)).toEqual(["meta", "link"]);
+        expect(htmlElement.children().map(c => c.tagName?.value)).toEqual(["meta", "link"]);
     });
 });

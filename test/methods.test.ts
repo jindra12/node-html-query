@@ -1302,7 +1302,7 @@ const testCases: Partial<Record<
                     .text((index, value) => `${value}, ${index}`)
                     .print()
             ).toEqual(
-                "<article>Value, 0<span> <img /></span><!-- this is a comment --></article><h2 style='height: 50%'>Hello, 1</h2>"
+                "<article>Value, 0<span><img /></span><!-- this is a comment --></article><h2 style='height: 50%'>Hello, 1</h2>"
             );
         },
     ],
