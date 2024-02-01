@@ -9,8 +9,11 @@ export interface ParserItem {
 export class LexerItem<T extends LexerType> {
     item: T;
     value = "";
-    constructor(item: T) {
+    constructor(item: T, value?: string) {
         this.item = item;
+        if (value) {
+            this.value = value;
+        }
     }
 }
 
@@ -26,7 +29,7 @@ export interface Queue {
 }
 
 export interface Searcher {
-    feedParserItem: (item: ParserItem) => void;
+    feedParserItem: (item: ParserItem | undefined) => void;
     feedParserItems: (item: ParserItem[]) => void;
-    feedLexerItem: <T extends LexerType>(item: LexerItem<T>) => void;
+    feedLexerItem: <T extends LexerType>(item: LexerItem<T> | undefined) => void;
 }

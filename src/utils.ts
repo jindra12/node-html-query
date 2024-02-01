@@ -6,12 +6,12 @@ const searchProducer = (
 ): Searcher => {
     const searcher: Searcher = {
         feedLexerItem: (lexer) => {
-            if (lexer.value) {
+            if (lexer?.value) {
                 reducer(lexer);
             }
         },
         feedParserItem: (parser) => {
-            if (!parser.consumed()) {
+            if (!parser?.consumed()) {
                 return;
             }
             reducer(parser);
