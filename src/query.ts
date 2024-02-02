@@ -1890,7 +1890,6 @@ export const Query = (htmlInput: string, compress: boolean = true) => {
         queryInput?: string | ((event: Event) => void),
         namespaces: Record<string, string> = {}
     ) => {
-        const allHtmLElements = html.descendants();
         if (typeof queryInput === "function") {
             const query = createQuery(html, [], [], { compress });
             return query.ready(queryInput);
@@ -1900,6 +1899,7 @@ export const Query = (htmlInput: string, compress: boolean = true) => {
         }
         const query = tryQueryParser(queryInput);
         if (query) {
+            const allHtmLElements = html.descendants();
             const matched = query.match(allHtmLElements, allHtmLElements, namespaces);
             return createQuery(html, matched, [], { compress });
         } else {

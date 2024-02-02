@@ -111,9 +111,6 @@ export class HtmlDocument implements ParserItem {
     };
 
     descendants = () => {
-        if (!this.consumed()) {
-            return [];
-        }
         if (!this.cache.descendants.invalid) {
             return this.cache.descendants.value;
         }
@@ -167,17 +164,15 @@ export class HtmlDocument implements ParserItem {
     };
 
     removeChild = (child: HtmlElement | number) => {
-        if (this.consumed()) {
-            if (
-                typeof child === "number" &&
-                child >= 0 &&
-                child < this.htmlElements.length
-            ) {
-                this.htmlElements.splice(child, 1);
-            } else if (child instanceof HtmlElement) {
-                const index = this.getIndex(child);
-                this.htmlElements.splice(index, 1);
-            }
+        if (
+            typeof child === "number" &&
+            child >= 0 &&
+            child < this.htmlElements.length
+        ) {
+            this.htmlElements.splice(child, 1);
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child);
+            this.htmlElements.splice(index, 1);
         }
         this.cache.children.invalid = true;
         this.cache.indexes.invalid = true;
@@ -186,20 +181,18 @@ export class HtmlDocument implements ParserItem {
     };
 
     replaceChild = (child: HtmlElement | number, replacement: HtmlElement) => {
-        if (this.consumed()) {
-            const item = new HtmlElements(this);
-            item.htmlElement = replacement;
-            item.htmlElement.parent = this;
-            if (
-                typeof child === "number" &&
-                child >= 0 &&
-                child < this.htmlElements.length
-            ) {
-                this.htmlElements.splice(child, 1, item);
-            } else if (child instanceof HtmlElement) {
-                const index = this.getIndex(child);
-                this.htmlElements.splice(index, 1, item);
-            }
+        const item = new HtmlElements(this);
+        item.htmlElement = replacement;
+        item.htmlElement.parent = this;
+        if (
+            typeof child === "number" &&
+            child >= 0 &&
+            child < this.htmlElements.length
+        ) {
+            this.htmlElements.splice(child, 1, item);
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child);
+            this.htmlElements.splice(index, 1, item);
         }
         this.cache.children.invalid = true;
         this.cache.indexes.invalid = true;
@@ -208,9 +201,6 @@ export class HtmlDocument implements ParserItem {
     };
 
     children = () => {
-        if (!this.consumed()) {
-            return [];
-        }
         if (!this.cache.children.invalid) {
             return this.cache.children.value;
         }
@@ -220,9 +210,6 @@ export class HtmlDocument implements ParserItem {
     };
 
     getIndex = (element: HtmlElement) => {
-        if (!this.consumed()) {
-            return -1;
-        }
         if (!this.cache.indexes.invalid) {
             return this.cache.indexes.value[element.identifier] ?? -1;
         }
@@ -447,8 +434,8 @@ export class HtmlElement implements ParserItem {
 
     convertWithChildren = () => {
         if (
-            this.script?.consumed() ||
-            this.style?.consumed() ||
+            this.script ||
+            this.style ||
             this.scriptlet?.value
         ) {
             throw `Cannot add children to <script>, <style> or scriptlet`;
@@ -476,7 +463,7 @@ export class HtmlElement implements ParserItem {
                 lastAttribute.attribute.ws = undefined;
             }
         }
-        if (this.tagClose?.close1?.closingGroup && !this.tagClose.close1.closingGroup.htmlContent?.consumed()) {
+        if (this.tagClose?.close1?.closingGroup && !this.tagClose.close1.closingGroup.htmlContent) {
             this.tagClose.close1.closingGroup.htmlContent = new HtmlContent(this);
         }
     };
@@ -490,9 +477,6 @@ export class HtmlElement implements ParserItem {
     };
 
     getStyles = () => {
-        if (!this.consumed()) {
-            return {};
-        }
         if (!this.cache.styles.invalid) {
             return this.cache.styles.value;
         }
@@ -512,23 +496,21 @@ export class HtmlElement implements ParserItem {
         styleName: string,
         styleModifier: (value?: string) => string
     ) => {
-        if (this.consumed()) {
-            this.cache.styles.invalid = true;
-            this.cache.attributes.invalid = true;
-            this.modifyAttribute("style", (attribute) => {
-                if (!attribute) {
-                    return `${styleName}:${styleModifier()}`;
-                }
-                const split = attribute.split(";").map((part) => part.split(":"));
-                const findIndex = split.findIndex(([key]) => key === styleName);
-                if (findIndex === -1) {
-                    split.push([styleName, styleModifier()]);
-                } else {
-                    split[findIndex] = [styleName, styleModifier(split[findIndex][1])];
-                }
-                return split.map((part) => part.join(":")).join(";");
-            });
-        }
+        this.cache.styles.invalid = true;
+        this.cache.attributes.invalid = true;
+        this.modifyAttribute("style", (attribute) => {
+            if (!attribute) {
+                return `${styleName}:${styleModifier()}`;
+            }
+            const split = attribute.split(";").map((part) => part.split(":"));
+            const findIndex = split.findIndex(([key]) => key === styleName);
+            if (findIndex === -1) {
+                split.push([styleName, styleModifier()]);
+            } else {
+                split[findIndex] = [styleName, styleModifier(split[findIndex][1])];
+            }
+            return split.map((part) => part.join(":")).join(";");
+        });
         return this;
     };
 
@@ -577,9 +559,6 @@ export class HtmlElement implements ParserItem {
     };
 
     descendants = () => {
-        if (!this.consumed()) {
-            return [];
-        }
         return this.content()?.descendants() || [];
     };
 
@@ -616,56 +595,52 @@ export class HtmlElement implements ParserItem {
     };
 
     addAttribute = (attributeName: string, attributeValue?: string) => {
-        if (this.consumed()) {
-            if (attributeName === "style") {
-                this.cache.styles.invalid = true;
-            }
-            this.cache.attributes.invalid = true;
-            const attribute = new HtmlAttribute();
-            attribute.tagName = new LexerItem("TAG_NAME", attributeName);
-            if (attributeValue) {
-                const desanitized = desanitizeAttribute(attributeValue);
-                attribute.attribute ||= {};
-                attribute.attribute.tagEquals = new LexerItem("TAG_EQUALS", "=");
-                attribute.attribute.value = new LexerItem("ATTVALUE_VALUE", desanitized);
-                if (this.tagClose?.close2?.tagSlashClose?.value) {
-                    attribute.attribute.ws = new LexerItem("TAG_WHITESPACE", " ");
-                } else {
-                    const attributes = this.getHtmlAttributes();
-                    const last = attributes[attributes.length - 1];
-                    if (last) {
-                        last.attribute ||= {};
-                        last.attribute.ws = new LexerItem("TAG_WHITESPACE", " ");
-                    }
+        if (attributeName === "style") {
+            this.cache.styles.invalid = true;
+        }
+        this.cache.attributes.invalid = true;
+        const attribute = new HtmlAttribute();
+        attribute.tagName = new LexerItem("TAG_NAME", attributeName);
+        if (attributeValue) {
+            const desanitized = desanitizeAttribute(attributeValue);
+            attribute.attribute ||= {};
+            attribute.attribute.tagEquals = new LexerItem("TAG_EQUALS", "=");
+            attribute.attribute.value = new LexerItem("ATTVALUE_VALUE", desanitized);
+            if (this.tagClose?.close2?.tagSlashClose?.value) {
+                attribute.attribute.ws = new LexerItem("TAG_WHITESPACE", " ");
+            } else {
+                const attributes = this.getHtmlAttributes();
+                const last = attributes[attributes.length - 1];
+                if (last) {
+                    last.attribute ||= {};
+                    last.attribute.ws = new LexerItem("TAG_WHITESPACE", " ");
                 }
             }
-            this.getHtmlAttributes().push(attribute);
-            if (!this.tagWhiteSpace2?.value) {
-                this.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", " ");
-            }
+        }
+        this.getHtmlAttributes().push(attribute);
+        if (!this.tagWhiteSpace2?.value) {
+            this.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", " ");
         }
         return this;
     };
 
     removeAttribute = (attributeName: string) => {
-        if (this.consumed()) {
-            const attributeIndex = this.getHtmlAttributes().findIndex(
-                (attribute) => attribute.tagName?.value === attributeName
-            );
-            if (attributeIndex !== -1) {
-                this.cache.attributes.invalid = true;
-                const attributes = this.getHtmlAttributes();
-                attributes.splice(attributeIndex, 1);
-                if (
-                    attributes.length === 0 &&
-                    !this.tagClose?.close2?.tagSlashClose?.value
-                ) {
-                    this.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", " ");
-                }
+        const attributeIndex = this.getHtmlAttributes().findIndex(
+            (attribute) => attribute.tagName?.value === attributeName
+        );
+        if (attributeIndex !== -1) {
+            this.cache.attributes.invalid = true;
+            const attributes = this.getHtmlAttributes();
+            attributes.splice(attributeIndex, 1);
+            if (
+                attributes.length === 0 &&
+                !this.tagClose?.close2?.tagSlashClose?.value
+            ) {
+                this.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", " ");
             }
-            if (attributeName === "style") {
-                this.cache.styles.invalid = true;
-            }
+        }
+        if (attributeName === "style") {
+            this.cache.styles.invalid = true;
         }
         return this;
     };
@@ -674,30 +649,23 @@ export class HtmlElement implements ParserItem {
         attributeName: string,
         modifier: (existingAttribute?: string) => undefined | string
     ) => {
-        if (this.consumed()) {
-            const attribute = this.attributes()[attributeName];
-            const modified = modifier(attribute);
-            this.replaceAttribute(attributeName, modified);
-        }
+        const attribute = this.attributes()[attributeName];
+        const modified = modifier(attribute);
+        this.replaceAttribute(attributeName, modified);
         return this;
     };
 
     replaceAttribute = (attributeName: string, nextValue?: string) => {
-        if (this.consumed()) {
-            this.removeAttribute(attributeName);
-            this.addAttribute(attributeName, nextValue);
-            this.cache.attributes.invalid = true;
-            if (attributeName === "style") {
-                this.cache.styles.invalid = true;
-            }
+        this.removeAttribute(attributeName);
+        this.addAttribute(attributeName, nextValue);
+        this.cache.attributes.invalid = true;
+        if (attributeName === "style") {
+            this.cache.styles.invalid = true;
         }
         return this;
     };
 
     attributes = () => {
-        if (!this.consumed()) {
-            return {};
-        }
         if (!this.cache.attributes.invalid) {
             return this.cache.attributes.value;
         }
@@ -899,10 +867,18 @@ export class HtmlElement implements ParserItem {
 
     clone = () => {
         const element = new HtmlElement(this.parent);
-        element.tagOpen = new LexerItem("TAG_OPEN", this.tagOpen?.value);
-        element.tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE", this.tagWhiteSpace1?.value);
-        element.tagName = new LexerItem("TAG_NAME", this.tagName?.value);
-        element.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", this.tagWhiteSpace2?.value);
+        if (this.tagOpen?.value) {
+            element.tagOpen = new LexerItem("TAG_OPEN", this.tagOpen?.value);
+        }
+        if (this.tagWhiteSpace1?.value) {
+            element.tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE", this.tagWhiteSpace1?.value);
+        }
+        if (this.tagName?.value) {
+            element.tagName = new LexerItem("TAG_NAME", this.tagName?.value);
+        }
+        if (this.tagWhiteSpace2?.value) {
+            element.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", this.tagWhiteSpace2?.value);
+        }
         element.htmlAttributes = this.htmlAttributes.map((a) => a.clone());
         if (this.tagClose) {
             element.tagClose ||= {};
@@ -912,20 +888,36 @@ export class HtmlElement implements ParserItem {
                 if (this.tagClose.close1.closingGroup) {
                     element.tagClose.close1.closingGroup ||= {};
                     element.tagClose.close1.closingGroup.htmlContent = this.content()?.clone();
-                    element.tagClose.close1.closingGroup.tagClose = new LexerItem("TAG_CLOSE", this.tagClose.close1.closingGroup.tagClose?.value);
-                    element.tagClose.close1.closingGroup.tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE", this.tagClose.close1.closingGroup.tagWhiteSpace1?.value)
-                    element.tagClose.close1.closingGroup.tagName = new LexerItem("TAG_NAME", this.tagClose.close1.closingGroup.tagName?.value);
-                    element.tagClose.close1.closingGroup.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", this.tagClose.close1.closingGroup.tagWhiteSpace2?.value);
-                    element.tagClose.close1.closingGroup.tagOpen = new LexerItem("TAG_OPEN", this.tagClose.close1.closingGroup.tagOpen?.value);
-                    element.tagClose.close1.closingGroup.tagSlash = new LexerItem("TAG_SLASH", this.tagClose.close1.closingGroup.tagSlash?.value);
+                    if (this.tagClose.close1.closingGroup.tagClose?.value) {
+                        element.tagClose.close1.closingGroup.tagClose = new LexerItem("TAG_CLOSE", this.tagClose.close1.closingGroup.tagClose?.value);
+                    }
+                    if (this.tagClose.close1.closingGroup.tagWhiteSpace1?.value) {
+                        element.tagClose.close1.closingGroup.tagWhiteSpace1 = new LexerItem("TAG_WHITESPACE", this.tagClose.close1.closingGroup.tagWhiteSpace1?.value)
+                    }
+                    if (this.tagClose.close1.closingGroup.tagName?.value) {
+                        element.tagClose.close1.closingGroup.tagName = new LexerItem("TAG_NAME", this.tagClose.close1.closingGroup.tagName?.value);
+                    }
+                    if (this.tagClose.close1.closingGroup.tagWhiteSpace2?.value) {
+                        element.tagClose.close1.closingGroup.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", this.tagClose.close1.closingGroup.tagWhiteSpace2?.value);
+                    }
+                    if (this.tagClose.close1.closingGroup.tagOpen?.value) {
+                        element.tagClose.close1.closingGroup.tagOpen = new LexerItem("TAG_OPEN", this.tagClose.close1.closingGroup.tagOpen?.value);
+                    }
+                    if (this.tagClose.close1.closingGroup.tagSlash?.value) {
+                        element.tagClose.close1.closingGroup.tagSlash = new LexerItem("TAG_SLASH", this.tagClose.close1.closingGroup.tagSlash?.value);
+                    }
                 }
             }
             if (this.tagClose.close2) {
                 element.tagClose.close2 ||= {};
-                element.tagClose.close2.tagSlashClose = new LexerItem("TAG_SLASH_CLOSE", this.tagClose.close2.tagSlashClose?.value);
+                if (this.tagClose.close2.tagSlashClose?.value) {
+                    element.tagClose.close2.tagSlashClose = new LexerItem("TAG_SLASH_CLOSE", this.tagClose.close2.tagSlashClose?.value);
+                }
             }
         }
-        element.scriptlet = new LexerItem("SCRIPTLET", this.scriptlet?.value);
+        if (this.scriptlet?.value) {
+            element.scriptlet = new LexerItem("SCRIPTLET", this.scriptlet?.value);
+        }
         element.script = this.script?.clone();
         element.style = this.style?.clone();
         element.data = this.data;
@@ -959,9 +951,6 @@ export class HtmlContent implements ParserItem {
     }
 
     children = () => {
-        if (!this.consumed()) {
-            return [];
-        }
         if (!this.cache.children.invalid) {
             return this.cache.children.value;
         }
@@ -1100,21 +1089,19 @@ export class HtmlContent implements ParserItem {
     };
 
     removeChild = (child: HtmlElement | number) => {
-        if (this.consumed()) {
-            if (
-                typeof child === "number" &&
-                child >= 0 &&
-                child < this.content.length
-            ) {
-                this.content.splice(child, 1);
-                this.cache.children.invalid = true;
-                this.cache.indexes.invalid = true;
-            } else if (child instanceof HtmlElement) {
-                const index = this.getIndex(child, true);
-                this.content.splice(index, 1);
-                this.cache.children.invalid = true;
-                this.cache.indexes.invalid = true;
-            }
+        if (
+            typeof child === "number" &&
+            child >= 0 &&
+            child < this.content.length
+        ) {
+            this.content.splice(child, 1);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
+        } else if (child instanceof HtmlElement) {
+            const index = this.getIndex(child, true);
+            this.content.splice(index, 1);
+            this.cache.children.invalid = true;
+            this.cache.indexes.invalid = true;
         }
         return this;
     };
@@ -1143,9 +1130,6 @@ export class HtmlContent implements ParserItem {
         indexOthers: boolean,
         filter?: (element: HtmlElement) => boolean
     ) => {
-        if (!this.consumed()) {
-            return -1;
-        }
         const getIndexes = () =>
             this.content
                 .filter((content) =>
@@ -1170,9 +1154,6 @@ export class HtmlContent implements ParserItem {
     };
 
     prevSibling = (element: HtmlElement) => {
-        if (!this.consumed()) {
-            return undefined;
-        }
         const index = this.getIndex(element, false);
         if (index === -1) {
             return undefined;
@@ -1181,9 +1162,6 @@ export class HtmlContent implements ParserItem {
     };
 
     nextSibling = (element: HtmlElement) => {
-        if (!this.consumed()) {
-            return undefined;
-        }
         const index = this.getIndex(element, false);
         if (index === -1) {
             return undefined;
@@ -1309,12 +1287,20 @@ export class HtmlAttribute implements ParserItem {
     };
     clone = () => {
         const attribute = new HtmlAttribute();
-        attribute.tagName = new LexerItem("TAG_NAME", this.tagName?.value);
+        if (this.tagName?.value) {
+            attribute.tagName = new LexerItem("TAG_NAME", this.tagName?.value);
+        }
         if (this.attribute) {
             attribute.attribute ||= {};
-            attribute.attribute.tagEquals = new LexerItem("TAG_EQUALS", this.attribute.tagEquals?.value);
-            attribute.attribute.value = new LexerItem("ATTVALUE_VALUE", this.attribute.value?.value);
-            attribute.attribute.ws = new LexerItem("TAG_WHITESPACE", this.attribute.ws?.value);
+            if (this.attribute.tagEquals?.value) {
+                attribute.attribute.tagEquals = new LexerItem("TAG_EQUALS", this.attribute.tagEquals?.value);
+            }
+            if (this.attribute.value?.value) {
+                attribute.attribute.value = new LexerItem("ATTVALUE_VALUE", this.attribute.value?.value);
+            }
+            if (this.attribute.ws?.value) {
+                attribute.attribute.ws = new LexerItem("TAG_WHITESPACE", this.attribute.ws?.value);
+            }
         }
         return attribute;
     };
@@ -1353,8 +1339,12 @@ export class HtmlChardata implements ParserItem {
 
     clone = () => {
         const clone = new HtmlChardata();
-        clone.htmlText = new LexerItem("HTML_TEXT", this.htmlText?.value);
-        clone.seaWs = new LexerItem("SEA_WS", this.seaWs?.value);
+        if (this.htmlText?.value) {
+            clone.htmlText = new LexerItem("HTML_TEXT", this.htmlText?.value);
+        }
+        if (this.seaWs?.value) {
+            clone.seaWs = new LexerItem("SEA_WS", this.seaWs?.value);
+        }
         return clone;
     };
 }
@@ -1392,7 +1382,9 @@ export class HtmlMisc implements ParserItem {
     clone = () => {
         const htmlMisc = new HtmlMisc();
         htmlMisc.htmlComment = this.htmlComment?.clone();
-        htmlMisc.seaWs = new LexerItem("SEA_WS", this.seaWs?.value);
+        if (this.seaWs?.value) {
+            htmlMisc.seaWs = new LexerItem("SEA_WS", this.seaWs?.value);
+        }
         return htmlMisc;
     };
 }
@@ -1427,8 +1419,12 @@ export class HtmlComment implements ParserItem {
     };
     clone = () => {
         const comment = new HtmlComment();
-        comment.htmlComment = new LexerItem("HTML_COMMENT", this.htmlComment?.value);
-        comment.htmlConditionalComment = new LexerItem("HTML_CONDITIONAL_COMMENT", this.htmlConditionalComment?.value);
+        if (this.htmlComment?.value) {
+            comment.htmlComment = new LexerItem("HTML_COMMENT", this.htmlComment?.value);
+        }
+        if (this.htmlConditionalComment?.value) {
+            comment.htmlConditionalComment = new LexerItem("HTML_CONDITIONAL_COMMENT", this.htmlConditionalComment?.value);
+        }
         return comment;
     };
 }
@@ -1502,10 +1498,18 @@ export class Script implements ParserItem {
     };
     clone = () => {
         const script = new Script();
-        script.scriptOpen = new LexerItem("SCRIPT_OPEN", this.scriptOpen?.value);
-        script.tagClose = new LexerItem("TAG_CLOSE", this.tagClose?.value);
-        script.scriptBody = new LexerItem("SCRIPT_BODY", this.scriptBody?.value);
-        script.tagSlashClose = new LexerItem("TAG_SLASH_CLOSE", this.tagSlashClose?.value);
+        if (this.scriptOpen?.value) {
+            script.scriptOpen = new LexerItem("SCRIPT_OPEN", this.scriptOpen?.value);
+        }
+        if (this.tagClose?.value) {
+            script.tagClose = new LexerItem("TAG_CLOSE", this.tagClose?.value);
+        }
+        if (this.scriptBody?.value) {
+            script.scriptBody = new LexerItem("SCRIPT_BODY", this.scriptBody?.value);
+        }
+        if (this.tagSlashClose?.value) {
+            script.tagSlashClose = new LexerItem("TAG_SLASH_CLOSE", this.tagSlashClose?.value);
+        }
         script.attributes = this.attributes.map((a) => a.clone());
         return script;
     };
@@ -1581,11 +1585,19 @@ export class Style implements ParserItem {
     };
     clone = () => {
         const style = new Style();
-        style.styleOpen = new LexerItem("STYLE_OPEN", this.styleOpen?.value);
-        style.styleBody = new LexerItem("STYLE_BODY", this.styleBody?.value);
+        if (this.styleOpen?.value) {
+            style.styleOpen = new LexerItem("STYLE_OPEN", this.styleOpen?.value);
+        }
+        if (this.styleBody?.value) {
+            style.styleBody = new LexerItem("STYLE_BODY", this.styleBody?.value);
+        }
         style.attributes = this.attributes.map((a) => a.clone());
-        style.tagClose = new LexerItem("TAG_CLOSE", this.tagClose?.value);
-        style.tagSlashClose = new LexerItem("TAG_SLASH_CLOSE", this.tagSlashClose?.value);
+        if (this.tagClose?.value) {
+            style.tagClose = new LexerItem("TAG_CLOSE", this.tagClose?.value);
+        }
+        if (this.tagSlashClose?.value) {
+            style.tagSlashClose = new LexerItem("TAG_SLASH_CLOSE", this.tagSlashClose?.value);
+        }
         return style;
     };
 }

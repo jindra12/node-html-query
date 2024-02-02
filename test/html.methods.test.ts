@@ -81,8 +81,8 @@ describe("Test methods of HTML represention", () => {
     });
     it("HTML document has working cache", () => {
         const html = htmlParser("<body><div><h1>Hello?</h1></div></body>", false);
-        expect(html.cache.descendants.invalid).toBeTruthy();
-        expect(html.cache.children.invalid).toBeTruthy();
+        expect(html.cache.descendants.invalid).toBeFalsy();
+        expect(html.cache.children.invalid).toBeFalsy();
         expect(html.cache.indexes.invalid).toBeTruthy();
         expect(html.descendants().map(parserItemToString)).toEqual(["<body><div><h1>Hello?</h1></div></body>", "<div><h1>Hello?</h1></div>", "<h1>Hello?</h1>"])
         expect(html.cache.descendants.invalid).toBeFalsy();

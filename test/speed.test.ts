@@ -12,6 +12,9 @@ const theirTitle = "their-speed-test";
 
 const file = fs.readFileSync(path.join(__dirname, "developer.mozilla.org.html"), { encoding: "utf-8" });
 const iterations = 5;
+const my$ = Query(file);
+const dom = new jsdom.JSDOM(file);
+const their$ = jQuery(dom.window);
 
 describe("Node-html should be faster than jQuery with JSDOM", () => {
     it("Has faster initialization time than competition", () => {
@@ -34,9 +37,19 @@ describe("Node-html should be faster than jQuery with JSDOM", () => {
         expect(mine).toBeLessThan(theirs);
     });
     it("Has faster DOM find", () => {
-        const my$ = Query(file);
-        const dom = new jsdom.JSDOM(file);
-        const their$ = jQuery(dom.window);
+        v8Profiler.startProfiling(ourTitle, true);
+        const beforeTheirs = performance.now();
+        for (let i = 0; i < iterations; i++) {
+            (their$ as any)("div");
+        }
+        const afterTheirs = performance.now();
+        const theirProfile = v8Profiler.stopProfiling(ourTitle);
+        theirProfile.export((_, result: any) => {
+            fs.writeFileSync(`${theirTitle}.cpuprofile`, result);
+            theirProfile.delete();
+        });
+
+        const theirs = afterTheirs - beforeTheirs;
 
         v8Profiler.startProfiling(ourTitle, true);
         const beforeMine = performance.now();
@@ -52,20 +65,6 @@ describe("Node-html should be faster than jQuery with JSDOM", () => {
     
         const mine = afterMine - beforeMine;
 
-        v8Profiler.startProfiling(ourTitle, true);
-        const beforeTheirs = performance.now();
-        for (let i = 0; i < iterations; i++) {
-            (their$ as any)("div");
-        }
-        const afterTheirs = performance.now();
-        const theirProfile = v8Profiler.stopProfiling(ourTitle);
-        theirProfile.export((_, result: any) => {
-            fs.writeFileSync(`${theirTitle}.cpuprofile`, result);
-            theirProfile.delete();
-        });
-
-        const theirs = afterTheirs - beforeTheirs;
-
         console.log(`faster find than theirs by ${Math.round(100 * (theirs - mine) / theirs)}%`);
         expect(mine).toBeLessThan(theirs);
 
@@ -73,10 +72,6 @@ describe("Node-html should be faster than jQuery with JSDOM", () => {
         expect(their$.find("div").length).toEqual(142);
     });
     it("Has faster DOM alter", () => {
-        const my$ = Query(file);
-        const dom = new jsdom.JSDOM(file);
-        const their$ = jQuery(dom.window);
-
         const beforeMine = performance.now();
         for (let i = 0; i < iterations; i++) {
             my$("div").append("<p>Appended to div!</p>"); 
