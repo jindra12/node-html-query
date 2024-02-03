@@ -1142,7 +1142,7 @@ export class HtmlContent implements ParserItem {
                     }
                     return indexes;
                 }, {});
-        if (filter) {
+        if (filter || indexOthers) {
             return getIndexes()[element.identifier];
         }
         if (!this.cache.indexes.invalid) {

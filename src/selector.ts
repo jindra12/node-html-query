@@ -2,7 +2,6 @@ import { HtmlDocument, HtmlElement } from "./html";
 import { LexerType } from "./lexers";
 import { LexerItem, ParserItem, Queue, Searcher } from "./types";
 import {
-    flatten,
     inputValidation,
     matchAttribute,
     rangeComparator,
@@ -69,25 +68,24 @@ export class SelectorGroup implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        let selection: HtmlElement[] = [];
-        const selectors = [this.selector, ...this.selectors].filter(
-            (s): s is Selector => s instanceof Selector
-        );
-        if (selectors.length === 1) {
-            selection = selectors[0].match(htmlElements, allHtmlElements, namespaces);
-        } else {
-            selection = Object.values(
-                selectors.reduce((result: Record<string, HtmlElement>, selector) => {
-                    selector
-                        ?.match(htmlElements, allHtmlElements, namespaces)
-                        .forEach((htmlElement) => {
-                            result[htmlElement.identifier] = htmlElement;
-                        });
-                    return result;
-                }, {})
-            );
+        const selectors = [this.selector!];
+        for (const s of this.selectors) {
+            if (s instanceof Selector) {
+                selectors.push(s);
+            }
         }
-        return selection;
+        if (selectors.length === 1) {
+            return selectors[0].match(htmlElements, allHtmlElements, namespaces);
+        } else {
+            const result: Record<string, HtmlElement> = {};
+            for (const selector of selectors) {
+                const matched = selector.match(htmlElements, allHtmlElements, namespaces);
+                for (const match of matched) {
+                    result[match.identifier] = match;
+                }
+            }
+            return Object.values(result);
+        }
     };
 }
 
@@ -135,15 +133,16 @@ export class Selector implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        const filtered =
+        let filtered =
             this.simpleSelectorSequence?.match(
                 htmlElements,
                 allHtmlElements,
                 namespaces
             ) || htmlElements;
-        return this.sequences.reduce((filtered, selector) => {
-            return selector.match(filtered, allHtmlElements, namespaces);
-        }, filtered);
+        for (const selector of this.sequences) {
+            filtered = selector.match(filtered, allHtmlElements, namespaces);
+        }
+        return filtered;
     };
 }
 
@@ -231,35 +230,46 @@ export class Combinator implements Matcher {
         _: HtmlElement[],
         __: Record<string, string>
     ): HtmlElement[] => {
+        let matched: HtmlElement[] = [];
         if (this.plus?.value) {
-            return htmlElements
-                .map((element) => element.parent.nextSibling(element))
-                .filter((element: HtmlElement | undefined): element is HtmlElement =>
-                    Boolean(element)
-                );
+            for (let element of htmlElements) {
+                const nextSibling = element.parent.nextSibling(element);
+                if (nextSibling) {
+                    matched.push(nextSibling);
+                }
+            }
+            return matched;
         }
         if (this.greater?.value) {
-            return htmlElements
-                .map((element) => element.children())
-                .reduce((elements: HtmlElement[], children) => {
-                    children.forEach((child) => {
-                        elements.push(child);
-                    });
-                    return elements;
-                }, []);
+            for (let element of htmlElements) {
+                const children = element.children();
+                for (const child of children) {
+                    matched.push(child);
+                }
+            }
+            return matched;
         }
         if (this.tilde?.value) {
-            return flatten(
-                htmlElements.map((element) => {
-                    const index = element.parent.getIndex(element, false);
-                    return element.parent
-                        .children()
-                        .filter((child) => child.parent.getIndex(child, false) > index);
-                })
-            );
+            for (const element of htmlElements) {
+                const index = element.parent.getIndex(element, false);
+                const children = element.parent.children();
+                for (const child of children) {
+                    const childIndex = child.parent.getIndex(child, false);
+                    if (childIndex > index) {
+                        matched.push(child);
+                    }
+                }
+            }
+            return matched;
         }
         if (this.space?.value) {
-            return flatten(htmlElements.map((element) => element.descendants()));
+            for (const element of htmlElements) {
+                const descendants = element.descendants();
+                for (const d of descendants) {
+                    matched.push(d);
+                }
+            }
+            return matched
         }
         return htmlElements;
     };
@@ -459,7 +469,6 @@ export class Pseudo implements Matcher {
                         .map(({ order }) => order);
 
         return htmlElements.filter((element) => {
-            const children = element.children();
             switch (this.ident?.value) {
                 case "checkbox":
                     return matchAttribute(
@@ -483,7 +492,7 @@ export class Pseudo implements Matcher {
                         "[attr]"
                     );
                 case "empty":
-                    return children.length === 0 && element.texts().join("") === "";
+                    return element.children().length === 0 && element.texts().join("") === "";
                 case "enabled":
                     return matchAttribute(element.attributes(), "disabled", true, "not");
                 case "first-child":
@@ -689,14 +698,17 @@ export class TypeNamespacePrefix implements Matcher {
         if (this.universal?.value || !this.ident?.value) {
             return htmlElements;
         }
-        return flatten(
-            htmlElements
-                .filter((htmlElement) => {
-                    const attributes = htmlElement.attributes();
-                    return attributes["xmlns"] === namespaces[this.ident?.value || ""];
-                })
-                .map((htmlElement) => htmlElement.descendants())
-        );
+        const result: HtmlElement[] = [];
+        for (const element of htmlElements) {
+            const attributes = element.attributes();
+            if (attributes["xmlns"] === namespaces[this.ident?.value || ""]) {
+                const descendants = element.descendants();
+                for (const d of descendants) {
+                    result.push(d);
+                }
+            }
+        }
+        return result;
     };
 }
 
@@ -784,9 +796,13 @@ export class ElementName implements Matcher {
         _: HtmlElement[],
         __: Record<string, string>
     ): HtmlElement[] => {
-        return htmlElements.filter(
-            (element) => element.tagName?.value === this.ident?.value
-        );
+        const result: HtmlElement[] = [];
+        for (const element of htmlElements) {
+            if (element.tagName?.value === this.ident?.value) {
+                result.push(element);
+            }
+        }
+        return result;
     };
 }
 
@@ -872,14 +888,18 @@ export class ClassName implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        return htmlElements.filter((element) =>
-            matchAttribute(
+        const result: HtmlElement[] = [];
+        for (const element of htmlElements) {
+            if (matchAttribute(
                 element.attributes(),
                 "class",
                 this.ident?.value || "",
                 "[attr~=value]"
-            )
-        );
+            )) {
+                result.push(element);
+            }
+        }
+        return result;
     };
 }
 
@@ -1041,7 +1061,8 @@ export class Attrib implements Matcher {
         _: HtmlElement[],
         __: Record<string, string>
     ): HtmlElement[] => {
-        return htmlElements.filter((element) => {
+        const result: HtmlElement[] = [];
+        for (const element of htmlElements) {
             const value =
                 this.ident2?.value || this.stringIdent?.value || this.numIdent?.value;
             const name = `${this.typeNamespacePrefix && this.typeNamespacePrefix?.ident?.value
@@ -1049,35 +1070,41 @@ export class Attrib implements Matcher {
                     : this.ident1?.value
                 }`;
             if (!value) {
-                return matchAttribute(element.attributes(), name, true, "[attr]");
+                if (matchAttribute(element.attributes(), name, true, "[attr]")) {
+                    result.push(element);
+                }
+            } else {
+                if (matchAttribute(
+                    element.attributes(),
+                    name,
+                    value,
+                    (() => {
+                        if (this.prefixMatch?.value) {
+                            return "[attr^=value]";
+                        }
+                        if (this.suffixMatch?.value) {
+                            return "[attr$=value]";
+                        }
+                        if (this.substringMatch?.value) {
+                            return "[attr*=value]";
+                        }
+                        if (this.equals?.value) {
+                            return "[attr=value]";
+                        }
+                        if (this.includes?.value) {
+                            return "[attr~=value]";
+                        }
+                        if (this.dashMatch?.value) {
+                            return "[attr|=value]";
+                        }
+                        return "[attr]";
+                    })()
+                )) {
+                    result.push(element);
+                }
             }
-            return matchAttribute(
-                element.attributes(),
-                name,
-                value,
-                (() => {
-                    if (this.prefixMatch?.value) {
-                        return "[attr^=value]";
-                    }
-                    if (this.suffixMatch?.value) {
-                        return "[attr$=value]";
-                    }
-                    if (this.substringMatch?.value) {
-                        return "[attr*=value]";
-                    }
-                    if (this.equals?.value) {
-                        return "[attr=value]";
-                    }
-                    if (this.includes?.value) {
-                        return "[attr~=value]";
-                    }
-                    if (this.dashMatch?.value) {
-                        return "[attr|=value]";
-                    }
-                    return "[attr]";
-                })()
-            );
-        });
+        }
+        return result;
     };
 }
 
@@ -1144,13 +1171,18 @@ export class Negation implements Matcher {
         if (!this.negationArg) {
             return htmlElements;
         }
-        const matched = this.negationArg
-            .match(htmlElements, allHtmlElements, namespaces)
-            .reduce((ids: Record<string, true>, element) => {
-                ids[element.identifier] = true;
-                return ids;
-            }, {});
-        return htmlElements.filter((element) => !matched[element.identifier]);
+        const negated = this.negationArg.match(htmlElements, allHtmlElements, namespaces);
+        const negatedMap: Record<string, true> = {};
+        for (const n of negated) {
+            negatedMap[n.identifier] = true;
+        }
+        const result: HtmlElement[] = [];
+        for (const element of htmlElements) {
+            if (!negatedMap[element.identifier]) {
+                result.push(element);
+            }
+        }
+        return result;
     };
 }
 
