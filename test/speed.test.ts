@@ -40,7 +40,9 @@ const tests: Test[] = [
 
 const profilePath = path.join(__dirname, "..", "profile");
 
-fs.mkdirSync(profilePath);
+if (!fs.existsSync(profilePath)) {
+    fs.mkdirSync(profilePath);   
+}
 
 const runTest = (test: Test) => {
     it(`Has faster ${test.name} than competitors`, () => {
@@ -49,7 +51,9 @@ const runTest = (test: Test) => {
 
         const testPath = path.join(__dirname, "..", "profile", test.name);
 
-        fs.mkdirSync(testPath)
+        if (!fs.existsSync(testPath)) {
+            fs.mkdirSync(testPath);
+        }
 
         v8Profiler.startProfiling(ourTitle, true);
         const beforeMine = performance.now();
