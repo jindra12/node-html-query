@@ -36,6 +36,14 @@ const tests: Test[] = [
         name: "append-toggle",
         query: $ => $(".toggle").append("<p>Appended to div!</p>"),
     },
+    {
+        name: "a-toggle",
+        query: $ => $("a.toggle"),
+    },
+    {
+        name: "level-3",
+        query: $ => $(".apis-link-container .submenu-icon .submenu-item-heading")
+    }
 ];
 
 const profilePath = path.join(__dirname, "..", "profile");
