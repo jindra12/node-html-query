@@ -890,12 +890,7 @@ export class ClassName implements Matcher {
         }
         const result: HtmlElement[] = [];
         for (const element of htmlElements) {
-            if (matchAttribute(
-                element.attributes(),
-                "class",
-                this.ident?.value || "",
-                "[attr~=value]"
-            )) {
+            if (element.getClassNames()[this.ident?.value || ""]) {
                 result.push(element);
             }
         }

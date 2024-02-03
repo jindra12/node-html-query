@@ -159,7 +159,9 @@ export const htmlParser = (input: string, compress: boolean) => {
     const document = new HtmlDocument();
     const endQueue = document.process(createQueueFromItems(lexerAtoms));
     checkIfNothingRemains(lexerAtoms, endQueue, document);
-    document.descendants();
+    for (const d of document.descendants()) {
+        d.getClassNames();
+    }
     return document;
 };
 

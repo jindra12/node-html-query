@@ -53,7 +53,7 @@ if (!fs.existsSync(profilePath)) {
 }
 
 const runTest = (test: Test) => {
-    it(`Has faster ${test.name} than competitors`, () => {
+    const runProfile = () => {
         const ourTitle = `my-speed-test-${test.name}`;
         const theirTitle = `their-speed-test-${test.name}`;
 
@@ -77,6 +77,7 @@ const runTest = (test: Test) => {
     
         const mine = afterMine - beforeMine;
         v8Profiler.startProfiling(theirTitle, true);
+
         const beforeTheirs = performance.now();
         for (let i = 0; i < iterations; i++) {
             test.query((their$ as any));
@@ -87,11 +88,14 @@ const runTest = (test: Test) => {
             fs.writeFileSync(path.join(__dirname, "..", "profile", test.name, `their.cpuprofile`), result);
             theirProfile.delete();
         });
-
+    
         const theirs = afterTheirs - beforeTheirs;
 
         console.log(`faster ${test.name} than theirs by ${Math.round(100 * (theirs - mine) / theirs)}%`);
         expect(mine).toBeLessThan(theirs);
+    };
+    it(`Has faster ${test.name} than competitors`, () => {
+        runProfile();
     });
 };
 

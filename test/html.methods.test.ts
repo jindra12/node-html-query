@@ -117,7 +117,7 @@ describe("Test methods of HTML represention", () => {
     });
     it("HTML element has working cache", () => {
         const element = getHtmlElement("<div><h1>Hello?</h1></div>");
-        expect(element.cache.attributes.invalid).toBeTruthy();
+        expect(element.cache.attributes.invalid).toBeFalsy();
         expect(element.cache.styles.invalid).toBeTruthy();
         element.addAttribute("id", "1");
         expect(element.attributes()).toEqual({ id: "1" });

@@ -416,12 +416,20 @@ export class HtmlElement implements ParserItem {
             value: Partial<Record<string, string>>;
             invalid: boolean;
         };
+        classNames: {
+            value: Partial<Record<string, true>>,
+            invalid: boolean;
+        }
     } = {
             attributes: {
                 value: {},
                 invalid: true,
             },
             styles: {
+                value: {},
+                invalid: true,
+            },
+            classNames: {
                 value: {},
                 invalid: true,
             },
@@ -595,9 +603,6 @@ export class HtmlElement implements ParserItem {
     };
 
     addAttribute = (attributeName: string, attributeValue?: string) => {
-        if (attributeName === "style") {
-            this.cache.styles.invalid = true;
-        }
         this.cache.attributes.invalid = true;
         const attribute = new HtmlAttribute();
         attribute.tagName = new LexerItem("TAG_NAME", attributeName);
@@ -621,6 +626,12 @@ export class HtmlElement implements ParserItem {
         if (!this.tagWhiteSpace2?.value) {
             this.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", " ");
         }
+        if (attributeName === "class") {
+            this.cache.classNames.invalid = true;
+        }
+        if (attributeName === "style") {
+            this.cache.styles.invalid = true;
+        }
         return this;
     };
 
@@ -638,6 +649,9 @@ export class HtmlElement implements ParserItem {
             ) {
                 this.tagWhiteSpace2 = new LexerItem("TAG_WHITESPACE", " ");
             }
+        }
+        if (attributeName === "class") {
+            this.cache.classNames.invalid = true;
         }
         if (attributeName === "style") {
             this.cache.styles.invalid = true;
@@ -662,6 +676,9 @@ export class HtmlElement implements ParserItem {
         if (attributeName === "style") {
             this.cache.styles.invalid = true;
         }
+        if (attributeName === "class") {
+            this.cache.classNames.invalid = true;
+        }
         return this;
     };
 
@@ -680,6 +697,19 @@ export class HtmlElement implements ParserItem {
             },
             {}
         ));
+    };
+
+    getClassNames = () => {
+        if (!this.cache.classNames.invalid) {
+            return this.cache.classNames.value;
+        }
+        this.cache.classNames.invalid = false;
+        const classNames: Record<string, true> = {};
+        const classes = this.attributes()["class"]?.split(/\s+/gu) || [];
+        for (const cls of classes) {
+            classNames[cls] = true;
+        }
+        return this.cache.classNames.value = classNames;
     };
 
     noEndingTagNeeded = () =>
