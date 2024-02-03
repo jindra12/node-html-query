@@ -163,11 +163,24 @@ export const htmlParser = (input: string, compress: boolean) => {
     return document;
 };
 
+let queryCache: Record<string, SelectorGroup> = {};
+let queryCount = 0;
+const queryLimit = 50;
+
 export const queryParser = (input: string) => {
+    if (queryCache[input]) {
+        return queryCache[input];
+    }
     const lexerAtoms = parseQueryLexer(input);
     const selectorGroup = new SelectorGroup();
     const endQueue = selectorGroup.process(createQueueFromItems(lexerAtoms));
     checkIfNothingRemains(lexerAtoms, endQueue, selectorGroup);
+    if (queryCount > queryLimit) {
+        queryCount = 0;
+        queryCache = {};
+    }
+    queryCache[input] = selectorGroup;
+    queryCount++;
     return selectorGroup;
 };
 

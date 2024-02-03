@@ -24,9 +24,11 @@ export interface Matcher extends ParserItem {
 export class SelectorGroup implements Matcher {
     selector?: Selector;
     selectors: Array<LexerItem<"Comma"> | Ws | Selector> = [];
+
     consumed = () => {
         return Boolean(this.selector?.consumed());
     };
+
     process = (queue: Queue): Queue => {
         if (!this.selector?.consumed()) {
             const selector = new Selector();
@@ -67,23 +69,25 @@ export class SelectorGroup implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        const selectors = [
-            this.selector,
-            ...this.selectors,
-        ].filter((s): s is Selector => s instanceof Selector);
-        if (selectors.length === 1) {
-            return selectors[0].match(htmlElements, allHtmlElements, namespaces);
-        }
-        return Object.values(
-            selectors.reduce((result: Record<string, HtmlElement>, selector) => {
-                selector
-                    ?.match(htmlElements, allHtmlElements, namespaces)
-                    .forEach((htmlElement) => {
-                        result[htmlElement.identifier] = htmlElement;
-                    });
-                return result;
-            }, {})
+        let selection: HtmlElement[] = [];
+        const selectors = [this.selector, ...this.selectors].filter(
+            (s): s is Selector => s instanceof Selector
         );
+        if (selectors.length === 1) {
+            selection = selectors[0].match(htmlElements, allHtmlElements, namespaces);
+        } else {
+            selection = Object.values(
+                selectors.reduce((result: Record<string, HtmlElement>, selector) => {
+                    selector
+                        ?.match(htmlElements, allHtmlElements, namespaces)
+                        .forEach((htmlElement) => {
+                            result[htmlElement.identifier] = htmlElement;
+                        });
+                    return result;
+                }, {})
+            );
+        }
+        return selection;
     };
 }
 
@@ -781,7 +785,7 @@ export class ElementName implements Matcher {
         __: Record<string, string>
     ): HtmlElement[] => {
         return htmlElements.filter(
-            (element) => element.getTagName() === this.ident?.value
+            (element) => element.tagName?.value === this.ident?.value
         );
     };
 }
