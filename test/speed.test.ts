@@ -9,39 +9,74 @@ import v8Profiler from 'v8-profiler-next';
 v8Profiler.setGenerateType(1);
 
 const file = fs.readFileSync(path.join(__dirname, "developer.mozilla.org.html"), { encoding: "utf-8" });
-const iterations = 5;
-const my$ = Query(file);
-const dom = new jsdom.JSDOM(file);
-const their$ = jQuery(dom.window);
+const smallExample = "<div class='toggle'><a class='toggle' /><div class='apis-link-container'><div class='submenu-icon' /><div class='submenu-item-heading'>Hello</div></div></div>"
+const iterations = 5; // Can only do 10 tests, see: https://github.com/jsdom/jsdom/issues/1665
 
 interface Test {
     name: string;
-    query: (query: typeof my$) => any;
+    html: string;
+    query: (query: ReturnType<typeof Query>) => any;
 }
 
 const tests: Test[] = [
     {
-        name: "find-div",
+        name: "big-find-div",
+        html: file,
         query: $ => $("div"),
     },
     {
-        name: "find-toggle",
+        name: "big-find-toggle",
+        html: file,
         query: $ => $(".toggle"),
     },
     {
-        name: "append-div",
+        name: "big-append-div",
+        html: file,
         query: $ => $("div").append("<p>Appended to div!</p>"),
     },
     {
-        name: "append-toggle",
+        name: "big-append-toggle",
+        html: file,
         query: $ => $(".toggle").append("<p>Appended to div!</p>"),
     },
     {
-        name: "a-toggle",
+        name: "big-a-toggle",
+        html: file,
         query: $ => $("a.toggle"),
     },
     {
-        name: "level-3",
+        name: "big-level-3",
+        html: file,
+        query: $ => $(".apis-link-container .submenu-icon .submenu-item-heading")
+    },
+    {
+        name: "small-find-div",
+        html: smallExample,
+        query: $ => $("div"),
+    },
+    {
+        name: "small-toggle",
+        html: smallExample,
+        query: $ => $(".toggle"),
+    },
+    {
+        name: "small-append-div",
+        html: smallExample,
+        query: $ => $("div").append("<p>Appended to div!</p>"),
+    },
+    {
+        name: "small-append-toggle",
+        html: smallExample,
+        query: $ => $(".toggle").append("<p>Appended to div!</p>"),
+    },
+    {
+        name: "small-a-toggle",
+        html: smallExample,
+        query: $ => $("a.toggle"),
+    },
+    {
+        name: "small-level-3",
+        html: smallExample,
         query: $ => $(".apis-link-container .submenu-icon .submenu-item-heading")
     }
 ];
@@ -53,7 +88,7 @@ if (!fs.existsSync(profilePath)) {
 }
 
 const runTest = (test: Test) => {
-    const runProfile = () => {
+    const runConditionalProfile = (measure: boolean) => {
         const ourTitle = `my-speed-test-${test.name}`;
         const theirTitle = `their-speed-test-${test.name}`;
 
@@ -63,39 +98,52 @@ const runTest = (test: Test) => {
             fs.mkdirSync(testPath);
         }
 
-        v8Profiler.startProfiling(ourTitle, true);
+        if (measure) {
+            v8Profiler.startProfiling(ourTitle, true);
+        }
         const beforeMine = performance.now();
         for (let i = 0; i < iterations; i++) {
+            const my$ = Query(test.html);
             test.query(my$);
         }
         const afterMine = performance.now();
-        const myProfile = v8Profiler.stopProfiling(ourTitle);
-        myProfile.export((_, result: any) => {
-            fs.writeFileSync(path.join(__dirname, "..", "profile", test.name, `my.cpuprofile`), result);
-            myProfile.delete();
-        });
+        if (measure) {
+            const myProfile = v8Profiler.stopProfiling(ourTitle);
+            myProfile.export((_, result: any) => {
+                fs.writeFileSync(path.join(__dirname, "..", "profile", test.name, `my.cpuprofile`), result);
+                myProfile.delete();
+            });
+        }
     
         const mine = afterMine - beforeMine;
-        v8Profiler.startProfiling(theirTitle, true);
-
+        if (measure) {
+            v8Profiler.startProfiling(theirTitle, true);
+        }
         const beforeTheirs = performance.now();
         for (let i = 0; i < iterations; i++) {
+            const dom = new jsdom.JSDOM(test.html);
+            const their$ = jQuery(dom.window);
             test.query((their$ as any));
         }
         const afterTheirs = performance.now();
-        const theirProfile = v8Profiler.stopProfiling(theirTitle);
-        theirProfile.export((_, result: any) => {
-            fs.writeFileSync(path.join(__dirname, "..", "profile", test.name, `their.cpuprofile`), result);
-            theirProfile.delete();
-        });
-    
+        if (measure) {
+            const theirProfile = v8Profiler.stopProfiling(theirTitle);
+            theirProfile.export((_, result: any) => {
+                fs.writeFileSync(path.join(__dirname, "..", "profile", test.name, `their.cpuprofile`), result);
+                theirProfile.delete();
+            });
+        }
+
         const theirs = afterTheirs - beforeTheirs;
 
-        console.log(`faster ${test.name} than theirs by ${Math.round(100 * (theirs - mine) / theirs)}%`);
-        expect(mine).toBeLessThan(theirs);
+        if (!measure) {
+            console.log(`faster ${test.name} than theirs by ${Math.round(100 * (theirs - mine) / theirs)}%`);
+            expect(mine).toBeLessThan(theirs);
+        }
     };
+    // runConditionalProfile(true);
     it(`Has faster ${test.name} than competitors`, () => {
-        runProfile();
+        runConditionalProfile(false);
     });
 };
 
