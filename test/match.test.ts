@@ -678,7 +678,9 @@ const matches: {
 describe("Can successfully match query to DOM", () => {
     matches.forEach((match) => {
         it(`Matches ${match.query} to ${match.html.slice(0, 10)}... with ${match.results.length} results`, () => {
-            expect(testMatch(match.html, match.query, match.namespaces)).toEqual(match.results);
+            expect(
+                testMatch(match.html, match.query, match.namespaces)
+            ).toEqual(match.results);
         });
     });
 });
