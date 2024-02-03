@@ -22,21 +22,19 @@ export interface Matcher extends ParserItem {
     ;
  */
 export class SelectorGroup implements Matcher {
-    selector = new Selector();
-    selectors: {
-        comma: LexerItem<"Comma">;
-        ws: Ws;
-        selector: Selector;
-    }[] = [];
+    selector?: Selector;
+    selectors: Array<LexerItem<"Comma"> | Ws | Selector> = [];
     consumed = () => {
-        return (
-            this.selector.consumed()
+        return Boolean(
+            this.selector?.consumed()
         );
     };
     process = (queue: Queue): Queue => {
-        if (!this.selector.consumed()) {
-            const tryConsumeSelector = this.selector.process(queue);
-            if (this.selector.consumed()) {
+        if (!this.selector?.consumed()) {
+            const selector = new Selector();
+            const tryConsumeSelector = selector.process(queue);
+            if (selector.consumed()) {
+                this.selector = selector;
                 return this.process(tryConsumeSelector);
             }
         } else {
@@ -49,11 +47,7 @@ export class SelectorGroup implements Matcher {
                 const selector = new Selector();
                 const trySelector = selector.process(tryWs);
                 if (selector.consumed()) {
-                    this.selectors.push({
-                        comma,
-                        selector,
-                        ws,
-                    });
+                    this.selectors.push(selector);
                     return this.process(trySelector);
                 }
             }
@@ -63,9 +57,11 @@ export class SelectorGroup implements Matcher {
     search = (searcher: Searcher) => {
         searcher.feedParserItem(this.selector);
         this.selectors.forEach((selector) => {
-            searcher.feedLexerItem(selector.comma);
-            searcher.feedParserItem(selector.ws);
-            searcher.feedParserItem(selector.selector);
+            if (selector instanceof LexerItem) {
+                searcher.feedLexerItem(selector);
+            } else {
+                searcher.feedParserItem(selector);
+            }
         });
     };
     match = (
@@ -73,14 +69,11 @@ export class SelectorGroup implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
         return Object.values(
-            [this.selector, ...this.selectors.map((s) => s.selector)].reduce(
+            [this.selector, ...this.selectors.filter((s): s is Selector => s instanceof Selector)].reduce(
                 (result: Record<string, HtmlElement>, selector) => {
                     selector
-                        .match(htmlElements, allHtmlElements, namespaces)
+                        ?.match(htmlElements, allHtmlElements, namespaces)
                         .forEach((htmlElement) => {
                             result[htmlElement.identifier] = htmlElement;
                         });
@@ -98,46 +91,36 @@ export class SelectorGroup implements Matcher {
     ;
  */
 export class Selector implements Matcher {
-    simpleSelectorSequence = new SimpleSelectorSequence();
-    sequences: {
-        combinator: Combinator;
-        simpleSelectorSequence: SimpleSelectorSequence;
-    }[] = [];
+    simpleSelectorSequence?: SimpleSelectorSequence;
+    sequences: Array<Combinator | SimpleSelectorSequence> = [];
     consumed = () => {
-        return (
-            this.simpleSelectorSequence.consumed()
+        return Boolean(
+            this.simpleSelectorSequence?.consumed()
         );
     };
     process = (queue: Queue): Queue => {
-        if (!this.simpleSelectorSequence.consumed()) {
-            const tryProcess = this.simpleSelectorSequence.process(queue);
-            if (this.simpleSelectorSequence.consumed()) {
+        if (!this.simpleSelectorSequence?.consumed()) {
+            const simpleSelectorSequence = new SimpleSelectorSequence();
+            const tryProcess = simpleSelectorSequence.process(queue);
+            if (simpleSelectorSequence.consumed()) {
+                this.simpleSelectorSequence = simpleSelectorSequence;
                 return this.process(tryProcess);
             }
         }
         const lastArrayItem = this.sequences[this.sequences.length - 1];
-        if (
-            !lastArrayItem ||
-            (lastArrayItem.simpleSelectorSequence.consumed() &&
-                lastArrayItem.combinator.consumed())
-        ) {
+        if (!lastArrayItem || lastArrayItem instanceof SimpleSelectorSequence) {
             const combinator = new Combinator();
-            const tryCombinator = combinator.process(queue);
+            const tryParse = combinator.process(queue);
             if (combinator.consumed()) {
-                const simpleSelectorSequence = new SimpleSelectorSequence();
-                const trySimple = simpleSelectorSequence.process(tryCombinator);
-                if (simpleSelectorSequence.consumed()) {
-                    this.sequences.push({
-                        combinator: combinator,
-                        simpleSelectorSequence: simpleSelectorSequence,
-                    });
-                    return this.process(trySimple);
-                } else {
-                    this.sequences.push({
-                        combinator: new Combinator(),
-                        simpleSelectorSequence: new SimpleSelectorSequence(),
-                    });
-                }
+                this.sequences.push(combinator)
+                return this.process(tryParse);
+            }
+        } else if (lastArrayItem instanceof Combinator) {
+            const simpleSelectorSequence = new SimpleSelectorSequence();
+            const tryParse = simpleSelectorSequence.process(queue);
+            if (simpleSelectorSequence.consumed()) {
+                this.sequences.push(simpleSelectorSequence);
+                return this.process(tryParse);
             }
         }
         return queue;
@@ -145,8 +128,7 @@ export class Selector implements Matcher {
     search = (searcher: Searcher) => {
         searcher.feedParserItem(this.simpleSelectorSequence);
         this.sequences.forEach((sequence) => {
-            searcher.feedParserItem(sequence.combinator);
-            searcher.feedParserItem(sequence.simpleSelectorSequence);
+            searcher.feedParserItem(sequence);
         });
     };
     match = (
@@ -154,27 +136,26 @@ export class Selector implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        const filtered = this.simpleSelectorSequence.match(
+        const filtered = this.simpleSelectorSequence?.match(
             htmlElements,
             allHtmlElements,
             namespaces
-        );
+        ) || htmlElements;
         return this.sequences.reduce(
-            (filtered, { combinator, simpleSelectorSequence }) => {
-                const applyCombinator = combinator.match(
-                    filtered,
-                    allHtmlElements,
-                    namespaces
-                );
-                const applySequence = simpleSelectorSequence.match(
-                    applyCombinator,
-                    allHtmlElements,
-                    namespaces
-                );
-                return applySequence;
+            (filtered, selector) => {
+                if (selector instanceof Combinator) {
+                    return selector.match(
+                        filtered,
+                        allHtmlElements,
+                        namespaces
+                    );
+                } else {
+                    return selector.match(
+                        filtered,
+                        allHtmlElements,
+                        namespaces
+                    );
+                }
             },
             filtered
         );
@@ -190,46 +171,63 @@ export class Selector implements Matcher {
         ;
  */
 export class Combinator implements Matcher {
-    ws1 = new Ws();
-    plus = new LexerItem("Plus");
-    greater = new LexerItem("Greater");
-    tilde = new LexerItem("Tilde");
-    space = new LexerItem("Space");
-    ws2 = new Ws();
+    ws1?: Ws;
+    plus?: LexerItem<"Plus">;
+    greater?: LexerItem<"Greater">;
+    tilde?: LexerItem<"Tilde">;
+    space?: LexerItem<"Space">;
+    ws2?: Ws;
     consumed = () => {
         return Boolean(
-            this.plus.value ||
-            this.greater.value ||
-            this.tilde.value ||
-            this.space.value
+            this.plus?.value ||
+            this.greater?.value ||
+            this.tilde?.value ||
+            this.space?.value
         );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (!this.ws1.consumed()) {
-            const tryProcessWs1 = this.ws1.process(queue);
-            if (this.ws1.consumed()) {
+        if (!this.ws1?.consumed()) {
+            const ws = new Ws();
+            const tryProcessWs1 = ws.process(queue);
+            if (ws.consumed()) {
+                this.ws1 = ws;
                 return this.process(tryProcessWs1);
             }
         }
         switch (current.type) {
             case "Plus":
-                this.plus.value = current.value;
-                const tryWsPlus = this.ws2.process(queue.next());
+                this.plus = new LexerItem("Plus", current.value);
+                const wsPlus = new Ws();
+                const tryWsPlus = wsPlus.process(queue.next());
+                if (wsPlus.consumed()) {
+                    this.ws2 = wsPlus;
+                }
                 return tryWsPlus;
             case "Greater":
-                this.greater.value = current.value;
-                const tryWsGreater = this.ws2.process(queue.next());
+                this.greater = new LexerItem("Greater", current.value);
+                const wsGreater = new Ws();
+                const tryWsGreater = wsGreater.process(queue.next());
+                if (wsGreater.consumed()) {
+                    this.ws2 = wsGreater;
+                }
                 return tryWsGreater;
             case "Tilde":
-                this.tilde.value = current.value;
-                const tryWsTilde = this.ws2.process(queue.next());
+                this.tilde = new LexerItem("Tilde", current.value);
+                const wsTilde = new Ws();
+                const tryWsTilde = wsTilde.process(queue.next());
+                if (wsTilde.consumed()) {
+                    this.ws2 = wsTilde;
+                }
                 return tryWsTilde;
             default:
-                if (this.ws1.consumed()) {
+                if (this.ws1?.consumed()) {
                     const extraSpace = this.ws1.spaces.pop();
+                    if (!this.ws1.consumed) {
+                        this.ws1 = undefined;
+                    }
                     if (extraSpace) {
-                        this.space.value = extraSpace.value;
+                        this.space = new LexerItem("Space", extraSpace.value);
                     }
                 }
         }
@@ -248,17 +246,14 @@ export class Combinator implements Matcher {
         _: HtmlElement[],
         __: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        if (this.plus.value) {
+        if (this.plus?.value) {
             return htmlElements
                 .map((element) => element.parent.nextSibling(element))
                 .filter((element: HtmlElement | undefined): element is HtmlElement =>
                     Boolean(element)
                 );
         }
-        if (this.greater.value) {
+        if (this.greater?.value) {
             return htmlElements
                 .map((element) => element.children())
                 .reduce((elements: HtmlElement[], children) => {
@@ -268,7 +263,7 @@ export class Combinator implements Matcher {
                     return elements;
                 }, []);
         }
-        if (this.tilde.value) {
+        if (this.tilde?.value) {
             return flatten(
                 htmlElements.map((element) => {
                     const index = element.parent.getIndex(element, false);
@@ -278,7 +273,7 @@ export class Combinator implements Matcher {
                 })
             );
         }
-        if (this.space.value) {
+        if (this.space?.value) {
             return htmlElements
                 .map((element) => element.descendants())
                 .reduce((manyElements, elements) => {
@@ -299,32 +294,25 @@ export class Combinator implements Matcher {
         ;
  */
 export class SimpleSelectorSequence implements Matcher {
-    typeSelector = new TypeSelector();
-    universal = new Universal();
-    modifiers: {
-        hash: LexerItem<"Hash">;
-        className: ClassName;
-        attrib: Attrib;
-        pseudo: Pseudo;
-        negation: Negation;
-    }[] = [];
+    typeSelector?: TypeSelector;
+    universal?: Universal;
+    modifiers: Array<LexerItem<"Hash"> | ClassName | Attrib | Pseudo | Negation> = [];
 
     consumed = () => {
-        const hasPreface =
-            this.typeSelector.consumed() || this.universal.consumed();
-        if (hasPreface) {
-            return true;
-        }
-        return this.modifiers.length > 0;
+        return this.typeSelector?.consumed() || this.universal?.consumed() || this.modifiers.length > 0;
     };
     process = (queue: Queue): Queue => {
-        if (!this.typeSelector.consumed() && !this.universal.consumed()) {
-            const tryTypeSelector = this.typeSelector.process(queue);
-            if (this.typeSelector.consumed()) {
+        if (!this.typeSelector?.consumed() && !this.universal?.consumed()) {
+            const typeSelector = new TypeSelector();
+            const tryTypeSelector = typeSelector.process(queue);
+            if (typeSelector.consumed()) {
+                this.typeSelector = typeSelector;
                 return this.process(tryTypeSelector);
             }
-            const tryUniversal = this.universal.process(queue);
-            if (this.universal.consumed()) {
+            const universal = new Universal();
+            const tryUniversal = universal.process(queue);
+            if (universal.consumed()) {
+                this.universal = universal;
                 return this.process(tryUniversal);
             }
         }
@@ -332,61 +320,31 @@ export class SimpleSelectorSequence implements Matcher {
         const hash = new LexerItem("Hash");
         hash.value = current.value;
         if (current.type === "Hash") {
-            this.modifiers.push({
-                attrib: new Attrib(),
-                className: new ClassName(),
-                hash: hash,
-                negation: new Negation(),
-                pseudo: new Pseudo(),
-            });
+            this.modifiers.push(hash);
             return this.process(queue.next());
         }
         const className = new ClassName();
         const tryProcessClassName = className.process(queue);
         if (className.consumed()) {
-            this.modifiers.push({
-                attrib: new Attrib(),
-                className: className,
-                hash: new LexerItem("Hash"),
-                negation: new Negation(),
-                pseudo: new Pseudo(),
-            });
+            this.modifiers.push(className);
             return this.process(tryProcessClassName);
         }
         const attrib = new Attrib();
         const tryProcessAttrib = attrib.process(queue);
         if (attrib.consumed()) {
-            this.modifiers.push({
-                attrib: attrib,
-                className: new ClassName(),
-                hash: new LexerItem("Hash"),
-                negation: new Negation(),
-                pseudo: new Pseudo(),
-            });
+            this.modifiers.push(attrib);
             return this.process(tryProcessAttrib);
         }
         const pseudo = new Pseudo();
         const tryProcessPseudo = pseudo.process(queue);
         if (pseudo.consumed()) {
-            this.modifiers.push({
-                attrib: new Attrib(),
-                className: new ClassName(),
-                hash: new LexerItem("Hash"),
-                negation: new Negation(),
-                pseudo: pseudo,
-            });
+            this.modifiers.push(pseudo);
             return this.process(tryProcessPseudo);
         }
         const negation = new Negation();
         const tryProcessNegation = negation.process(queue);
         if (negation.consumed()) {
-            this.modifiers.push({
-                attrib: new Attrib(),
-                className: new ClassName(),
-                hash: new LexerItem("Hash"),
-                negation: negation,
-                pseudo: new Pseudo(),
-            });
+            this.modifiers.push(negation);
             return this.process(tryProcessNegation);
         }
         return queue;
@@ -394,12 +352,12 @@ export class SimpleSelectorSequence implements Matcher {
     search = (searcher: Searcher) => {
         searcher.feedParserItem(this.typeSelector);
         searcher.feedParserItem(this.universal);
-        this.modifiers.forEach(({ hash, className, attrib, pseudo, negation }) => {
-            searcher.feedLexerItem(hash);
-            searcher.feedParserItem(className);
-            searcher.feedParserItem(attrib);
-            searcher.feedParserItem(pseudo);
-            searcher.feedParserItem(negation);
+        this.modifiers.forEach((modifier) => {
+            if (modifier instanceof LexerItem) {
+                searcher.feedLexerItem(modifier);
+            } else {
+                searcher.feedParserItem(modifier);
+            }
         });
     };
     match = (
@@ -407,48 +365,26 @@ export class SimpleSelectorSequence implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        const typeMatched = this.typeSelector.match(
+        const typeMatched = this.typeSelector?.match(
             htmlElements,
             allHtmlElements,
             namespaces
-        );
-        const universalMatched = this.universal.match(
+        ) || htmlElements;
+        const universalMatched = this.universal?.match(
             typeMatched,
             allHtmlElements,
             namespaces
-        );
+        ) || htmlElements;
 
         return this.modifiers.reduce((htmlElements, modifier) => {
-            if (modifier.attrib.consumed()) {
-                return modifier.attrib.match(htmlElements, allHtmlElements, namespaces);
-            }
-            if (modifier.className.consumed()) {
-                return modifier.className.match(
-                    htmlElements,
-                    allHtmlElements,
-                    namespaces
-                );
-            }
-            if (modifier.hash.value) {
-                const hashValue = modifier.hash.value.replace(/^#/, "");
+            if (modifier instanceof LexerItem) {
+                const hashValue = modifier.value.replace(/^#/, "");
                 return htmlElements.filter((element) =>
                     matchAttribute(element.attributes(), "id", hashValue, "[attr=value]")
                 );
+            } else {
+                return modifier.match(htmlElements, allHtmlElements, namespaces);
             }
-            if (modifier.negation.consumed()) {
-                return modifier.negation.match(
-                    htmlElements,
-                    allHtmlElements,
-                    namespaces
-                );
-            }
-            if (modifier.pseudo.consumed()) {
-                return modifier.pseudo.match(htmlElements, allHtmlElements, namespaces);
-            }
-            return htmlElements;
         }, universalMatched);
     };
 }
@@ -459,28 +395,30 @@ export class SimpleSelectorSequence implements Matcher {
     ;
  */
 export class Pseudo implements Matcher {
-    pseudoGeneral = new LexerItem("PseudoGeneral");
-    ident = new LexerItem("Ident");
-    functionalPseudo = new FunctionalPseudo();
+    pseudoGeneral?: LexerItem<"PseudoGeneral">;
+    ident?: LexerItem<"Ident">;
+    functionalPseudo?: FunctionalPseudo;
     consumed = () => {
         return Boolean(
-            this.pseudoGeneral.value &&
-            (this.ident.value || this.functionalPseudo.consumed())
+            this.pseudoGeneral?.value &&
+            (this.ident?.value || this.functionalPseudo?.consumed())
         );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "PseudoGeneral" && !this.pseudoGeneral.value) {
-            this.pseudoGeneral.value = current.value;
+        if (current.type === "PseudoGeneral" && !this.pseudoGeneral?.value) {
+            this.pseudoGeneral = new LexerItem("PseudoGeneral", current.value);
             return this.process(queue.next());
         }
-        if (current.type === "Ident" && !this.ident.value) {
-            this.ident.value = current.value;
+        if (current.type === "Ident" && !this.ident?.value) {
+            this.ident = new LexerItem("Ident", current.value);
             return this.process(queue.next());
         }
-        if (!this.functionalPseudo.consumed()) {
-            const tryFunctionalPseudo = this.functionalPseudo.process(queue);
-            if (this.functionalPseudo.consumed()) {
+        if (!this.functionalPseudo?.consumed()) {
+            const functionalPseudo = new FunctionalPseudo();
+            const tryFunctionalPseudo = functionalPseudo.process(queue);
+            if (functionalPseudo.consumed()) {
+                this.functionalPseudo = functionalPseudo;
                 return tryFunctionalPseudo;
             }
         }
@@ -496,10 +434,7 @@ export class Pseudo implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        if (this.functionalPseudo.consumed()) {
+        if (this.functionalPseudo) {
             return this.functionalPseudo.match(
                 htmlElements,
                 allHtmlElements,
@@ -546,7 +481,7 @@ export class Pseudo implements Matcher {
 
         return htmlElements.filter((element) => {
             const children = element.children();
-            switch (this.ident.value) {
+            switch (this.ident?.value) {
                 case "checkbox":
                     return matchAttribute(
                         element.attributes(),
@@ -672,34 +607,38 @@ export class Pseudo implements Matcher {
     ;
  */
 export class FunctionalPseudo implements Matcher {
-    funct = new LexerItem("Function_");
-    ws = new Ws();
-    expression = new Expression(this);
-    backBrace = new LexerItem("BackBrace");
+    funct?: LexerItem<"Function_">;
+    ws?: Ws;
+    expression?: Expression;
+    backBrace?: LexerItem<"BackBrace">;
     consumed = () => {
         return Boolean(
-            this.funct.value && this.expression.consumed() && this.backBrace.value
+            this.funct?.value && this.expression?.consumed() && this.backBrace?.value
         );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
-        if (current.type === "Function_" && !this.funct.value) {
-            this.funct.value = current.value;
-            const tryWs = this.ws.process(queue.next());
+        if (current.type === "Function_" && !this.funct?.value) {
+            this.funct = new LexerItem("Function_", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            this.ws = ws;
             return this.process(tryWs);
         }
-        if (this.funct.value && !this.expression.consumed()) {
-            const tryExpression = this.expression.process(queue);
-            if (this.expression.consumed()) {
+        if (this.funct?.value && !this.expression?.consumed()) {
+            const expression = new Expression(this);
+            const tryExpression = expression.process(queue);
+            if (expression.consumed()) {
+                this.expression = expression;
                 return this.process(tryExpression);
             }
         }
         if (
-            this.expression.consumed() &&
-            !this.backBrace.value &&
+            this.expression?.consumed() &&
+            !this.backBrace?.value &&
             current.type === "BackBrace"
         ) {
-            this.backBrace.value = current.value;
+            this.backBrace = new LexerItem("BackBrace", current.value);
             return queue.next();
         }
         return queue;
@@ -715,10 +654,7 @@ export class FunctionalPseudo implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        return this.expression.match(htmlElements, allHtmlElements, namespaces);
+        return this.expression?.match(htmlElements, allHtmlElements, namespaces) || htmlElements;
     };
 }
 
@@ -728,32 +664,32 @@ export class FunctionalPseudo implements Matcher {
     ;
  */
 export class TypeNamespacePrefix implements Matcher {
-    ident = new LexerItem("Ident");
-    namespace = new LexerItem("Namespace");
-    universal = new LexerItem("Universal");
+    ident?: LexerItem<"Ident">;
+    namespace?: LexerItem<"Namespace">;
+    universal?: LexerItem<"Universal">;
     consumed = () => {
-        return Boolean(this.namespace.value);
+        return Boolean(this.namespace?.value);
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (
             current.type === "Ident" &&
-            !this.universal.value &&
-            !this.ident.value
+            !this.universal?.value &&
+            !this.ident?.value
         ) {
-            this.ident.value = current.value;
+            this.ident = new LexerItem("Ident", current.value);
             return this.process(queue.next());
         }
-        if (current.type === "Namespace" && !this.namespace.value) {
-            this.namespace.value = current.value;
+        if (current.type === "Namespace" && !this.namespace?.value) {
+            this.namespace = new LexerItem("Namespace", current.value);
             return queue.next();
         }
         if (
             current.type === "Universal" &&
-            !this.universal.value &&
-            !this.ident.value
+            !this.universal?.value &&
+            !this.ident?.value
         ) {
-            this.universal.value = current.value;
+            this.universal = new LexerItem("Universal", current.value);
             return this.process(queue.next());
         }
         return queue;
@@ -768,17 +704,14 @@ export class TypeNamespacePrefix implements Matcher {
         _: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        if (this.universal.value || !this.ident.value) {
+        if (this.universal?.value || !this.ident?.value) {
             return htmlElements;
         }
         return flatten(
             htmlElements
                 .filter((htmlElement) => {
                     const attributes = htmlElement.attributes();
-                    return attributes["xmlns"] === namespaces[this.ident.value];
+                    return attributes["xmlns"] === namespaces[this.ident?.value || ""];
                 })
                 .map((htmlElement) => htmlElement.descendants())
         );
@@ -791,22 +724,26 @@ export class TypeNamespacePrefix implements Matcher {
         ;
 */
 export class TypeSelector implements Matcher {
-    typeNamespacePrefix = new TypeNamespacePrefix();
-    elementName = new ElementName();
+    typeNamespacePrefix?: TypeNamespacePrefix;
+    elementName?: ElementName;
 
     consumed = () => {
-        return Boolean(this.elementName.consumed());
+        return Boolean(this.elementName?.consumed());
     };
     process = (queue: Queue): Queue => {
-        if (!this.typeNamespacePrefix.consumed()) {
-            const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
-            if (this.typeNamespacePrefix.consumed()) {
+        if (!this.typeNamespacePrefix?.consumed()) {
+            const typeNamespacePrefix = new TypeNamespacePrefix();
+            const tryProcessNamespace = typeNamespacePrefix.process(queue);
+            if (typeNamespacePrefix.consumed()) {
+                this.typeNamespacePrefix = typeNamespacePrefix;
                 return this.process(tryProcessNamespace);
             }
         }
-        if (!this.elementName.consumed()) {
-            const tryProcessElementName = this.elementName.process(queue);
-            if (this.elementName.consumed()) {
+        if (!this.elementName?.consumed()) {
+            const elementName = new ElementName();
+            const tryProcessElementName = elementName.process(queue);
+            if (elementName.consumed()) {
+                this.elementName = elementName;
                 return tryProcessElementName;
             }
         }
@@ -821,18 +758,15 @@ export class TypeSelector implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        if (this.typeNamespacePrefix.consumed()) {
+        if (this.typeNamespacePrefix) {
             const typeMatched = this.typeNamespacePrefix.match(
                 htmlElements,
                 allHtmlElements,
                 namespaces
             );
-            return this.elementName.match(typeMatched, allHtmlElements, namespaces);
+            return this.elementName?.match(typeMatched, allHtmlElements, namespaces) || typeMatched;
         }
-        return this.elementName.match(htmlElements, allHtmlElements, namespaces);
+        return this.elementName?.match(htmlElements, allHtmlElements, namespaces) || htmlElements;
     };
 }
 
@@ -877,22 +811,24 @@ export class ElementName implements Matcher {
     ;
  */
 export class Universal implements Matcher {
-    typeNamespacePrefix = new TypeNamespacePrefix();
-    universal = new LexerItem("Universal");
+    typeNamespacePrefix?: TypeNamespacePrefix;
+    universal?: LexerItem<"Universal">;
 
     consumed = () => {
-        return Boolean(this.universal.value);
+        return Boolean(this.universal?.value);
     };
     process = (queue: Queue): Queue => {
-        if (!this.typeNamespacePrefix.consumed()) {
-            const tryProcessNamespace = this.typeNamespacePrefix.process(queue);
-            if (this.typeNamespacePrefix.consumed()) {
+        if (!this.typeNamespacePrefix?.consumed()) {
+            const typeNamespacePrefix = new TypeNamespacePrefix();
+            const tryProcessNamespace = typeNamespacePrefix.process(queue);
+            if (typeNamespacePrefix.consumed()) {
+                this.typeNamespacePrefix = typeNamespacePrefix;
                 return this.process(tryProcessNamespace);
             }
         }
         const current = queue.items[queue.at];
-        if (current.type === "Universal" && !this.universal.value) {
-            this.universal.value = current.value;
+        if (current.type === "Universal" && !this.universal?.value) {
+            this.universal = new LexerItem("Universal", current.value);
             return queue.next();
         }
         return queue;
@@ -906,14 +842,11 @@ export class Universal implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        return this.typeNamespacePrefix.match(
+        return this.typeNamespacePrefix?.match(
             htmlElements,
             allHtmlElements,
             namespaces
-        );
+        ) || htmlElements;
     };
 }
 
@@ -923,19 +856,19 @@ export class Universal implements Matcher {
     ;
  */
 export class ClassName implements Matcher {
-    dot = new LexerItem("Dot");
-    ident = new LexerItem("Ident");
+    dot?: LexerItem<"Dot">;
+    ident?: LexerItem<"Ident">;
     consumed = () => {
-        return Boolean(this.dot.value && this.ident.value);
+        return Boolean(this.dot?.value && this.ident?.value);
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Dot") {
-            this.dot.value = current.value;
+            this.dot = new LexerItem("Dot", current.value);
             return this.process(queue.next());
         }
         if (current.type === "Ident") {
-            this.ident.value = current.value;
+            this.ident = new LexerItem("Ident", current.value);
             return queue.next();
         }
         return queue;
@@ -956,7 +889,7 @@ export class ClassName implements Matcher {
             matchAttribute(
                 element.attributes(),
                 "class",
-                this.ident.value,
+                this.ident?.value || "",
                 "[attr~=value]"
             )
         );
@@ -969,101 +902,127 @@ export class ClassName implements Matcher {
     ;
  */
 export class Attrib implements Matcher {
-    squareBracket = new LexerItem("SquareBracket");
-    ws1 = new Ws();
-    typeNamespacePrefix = new TypeNamespacePrefix();
-    ident1 = new LexerItem("Ident");
-    ws2 = new Ws();
-    prefixMatch = new LexerItem("PrefixMatch");
-    suffixMatch = new LexerItem("SuffixMatch");
-    substringMatch = new LexerItem("SubstringMatch");
-    equals = new LexerItem("Equals");
-    includes = new LexerItem("Includes");
-    dashMatch = new LexerItem("DashMatch");
-    ws3 = new Ws();
-    ident2 = new LexerItem("Ident");
-    stringIdent = new LexerItem("String_");
-    numIdent = new LexerItem("Number");
-    ws4 = new Ws();
-    squareBracketEnd = new LexerItem("SquareBracketEnd");
+    squareBracket?: LexerItem<"SquareBracket">;
+    ws1?: Ws;
+    typeNamespacePrefix?: TypeNamespacePrefix;
+    ident1?: LexerItem<"Ident">;
+    ws2?: Ws;
+    prefixMatch?: LexerItem<"PrefixMatch">;
+    suffixMatch?: LexerItem<"SuffixMatch">;
+    substringMatch?: LexerItem<"SubstringMatch">;
+    equals?: LexerItem<"Equals">;
+    includes?: LexerItem<"Includes">;
+    dashMatch?: LexerItem<"DashMatch">;
+    ws3?: Ws;
+    ident2?: LexerItem<"Ident">;
+    stringIdent?: LexerItem<"String_">;
+    numIdent?: LexerItem<"Number">;
+    ws4?: Ws;
+    squareBracketEnd?: LexerItem<"SquareBracketEnd">;
     consumed = () => {
         const hasComparator =
-            this.prefixMatch.value ||
-            this.suffixMatch.value ||
-            this.substringMatch.value ||
-            this.equals.value ||
-            this.includes.value ||
-            this.dashMatch.value;
+            this.prefixMatch?.value ||
+            this.suffixMatch?.value ||
+            this.substringMatch?.value ||
+            this.equals?.value ||
+            this.includes?.value ||
+            this.dashMatch?.value;
         if (
             hasComparator &&
-            !this.ident2.value &&
-            !this.stringIdent.value &&
-            !this.numIdent.value
+            !this.ident2?.value &&
+            !this.stringIdent?.value &&
+            !this.numIdent?.value
         ) {
             return false;
         }
         return Boolean(
-            this.squareBracket.value &&
-            this.ident1.value &&
-            this.squareBracketEnd.value
+            this.squareBracket?.value &&
+            this.ident1?.value &&
+            this.squareBracketEnd?.value
         );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "SquareBracket") {
-            this.squareBracket.value = current.value;
-            const tryWs = this.ws1.process(queue.next());
+            this.squareBracket = new LexerItem("SquareBracket", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws1 = ws;
+            }
             return this.process(tryWs);
         }
-        if (!this.typeNamespacePrefix.consumed()) {
-            const tryTypeNameSpace = this.typeNamespacePrefix.process(queue);
-            if (this.typeNamespacePrefix.consumed()) {
+        if (!this.typeNamespacePrefix?.consumed()) {
+            const typeNamespacePrefix = new TypeNamespacePrefix();
+            const tryTypeNameSpace = typeNamespacePrefix.process(queue);
+            if (typeNamespacePrefix.consumed()) {
+                this.typeNamespacePrefix = typeNamespacePrefix;
                 return this.process(tryTypeNameSpace);
             }
         }
-        if (current.type === "Ident" && !this.ident1.value) {
-            this.ident1.value = current.value;
-            const tryWs = this.ws2.process(queue.next());
+        if (current.type === "Ident" && !this.ident1?.value) {
+            this.ident1 = new LexerItem("Ident", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws2 = ws;
+            }
             return this.process(tryWs);
         }
-        const comparators: [LexerType, LexerItem<LexerType>][] = [
-            ["PrefixMatch", this.prefixMatch],
-            ["SuffixMatch", this.suffixMatch],
-            ["SubstringMatch", this.substringMatch],
-            ["Equals", this.equals],
-            ["Includes", this.includes],
-            ["DashMatch", this.dashMatch],
+        const comparators: [LexerType, () => LexerItem<LexerType>][] = [
+            ["PrefixMatch", () => this.prefixMatch = new LexerItem("PrefixMatch")],
+            ["SuffixMatch", () => this.suffixMatch = new LexerItem("SuffixMatch")],
+            ["SubstringMatch", () => this.substringMatch = new LexerItem("SubstringMatch")],
+            ["Equals", () => this.equals = new LexerItem("Equals")],
+            ["Includes", () => this.includes = new LexerItem("Includes")],
+            ["DashMatch", () => this.dashMatch = new LexerItem("DashMatch")],
         ];
         const foundComp = comparators.find(([type]) => type === current.type)?.[1];
         if (foundComp) {
-            foundComp.value = current.value;
-            const tryWs = this.ws3.process(queue.next());
+            foundComp().value = current.value;
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws3 = ws;
+            }
             return this.process(tryWs);
         }
         if (
-            this.ident1.value &&
-            !this.ident2.value &&
-            !this.stringIdent.value &&
-            !this.numIdent.value
+            this.ident1?.value &&
+            !this.ident2?.value &&
+            !this.stringIdent?.value &&
+            !this.numIdent?.value
         ) {
             if (current.type === "Ident") {
-                this.ident2.value = current.value;
-                const tryWs = this.ws4.process(queue.next());
+                this.ident2 = new LexerItem("Ident", current.value);
+                const ws = new Ws();
+                const tryWs = ws.process(queue.next());
+                if (ws.consumed()) {
+                    this.ws4 = ws;
+                }
                 return this.process(tryWs);
             }
             if (current.type === "String_") {
-                this.stringIdent.value = current.value;
-                const tryWs = this.ws4.process(queue.next());
+                this.stringIdent = new LexerItem("String_", current.value);
+                const ws = new Ws();
+                const tryWs = ws.process(queue.next());
+                if (ws.consumed()) {
+                    this.ws4 = ws;
+                }
                 return this.process(tryWs);
             }
             if (current.type === "Number") {
-                this.numIdent.value = current.value;
-                const tryWs = this.ws4.process(queue.next());
+                this.numIdent = new LexerItem("Number", current.value);
+                const ws = new Ws();
+                const tryWs = ws.process(queue.next());
+                if (ws.consumed()) {
+                    this.ws4 = ws;
+                }
                 return this.process(tryWs);
             }
         }
         if (current.type === "SquareBracketEnd") {
-            this.squareBracketEnd.value = current.value;
+            this.squareBracketEnd = new LexerItem("SquareBracketEnd", current.value);
             return queue.next();
         }
         return queue;
@@ -1092,16 +1051,13 @@ export class Attrib implements Matcher {
         _: HtmlElement[],
         __: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
         return htmlElements.filter((element) => {
             const value =
-                this.ident2.value || this.stringIdent.value || this.numIdent.value;
-            const name = `${this.typeNamespacePrefix.consumed() &&
-                    this.typeNamespacePrefix.ident.value
-                    ? `${this.typeNamespacePrefix.ident.value}:${this.ident1.value}`
-                    : this.ident1.value
+                this.ident2?.value || this.stringIdent?.value || this.numIdent?.value;
+            const name = `${this.typeNamespacePrefix &&
+                    this.typeNamespacePrefix?.ident?.value
+                    ? `${this.typeNamespacePrefix.ident.value}:${this.ident1?.value}`
+                    : this.ident1?.value
                 }`;
             if (!value) {
                 return matchAttribute(element.attributes(), name, true, "[attr]");
@@ -1111,22 +1067,22 @@ export class Attrib implements Matcher {
                 name,
                 value,
                 (() => {
-                    if (this.prefixMatch.value) {
+                    if (this.prefixMatch?.value) {
                         return "[attr^=value]";
                     }
-                    if (this.suffixMatch.value) {
+                    if (this.suffixMatch?.value) {
                         return "[attr$=value]";
                     }
-                    if (this.substringMatch.value) {
+                    if (this.substringMatch?.value) {
                         return "[attr*=value]";
                     }
-                    if (this.equals.value) {
+                    if (this.equals?.value) {
                         return "[attr=value]";
                     }
-                    if (this.includes.value) {
+                    if (this.includes?.value) {
                         return "[attr~=value]";
                     }
-                    if (this.dashMatch.value) {
+                    if (this.dashMatch?.value) {
                         return "[attr|=value]";
                     }
                     return "[attr]";
@@ -1142,34 +1098,44 @@ export class Attrib implements Matcher {
         ;
  */
 export class Negation implements Matcher {
-    pseudoNot = new LexerItem("PseudoNot");
-    ws1 = new Ws();
-    negationArg = new NegationArg();
-    ws2 = new Ws();
-    backBrace = new LexerItem("BackBrace");
+    pseudoNot?: LexerItem<"PseudoNot">;
+    ws1?: Ws;
+    negationArg?: NegationArg;
+    ws2?: Ws;
+    backBrace?: LexerItem<"BackBrace">;
     consumed = () => {
         return Boolean(
-            this.pseudoNot.value &&
-            this.negationArg.consumed() &&
-            this.backBrace.value
+            this.pseudoNot?.value &&
+            this.negationArg?.consumed() &&
+            this.backBrace?.value
         );
     };
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "PseudoNot") {
-            this.pseudoNot.value = current.value;
-            const tryWs = this.ws1.process(queue.next());
+            this.pseudoNot = new LexerItem("PseudoNot", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws1 = ws;
+            }
             return this.process(tryWs);
         }
-        if (!this.negationArg.consumed()) {
-            const tryNegation = this.negationArg.process(queue);
-            if (this.negationArg.consumed()) {
-                const tryWs = this.ws2.process(tryNegation);
+        if (!this.negationArg?.consumed()) {
+            const negationArg = new NegationArg();
+            const tryNegation = negationArg.process(queue);
+            if (negationArg.consumed()) {
+                this.negationArg = negationArg;
+                const ws = new Ws();
+                const tryWs = ws.process(tryNegation);
+                if (ws.consumed()) {
+                    this.ws2 = ws;
+                }
                 return this.process(tryWs);
             }
         }
         if (current.type === "BackBrace") {
-            this.backBrace.value = current.value;
+            this.backBrace = new LexerItem("BackBrace", current.value);
             return queue.next();
         }
         return queue;
@@ -1186,7 +1152,7 @@ export class Negation implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
+        if (!this.negationArg) {
             return htmlElements;
         }
         const matched = this.negationArg
@@ -1210,54 +1176,64 @@ export class Negation implements Matcher {
         ;
  */
 export class NegationArg implements Matcher {
-    typeSelector = new TypeSelector();
-    universal = new Universal();
-    hash = new LexerItem("Hash");
-    className = new ClassName();
-    attrib = new Attrib();
-    pseudo = new Pseudo();
+    typeSelector?: TypeSelector;
+    universal?: Universal;
+    hash?: LexerItem<"Hash">;
+    className?: ClassName;
+    attrib?: Attrib;
+    pseudo?: Pseudo;
     consumed = () => {
         return Boolean(
-            this.typeSelector.consumed() ||
-            this.universal.consumed() ||
-            this.hash.value ||
-            this.className.consumed() ||
-            this.attrib.consumed() ||
-            this.pseudo.consumed()
+            this.typeSelector?.consumed() ||
+            this.universal?.consumed() ||
+            this.hash?.value ||
+            this.className?.consumed() ||
+            this.attrib?.consumed() ||
+            this.pseudo?.consumed()
         );
     };
     process = (queue: Queue): Queue => {
-        if (!this.typeSelector.consumed()) {
-            const tryProcessSelector = this.typeSelector.process(queue);
-            if (this.typeSelector.consumed()) {
+        if (!this.typeSelector?.consumed()) {
+            const typeSelector = new TypeSelector();
+            const tryProcessSelector = typeSelector.process(queue);
+            if (typeSelector.consumed()) {
+                this.typeSelector = typeSelector;
                 return tryProcessSelector;
             }
         }
-        if (!this.universal.consumed()) {
-            const tryUniversal = this.universal.process(queue);
-            if (this.universal.consumed()) {
+        if (!this.universal?.consumed()) {
+            const universal = new Universal();
+            const tryUniversal = universal.process(queue);
+            if (universal.consumed()) {
+                this.universal = universal;
                 return tryUniversal;
             }
         }
-        if (queue.items[queue.at].type === "Hash" && !this.hash.value) {
-            this.hash.value = queue.items[queue.at].value;
+        if (queue.items[queue.at].type === "Hash" && !this.hash?.value) {
+            this.hash = new LexerItem("Hash", queue.items[queue.at].value);
             return queue.next();
         }
-        if (!this.className.consumed()) {
-            const tryClassName = this.className.process(queue);
-            if (this.className.consumed()) {
+        if (!this.className?.consumed()) {
+            const className = new ClassName();
+            const tryClassName = className.process(queue);
+            if (className.consumed()) {
+                this.className = className;
                 return tryClassName;
             }
         }
-        if (!this.attrib.consumed()) {
-            const tryAttrib = this.attrib.process(queue);
-            if (this.attrib.consumed()) {
+        if (!this.attrib?.consumed()) {
+            const attrib = new Attrib();
+            const tryAttrib = attrib.process(queue);
+            if (attrib.consumed()) {
+                this.attrib = attrib;
                 return tryAttrib;
             }
         }
-        if (!this.pseudo.consumed()) {
-            const tryPseudo = this.pseudo.process(queue);
-            if (this.pseudo.consumed()) {
+        if (!this.pseudo?.consumed()) {
+            const pseudo = new Pseudo();
+            const tryPseudo = pseudo.process(queue);
+            if (pseudo.consumed()) {
+                this.pseudo = pseudo;
                 return tryPseudo;
             }
         }
@@ -1276,32 +1252,29 @@ export class NegationArg implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
-        if (!this.consumed()) {
-            return htmlElements;
-        }
-        if (this.typeSelector.consumed()) {
+        if (this.typeSelector) {
             return this.typeSelector.match(htmlElements, htmlElements, namespaces);
         }
-        if (this.universal.consumed()) {
+        if (this.universal) {
             return this.universal.match(htmlElements, htmlElements, namespaces);
         }
-        if (this.hash.value) {
+        if (this.hash) {
             return htmlElements.filter((element) =>
                 matchAttribute(
                     element.attributes(),
                     "id",
-                    this.hash.value.slice(1),
+                    this.hash?.value.slice(1) || "",
                     "[attr=value]"
                 )
             );
         }
-        if (this.attrib.consumed()) {
+        if (this.attrib) {
             return this.attrib.match(htmlElements, allHtmlElements, namespaces);
         }
-        if (this.pseudo.consumed()) {
+        if (this.pseudo) {
             return this.pseudo.match(htmlElements, allHtmlElements, namespaces);
         }
-        if (this.className.consumed()) {
+        if (this.className) {
             return this.className.match(htmlElements, allHtmlElements, namespaces);
         }
         return htmlElements;
@@ -1345,22 +1318,22 @@ export class Ws implements ParserItem {
     ;
  */
 export class Expression implements Matcher {
-    even = new LexerItem("Even");
-    odd = new LexerItem("Odd");
-    combinator = new Combinator();
-    selectorGroup1 = new SelectorGroup();
-    minus1 = new LexerItem("Minus");
-    number1 = new LexerItem("Number");
-    ident1 = new LexerItem("Ident");
-    ws2 = new Ws();
-    plus = new LexerItem("Plus");
-    minus2 = new LexerItem("Minus");
-    ws3 = new Ws();
-    number2 = new LexerItem("Number");
-    ws4 = new Ws();
-    of = new LexerItem("Of");
-    ws5 = new Ws();
-    selectorGroup2 = new SelectorGroup();
+    even?: LexerItem<"Even">;
+    odd?: LexerItem<"Odd">;
+    combinator?: Combinator;
+    selectorGroup1?: SelectorGroup;
+    minus1?: LexerItem<"Minus">;
+    number1?: LexerItem<"Number">;
+    ident1?: LexerItem<"Ident">;
+    ws2?: Ws;
+    plus?: LexerItem<"Plus">;
+    minus2?: LexerItem<"Minus">;
+    ws3?: Ws;
+    number2?: LexerItem<"Number">;
+    ws4?: Ws;
+    of?: LexerItem<"Of">;
+    ws5?: Ws;
+    selectorGroup2?: SelectorGroup;
 
     functionalPseudo: FunctionalPseudo;
     constructor(functionalPseudo: FunctionalPseudo) {
@@ -1368,26 +1341,26 @@ export class Expression implements Matcher {
     }
 
     consumed = () => {
-        if (this.even.value || this.odd.value || this.selectorGroup1.consumed()) {
+        if (this.even?.value || this.odd?.value || this.selectorGroup1?.consumed()) {
             return true;
         }
-        const ofMissing = !this.of.value && !this.selectorGroup2.consumed();
-        const ofComplete = this.of.value && this.selectorGroup2.consumed();
+        const ofMissing = !this.of?.value && !this.selectorGroup2?.consumed();
+        const ofComplete = this.of?.value && this.selectorGroup2?.consumed();
 
         const validOf = Boolean(ofMissing || ofComplete);
 
         const optionalGroupMissing = Boolean(
-            !this.plus.value && !this.minus2.value && !this.number2.value
+            !this.plus?.value && !this.minus2?.value && !this.number2?.value
         );
         const optionalGroupComplete = Boolean(
-            (this.plus.value || this.minus2.value) && this.number2.value
+            (this.plus?.value || this.minus2?.value) && this.number2?.value
         );
 
         const validGroup = optionalGroupComplete || optionalGroupMissing;
 
         const validOptionals = validGroup && validOf;
 
-        if (this.ident1.value || this.number1.value) {
+        if (this.ident1?.value || this.number1?.value) {
             return validOptionals;
         }
 
@@ -1396,82 +1369,112 @@ export class Expression implements Matcher {
     process = (queue: Queue): Queue => {
         const current = queue.items[queue.at];
         if (current.type === "Even") {
-            this.even.value = current.value;
+            this.even = new LexerItem("Even", current.value);
             return queue.next();
         }
         if (current.type === "Odd") {
-            this.odd.value = current.value;
+            this.odd = new LexerItem("Odd", current.value);
             return queue.next();
         }
         if (
-            !this.minus1.value &&
-            !this.ident1.value &&
-            !this.plus.value &&
-            !this.minus2.value &&
-            !this.number1.value
+            !this.minus1?.value &&
+            !this.ident1?.value &&
+            !this.plus?.value &&
+            !this.minus2?.value &&
+            !this.number1?.value
         ) {
-            if (!this.combinator.consumed()) {
-                const tryConsumeCombinator = this.combinator.process(queue);
-                if (this.combinator.consumed()) {
+            if (!this.combinator?.consumed()) {
+                const combinator = new Combinator();
+                const tryConsumeCombinator = combinator.process(queue);
+                if (combinator.consumed()) {
+                    this.combinator = combinator;
                     return this.process(tryConsumeCombinator);
                 }
             }
-            const fnPseudo = this.functionalPseudo.funct.value;
+            const fnPseudo = this.functionalPseudo.funct?.value;
             const selectorExempt = fnPseudo === "lang(" || fnPseudo === "contains(" || fnPseudo === "eq(" || current.value === "n";
-            if (!this.selectorGroup1.consumed() && !selectorExempt) {
-                const tryConsumeSelectorGroup = this.selectorGroup1.process(queue);
-                if (this.selectorGroup1.consumed()) {
+            if (!this.selectorGroup1?.consumed() && !selectorExempt) {
+                const selectorGroup = new SelectorGroup();
+                const tryConsumeSelectorGroup = selectorGroup.process(queue);
+                if (selectorGroup.consumed()) {
+                    this.selectorGroup1 = selectorGroup;
                     return tryConsumeSelectorGroup;
                 }
             }
         }
-        if (!this.number1.value && !this.minus1.value && current.type === "Minus") {
-            this.minus1.value = current.value;
+        if (!this.number1?.value && !this.minus1?.value && current.type === "Minus") {
+            this.minus1 = new LexerItem("Minus", current.value);
             return this.process(queue.next());
         }
         if (
-            !this.ident1.value &&
-            !this.number1.value &&
+            !this.ident1?.value &&
+            !this.number1?.value &&
             current.type === "Number"
         ) {
-            this.number1.value = current.value;
-            const tryWs = this.ws2.process(queue.next());
+            this.number1 = new LexerItem("Number", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws2 = ws;
+            }
             return this.process(tryWs);
         }
-        if (!this.ident1.value && current.type === "Ident") {
-            this.ident1.value = current.value;
-            const tryWs = this.ws2.process(queue.next());
+        if (!this.ident1?.value && current.type === "Ident") {
+            this.ident1 = new LexerItem("Ident", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws2 = ws;
+            }
             return this.process(tryWs);
         }
-        if (this.ident1.value) {
-            if (!this.minus2.value && !this.plus.value && current.type === "Plus") {
-                this.plus.value = current.value;
-                const tryWs = this.ws3.process(queue.next());
+        if (this.ident1?.value) {
+            if (!this.minus2?.value && !this.plus?.value && current.type === "Plus") {
+                this.plus = new LexerItem("Plus", current.value);
+                const ws = new Ws();
+                const tryWs = ws.process(queue.next());
+                if (ws.consumed()) {
+                    this.ws3 = ws;
+                }
                 return this.process(tryWs);
             }
-            if (!this.plus.value && !this.minus2.value && current.type === "Minus") {
-                this.minus2.value = current.value;
-                const tryWs = this.ws3.process(queue.next());
+            if (!this.plus?.value && !this.minus2?.value && current.type === "Minus") {
+                this.minus2 = new LexerItem("Minus", current.value);
+                const ws = new Ws();
+                const tryWs = ws.process(queue.next());
+                if (ws.consumed()) {
+                    this.ws3 = ws;
+                }
                 return this.process(tryWs);
             }
             if (
-                (this.plus.value || this.minus2.value) &&
-                !this.number2.value &&
+                (this.plus?.value || this.minus2?.value) &&
+                !this.number2?.value &&
                 current.type === "Number"
             ) {
-                this.number2.value = current.value;
-                const tryWs = this.ws4.process(queue.next());
+                this.number2 = new LexerItem("Number", current.value);
+                const ws = new Ws();
+                const tryWs = ws.process(queue.next());
+                if (ws.consumed()) {
+                    this.ws4 = ws;
+                }
                 return this.process(tryWs);
             }
         }
-        if (this.number1.value && !this.of.value && current.type === "Of") {
-            this.of.value = current.value;
-            const tryWs = this.ws5.process(queue.next());
+        if (this.number1?.value && !this.of?.value && current.type === "Of") {
+            this.of = new LexerItem("Of", current.value);
+            const ws = new Ws();
+            const tryWs = ws.process(queue.next());
+            if (ws.consumed()) {
+                this.ws5 = ws;
+            }
             return this.process(tryWs);
         }
-        if (this.of.value && !this.selectorGroup2.consumed()) {
-            const tryConsumeSelectorGroup = this.selectorGroup2.process(queue);
-            if (this.selectorGroup2.consumed()) {
+        if (this.of?.value && !this.selectorGroup2?.consumed()) {
+            const selectorGroup = new SelectorGroup();
+            const tryConsumeSelectorGroup = selectorGroup.process(queue);
+            if (selectorGroup.consumed()) {
+                this.selectorGroup2 = selectorGroup;
                 return tryConsumeSelectorGroup;
             }
         }
@@ -1509,14 +1512,14 @@ export class Expression implements Matcher {
             return selectedMap;
         }, {});
         const filter = (element: HtmlElement) => selectedMap[element.identifier];
-        switch (this.functionalPseudo.funct.value) {
+        switch (this.functionalPseudo.funct?.value) {
             case "nth-child(":
                 return element.parent.getIndex(element, false, filter) + 1;
             case "nth-last-child(":
                 return Math.max(
                     -1,
                     element.parent.children().filter(filter).length - 
-                    (this.even.value || this.odd.value ? -1 : 0) - 
+                    (this.even?.value || this.odd?.value ? -1 : 0) - 
                     element.parent.getIndex(element, false, filter)
                 );
             case "nth-last-of-type(":
@@ -1536,27 +1539,27 @@ export class Expression implements Matcher {
         if (!this.consumed()) {
             return htmlElements;
         }
-        if (this.functionalPseudo.funct.value === "lang(") {
-            if (this.ident1.value) {
+        if (this.functionalPseudo.funct?.value === "lang(") {
+            if (this.ident1?.value) {
                 return htmlElements.filter(
                     (htmlElements) =>
-                        htmlElements.attributes()["lang"] === this.ident1.value
+                        htmlElements.attributes()["lang"] === this.ident1?.value
                 );
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === "eq(") {
-            const index = parseInt(this.ident1.value || this.number1.value);
+        if (this.functionalPseudo.funct?.value === "eq(") {
+            const index = parseInt(this.ident1?.value || this.number1?.value || "0");
             if (!isNaN(index)) {
-                const multiplied = index * (!this.minus1.value ? 1 : -1);
+                const multiplied = index * (!this.minus1?.value ? 1 : -1);
                 return htmlElements.filter((_, i) =>
                     multiplied >= 0 ? i === multiplied : htmlElements.length + multiplied === i
                 );
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === "contains(") {
-            const contains = this.ident1.value || this.number1.value;
+        if (this.functionalPseudo.funct?.value === "contains(") {
+            const contains = this.ident1?.value || this.number1?.value;
             if (contains) {
                 return htmlElements.filter((htmlElement) => {
                     return htmlElement
@@ -1567,10 +1570,10 @@ export class Expression implements Matcher {
             return [];
         }
         if (
-            this.functionalPseudo.funct.value === "is(" ||
-            this.functionalPseudo.funct.value === "where("
+            this.functionalPseudo.funct?.value === "is(" ||
+            this.functionalPseudo.funct?.value === "where("
         ) {
-            if (this.selectorGroup1.consumed() && !this.combinator.consumed()) {
+            if (this.selectorGroup1 && !this.combinator) {
                 return this.selectorGroup1.match(
                     htmlElements,
                     allHtmlElements,
@@ -1579,14 +1582,14 @@ export class Expression implements Matcher {
             }
             return [];
         }
-        if (this.functionalPseudo.funct.value === "has(") {
-            if (this.selectorGroup1.consumed()) {
+        if (this.functionalPseudo.funct?.value === "has(") {
+            if (this.selectorGroup1) {
                 const matched = this.selectorGroup1.match(
                     htmlElements,
                     allHtmlElements,
                     namespaces
                 );
-                if (!this.combinator.consumed() || this.combinator.space.value) {
+                if (!this.combinator || this.combinator.space?.value) {
                     return htmlElements.filter((value) => {
                         return matched.some((matched) =>
                             value
@@ -1597,14 +1600,14 @@ export class Expression implements Matcher {
                         );
                     });
                 }
-                if (this.combinator.greater.value) {
+                if (this.combinator.greater?.value) {
                     return htmlElements.filter((value) => {
                         return matched.some(
                             (matched) => value.content()?.getIndex(matched, false) !== -1
                         );
                     });
                 }
-                if (this.combinator.plus.value) {
+                if (this.combinator.plus?.value) {
                     return htmlElements.filter((value) => {
                         return matched.some(
                             (matched) =>
@@ -1613,7 +1616,7 @@ export class Expression implements Matcher {
                         );
                     });
                 }
-                if (this.combinator.tilde.value) {
+                if (this.combinator.tilde?.value) {
                     return htmlElements.filter((value) => {
                         return matched.some(
                             (matched) =>
@@ -1625,27 +1628,27 @@ export class Expression implements Matcher {
             }
             return [];
         }
-        if (this.even.value) {
+        if (this.even?.value) {
             return htmlElements.filter(
                 (element) => this.getIndex(element, htmlElements) % 2 === 0
             );
         }
-        if (this.odd.value) {
+        if (this.odd?.value) {
             return htmlElements.filter(
                 (element) => this.getIndex(element, htmlElements) % 2 === 1
             );
         }
-        const ofQuery = this.selectorGroup2.match(
+        const ofQuery = this.selectorGroup2?.match(
             htmlElements,
             allHtmlElements,
             namespaces
-        );
+        ) || htmlElements;
         if (ofQuery.length === 0) {
             return ofQuery;
         }
-        if (!this.ident1.value) {
-            if (!this.minus1.value) {
-                const index = parseInt(this.number1.value || "1");
+        if (!this.ident1?.value) {
+            if (!this.minus1?.value) {
+                const index = parseInt(this.number1?.value || "1");
                 const element = ofQuery.find(
                     (element) => this.getIndex(element, htmlElements) === index
                 );
@@ -1653,10 +1656,10 @@ export class Expression implements Matcher {
             }
         } else {
             const modifier =
-                (this.minus1.value ? -1 : 1) * parseInt(this.number1.value || "1");
+                (this.minus1?.value ? -1 : 1) * parseInt(this.number1?.value || "1");
             const addition =
-                (this.minus2.value ? -1 : this.plus.value ? 1 : 0) *
-                (parseInt(this.number2.value) || 0);
+                (this.minus2?.value ? -1 : this.plus?.value ? 1 : 0) *
+                (parseInt(this.number2?.value || "0") || 0);
             const indexAcc: Record<number, true> = {};
             for (let i = 0; i < ofQuery.length + 1; i++) {
                 const resultIndex = modifier * i + addition;
