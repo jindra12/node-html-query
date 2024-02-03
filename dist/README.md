@@ -16,6 +16,17 @@ const idMatch = allDivs.find("#myId");
 
 ```
 
+```typescript
+
+import { Query } from "node-html-query";
+const $ = Query(myHtmlFile);
+
+$("div").append("<p>I come after a div</p>");
+const rawHtml = $("html").print(); // Whole HTML content here!
+
+```
+
+
 ### Who should download this?
 
 Anyone who's looking for preprocessing nodejs package without external dependencies, small and easy to use webscraper,
