@@ -67,11 +67,15 @@ export class SelectorGroup implements Matcher {
         allHtmlElements: HtmlElement[],
         namespaces: Record<string, string>
     ): HtmlElement[] => {
+        const selectors = [
+            this.selector,
+            ...this.selectors,
+        ].filter((s): s is Selector => s instanceof Selector);
+        if (selectors.length === 1) {
+            return selectors[0].match(htmlElements, allHtmlElements, namespaces);
+        }
         return Object.values(
-            [
-                this.selector,
-                ...this.selectors.filter((s): s is Selector => s instanceof Selector),
-            ].reduce((result: Record<string, HtmlElement>, selector) => {
+            selectors.reduce((result: Record<string, HtmlElement>, selector) => {
                 selector
                     ?.match(htmlElements, allHtmlElements, namespaces)
                     .forEach((htmlElement) => {
