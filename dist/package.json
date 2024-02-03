@@ -7,7 +7,7 @@
   "author": "Jan Jindráček",
   "license": "MIT",
   "man": ["./README.md"],
-  "keywords": ["node.js", "node", "jQuery", "HTML", "typescript", "no dependency", "utility", "node", "query"],
+  "keywords": ["node.js", "node", "jQuery", "jquery", "preprocessing", "templates", "templating", "HTML", "typescript", "no dependency", "utility", "node", "query"],
   "dependencies": {
   },
   "devDependencies": {

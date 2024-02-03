@@ -10,7 +10,6 @@ v8Profiler.setGenerateType(1);
 
 const file = fs.readFileSync(path.join(__dirname, "developer.mozilla.org.html"), { encoding: "utf-8" });
 const smallExample = "<div class='toggle'><a class='toggle' /><div class='apis-link-container'><div class='submenu-icon' /><div class='submenu-item-heading'>Hello</div></div></div>"
-const iterations = 5; // Can only do 10 tests, see: https://github.com/jsdom/jsdom/issues/1665
 
 interface Test {
     name: string;
@@ -87,7 +86,7 @@ if (!fs.existsSync(profilePath)) {
     fs.mkdirSync(profilePath);   
 }
 
-const runTest = (test: Test) => {
+const runTest = (test: Test, iterations = 5) => {
     const runConditionalProfile = (measure: boolean) => {
         const ourTitle = `my-speed-test-${test.name}`;
         const theirTitle = `their-speed-test-${test.name}`;
@@ -148,16 +147,21 @@ const runTest = (test: Test) => {
 };
 
 describe("Node-html should be faster than jQuery with JSDOM", () => {
+    it("Won't crash when I run my test 30", () => {
+        for (let i = 0; i < 30; i++) {
+            tests[0].query(Query(file));
+        }
+    });
     it("Has faster initialization time than competition", () => {
         const beforeMine = performance.now();
-        for (let i = 0; i < iterations; i++) {
+        for (let i = 0; i < 5; i++) {
             Query(file);
         }
         const afterMine = performance.now();
         const mine = afterMine - beforeMine;
 
         const beforeTheirs = performance.now();
-        for (let i = 0; i < iterations; i++) {
+        for (let i = 0; i < 5; i++) {
             const dom = new jsdom.JSDOM(file);
             jQuery(dom.window);
         }
