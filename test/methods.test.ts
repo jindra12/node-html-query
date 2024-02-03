@@ -994,6 +994,17 @@ const testCases: Partial<Record<
             ).toEqual(
                 `<div class='one' onclick="((event) => event.preventDefault())(this)" onmouseup="((event) => event.preventDefault())(this)" />`
             );
+            const onClick = $(".one").attr("onclick") || "";
+            let counter = 0;
+            const fakeEvent = {
+                preventDefault: () => {
+                    counter++;
+                }
+            };
+            const fn = Function(onClick);
+            fn.apply(fakeEvent);
+            fn.apply(fakeEvent);
+            expect(counter).toEqual(2);
         },
     ],
     once: [
